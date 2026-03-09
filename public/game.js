@@ -3,7 +3,12 @@
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
 import { SFX } from './sounds.js';
-import { dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard, dbChangeNickname, dbGetMyScores } from './db.js';
+import {
+  CATALOG,
+  dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
+  dbSetCallsign, dbChangeCallsign, dbCheckCallsign,
+  dbGetMyScores, dbGetUserUpgrades, dbBuyItem,
+} from './db.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -1210,10 +1215,9 @@ class Game {
     if (!raw || raw.length < 2) { errEl.textContent = 'MIN 2 CHARACTERS.'; return; }
     if (raw.length > 12)         { errEl.textContent = 'MAX 12 CHARACTERS.'; return; }
 
-    // Always save locally first
-    localStorage.setItem('meyaret_callsign', raw);
-
     if (OFFLINE_MODE) {
+      // Offline fallback — save locally only
+      localStorage.setItem('meyaret_callsign', raw);
       this.userData = { ...DEMO_USER, nickname: raw };
       this._loadMenu();
       this._showScreen('menu');
@@ -1225,18 +1229,20 @@ class Game {
       return;
     }
 
+    // Check availability first
+    errEl.textContent = 'CHECKING...';
     try {
-      const data = await apiFetch('/api/users/me/nickname', { method: 'PATCH', body: { nickname: raw } });
-      if (data.error) { errEl.textContent = data.error; return; }
-      this.userData = data.user;
+      const { available, clean } = await dbCheckCallsign(raw);
+      if (!available) { errEl.textContent = 'CALLSIGN TAKEN. CHOOSE ANOTHER.'; return; }
+
+      const updated = await dbSetCallsign(this.userData.telegram_id || String(TG_USER?.id), clean);
+      localStorage.setItem('meyaret_callsign', updated.nickname);
+      this.userData = updated;
+      errEl.textContent = '';
       this._loadMenu();
       this._showScreen('menu');
-    } catch {
-      // API failed but we have localStorage — proceed offline
-      OFFLINE_MODE = true;
-      this.userData = { ...DEMO_USER, nickname: raw };
-      this._loadMenu();
-      this._showScreen('menu');
+    } catch(e) {
+      errEl.textContent = e.message || 'ERROR. TRY AGAIN.';
     }
   }
 
@@ -1605,7 +1611,12 @@ class Game {
     if (!tid) { errEl.textContent = 'Not logged in.'; return; }
 
     try {
-      const updated = await dbChangeNickname(tid, raw);
+      // Check availability first (unless same name)
+      if (raw !== this.userData?.nickname) {
+        const { available } = await dbCheckCallsign(raw);
+        if (!available) { errEl.textContent = 'CALLSIGN TAKEN.'; return; }
+      }
+      const updated = await dbChangeCallsign(tid, raw);
       this.userData = { ...this.userData, ...updated };
       localStorage.setItem('meyaret_callsign', updated.nickname);
       document.getElementById('prof-nick').textContent = updated.nickname;
@@ -1725,12 +1736,8 @@ class Game {
     this._showScreen('store');
     document.getElementById('store-balance').textContent =
       `BALANCE: ${(this.userData?.shmips || 0).toLocaleString()} ⬡`;
-
-    try {
-      const data = await apiFetch('/api/store/catalog');
-      this._catalog = data.catalog || [];
-    } catch { this._catalog = []; }
-
+    // Use local catalog — no server needed
+    this._catalog = CATALOG;
     this._renderStoreTab('upgrade');
   }
 
@@ -1761,28 +1768,33 @@ class Game {
 
   async _buyItem(item) {
     const msg = document.getElementById('store-msg');
+    if (OFFLINE_MODE) {
+      msg.textContent = 'OFFLINE — CONNECT VIA TELEGRAM TO PURCHASE.';
+      msg.className = 'store-msg fail';
+      msg.classList.remove('hidden');
+      setTimeout(() => msg.classList.add('hidden'), 3000);
+      return;
+    }
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    if (!tid) { msg.textContent = 'NOT LOGGED IN.'; msg.className = 'store-msg fail'; msg.classList.remove('hidden'); return; }
+
     try {
-      const data = await apiFetch('/api/store/buy', { method: 'POST', body: { itemId: item.id } });
-      if (data.error) {
-        msg.textContent = data.error;
-        msg.className = 'store-msg fail';
-        msg.classList.remove('hidden');
-        setTimeout(() => msg.classList.add('hidden'), 3000);
-        return;
-      }
-      this.userData.shmips = data.newBalance;
+      SFX.btnClick();
+      const { newBalance } = await dbBuyItem(tid, item.id);
+      this.userData.shmips = newBalance;
       this.upgrades[item.id] = (this.upgrades[item.id] || 0) + 1;
-      document.getElementById('store-balance').textContent = `BALANCE: ${data.newBalance.toLocaleString()} ⬡`;
+      document.getElementById('store-balance').textContent = `BALANCE: ${newBalance.toLocaleString()} ⬡`;
       msg.textContent = `${item.name} ACQUIRED!`;
       msg.className = 'store-msg success';
       msg.classList.remove('hidden');
+      SFX.unlock && SFX.shmipEarn && SFX.shmipEarn();
       setTimeout(() => msg.classList.add('hidden'), 3000);
-      // Re-render to mark owned
       this._renderStoreTab(document.querySelector('.tab-btn.active')?.dataset.tab || 'upgrade');
-    } catch {
-      msg.textContent = 'Purchase failed. Try again.';
+    } catch(e) {
+      msg.textContent = e.message || 'PURCHASE FAILED.';
       msg.className = 'store-msg fail';
       msg.classList.remove('hidden');
+      setTimeout(() => msg.classList.add('hidden'), 3000);
     }
   }
 }
