@@ -6,7 +6,7 @@ import { SFX } from './sounds.js';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
-  dbSetCallsign, dbChangeCallsign, dbCheckCallsign,
+  dbSaveCallsign, dbCheckCallsign,
   dbGetMyScores, dbGetUserUpgrades, dbBuyItem,
 } from './db.js';
 
@@ -917,15 +917,18 @@ class Game {
 
   // ── Init: connect directly to Supabase (no Railway dependency) ────────────
   async _init() {
-    const bar   = document.getElementById('loading-bar');
-    const label = document.getElementById('loading-label') || { textContent: '' };
+    const bar    = document.getElementById('loading-bar');
+    const label  = document.getElementById('loading-label') || { textContent: '' };
+    const status = document.getElementById('loading-status');
+    const _setStatus = (msg, color) => { if (status) { status.textContent = msg; status.style.color = color || '#00ffcc'; } };
+
     bar.style.width = '15%';
     label.textContent = 'CONNECTING...';
 
     const tid = TG_USER?.id;
+    _setStatus(tid ? `TG ID: ${tid}` : 'NO TELEGRAM USER', tid ? '#00ffcc' : '#ff4466');
 
     if (!tid) {
-      // Running outside Telegram — use saved callsign or go to onboarding
       console.warn('[init] No Telegram user — offline mode');
       this._goOffline(bar, label);
       return;
@@ -933,10 +936,12 @@ class Game {
 
     label.textContent = 'LOADING PROFILE...';
     bar.style.width   = '40%';
+    _setStatus('CONNECTING TO SUPABASE...', '#ffee00');
 
     try {
       const data = await dbGetOrCreateUser(tid);
       bar.style.width = '85%';
+      _setStatus('SUPABASE: CONNECTED', '#00ffcc');
 
       this.userData = data.user;
       this._parseUpgrades(data.upgrades || []);
@@ -952,8 +957,24 @@ class Game {
       document.getElementById('loading-screen').style.display = 'none';
 
       if (data.isNew) {
-        this._showScreen('onboarding');
+        // Check if we have a locally saved callsign — auto-restore it
+        const savedCallsign = localStorage.getItem('meyaret_callsign');
+        if (savedCallsign && savedCallsign !== 'ACE') {
+          try {
+            const updated = await dbSaveCallsign(tid, savedCallsign);
+            this.userData = updated;
+            this._loadMenu();
+            this._showScreen('menu');
+          } catch {
+            // Callsign might be taken — show onboarding
+            this._showScreen('onboarding');
+          }
+        } else {
+          this._showScreen('onboarding');
+        }
       } else {
+        // Always sync localStorage with DB nickname
+        localStorage.setItem('meyaret_callsign', data.user.nickname);
         this._loadMenu();
         this._showScreen('menu');
       }
@@ -961,6 +982,8 @@ class Game {
 
     } catch (err) {
       console.error('[init] Supabase error:', err.message);
+      _setStatus(`DB ERROR: ${err.message}`, '#ff4466');
+      await this._sleep(1500); // show error briefly
       this._goOffline(bar, label);
     }
   }
@@ -1215,9 +1238,10 @@ class Game {
     if (!raw || raw.length < 2) { errEl.textContent = 'MIN 2 CHARACTERS.'; return; }
     if (raw.length > 12)         { errEl.textContent = 'MAX 12 CHARACTERS.'; return; }
 
+    // Always save locally first so the game remembers you even offline
+    localStorage.setItem('meyaret_callsign', raw);
+
     if (OFFLINE_MODE) {
-      // Offline fallback — save locally only
-      localStorage.setItem('meyaret_callsign', raw);
       this.userData = { ...DEMO_USER, nickname: raw };
       this._loadMenu();
       this._showScreen('menu');
@@ -1229,20 +1253,29 @@ class Game {
       return;
     }
 
-    // Check availability first
     errEl.textContent = 'CHECKING...';
     try {
       const { available, clean } = await dbCheckCallsign(raw);
       if (!available) { errEl.textContent = 'CALLSIGN TAKEN. CHOOSE ANOTHER.'; return; }
 
-      const updated = await dbSetCallsign(this.userData.telegram_id || String(TG_USER?.id), clean);
+      const tid = String(TG_USER?.id || this.userData?.telegram_id);
+      const updated = await dbSaveCallsign(tid, clean);
       localStorage.setItem('meyaret_callsign', updated.nickname);
       this.userData = updated;
       errEl.textContent = '';
       this._loadMenu();
       this._showScreen('menu');
     } catch(e) {
-      errEl.textContent = e.message || 'ERROR. TRY AGAIN.';
+      // Supabase failed but localStorage saved — go to menu in offline mode
+      OFFLINE_MODE = true;
+      this.userData = { ...DEMO_USER, nickname: raw };
+      this._loadMenu();
+      this._showScreen('menu');
+      const banner = document.getElementById('multiplier-banner');
+      banner.textContent = 'OFFLINE — SCORES NOT SAVED';
+      banner.style.borderColor = '#ff4466';
+      banner.style.color = '#ff4466';
+      banner.classList.remove('hidden');
     }
   }
 
@@ -1611,12 +1644,11 @@ class Game {
     if (!tid) { errEl.textContent = 'Not logged in.'; return; }
 
     try {
-      // Check availability first (unless same name)
       if (raw !== this.userData?.nickname) {
         const { available } = await dbCheckCallsign(raw);
         if (!available) { errEl.textContent = 'CALLSIGN TAKEN.'; return; }
       }
-      const updated = await dbChangeCallsign(tid, raw);
+      const updated = await dbSaveCallsign(tid, raw);
       this.userData = { ...this.userData, ...updated };
       localStorage.setItem('meyaret_callsign', updated.nickname);
       document.getElementById('prof-nick').textContent = updated.nickname;

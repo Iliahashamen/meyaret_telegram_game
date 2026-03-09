@@ -14,15 +14,13 @@ export const supa = createClient(SUPA_URL, SUPA_KEY, {
   auth: { persistSession: false },
 });
 
-// ── Store catalog (single source of truth, mirrored from server/routes/store.js)
+// Store catalog — mirrored from server/routes/store.js so no server needed
 export const CATALOG = [
-  // Gameplay Upgrades
-  { id: 'extra_life',   name: 'Extra Life',      category: 'upgrade', cost: 500,  description: '+1 life per game',          stackable: true  },
-  { id: 'extra_flare',  name: 'Extra Flare',     category: 'upgrade', cost: 300,  description: '+1 flare per game',         stackable: true  },
-  { id: 'rapid_fire',   name: 'Rapid Fire',      category: 'upgrade', cost: 800,  description: '2x bullet fire rate',       stackable: false },
-  { id: 'laser',        name: 'Laser Cannon',    category: 'upgrade', cost: 1500, description: 'Replaces bullets w/ laser', stackable: false },
-  { id: 'shield',       name: 'Shield Module',   category: 'upgrade', cost: 1000, description: 'Absorbs one hit per game',  stackable: false },
-  // Ship Skins
+  { id: 'extra_life',        name: 'Extra Life',      category: 'upgrade', cost: 500,  description: '+1 life per game',          stackable: true  },
+  { id: 'extra_flare',       name: 'Extra Flare',     category: 'upgrade', cost: 300,  description: '+1 flare per game',         stackable: true  },
+  { id: 'rapid_fire',        name: 'Rapid Fire',      category: 'upgrade', cost: 800,  description: '2x bullet fire rate',       stackable: false },
+  { id: 'laser',             name: 'Laser Cannon',    category: 'upgrade', cost: 1500, description: 'Replaces bullets w/ laser', stackable: false },
+  { id: 'shield',            name: 'Shield Module',   category: 'upgrade', cost: 1000, description: 'Absorbs one hit per game',  stackable: false },
   { id: 'ship_purple',       name: 'Purple Wing',      category: 'skin', cost: 5,   description: 'Classic purple hull',     color: '#bf5fff' },
   { id: 'ship_cyan',         name: 'Cyan Blade',       category: 'skin', cost: 5,   description: 'Electric cyan body',      color: '#00ffff' },
   { id: 'ship_orange',       name: 'Orange Inferno',   category: 'skin', cost: 10,  description: 'Fiery orange shell',      color: '#ff6600' },
@@ -30,13 +28,16 @@ export const CATALOG = [
   { id: 'ship_purple_gold',  name: 'Royal Hunter',     category: 'skin', cost: 50,  description: 'Purple + gold trim',      color: '#bf5fff', accent: '#ffd700' },
   { id: 'ship_green_purple', name: 'Synthwave Reaper', category: 'skin', cost: 50,  description: 'Green + purple gradient', color: '#00ff41', accent: '#bf5fff' },
   { id: 'ship_gold',         name: 'Gold Commander',   category: 'skin', cost: 200, description: 'Full gold prestige hull', color: '#ffd700' },
-  // Planes
   { id: 'plane_stealth', name: 'Stealth Viper',  category: 'plane', cost: 2000, description: '4 lives · 4 flares · Rapid Fire', lives: 4, flares: 4, rapidFire: true },
   { id: 'plane_titan',   name: 'Titan Fortress', category: 'plane', cost: 5000, description: '6 lives · Shield · Laser',         lives: 6, flares: 2, shield: true, laser: true },
 ];
 
-// ── Get or create user ────────────────────────────────────────────────────────
-// nickname: null = new user (will see onboarding)
+// ─────────────────────────────────────────────────────────────────────────────
+// Get or create user
+// Returns { user, upgrades, isNew }
+// isNew = true  → nickname is still placeholder ('ACE') = show onboarding
+// isNew = false → user has a real callsign = go to menu
+// ─────────────────────────────────────────────────────────────────────────────
 export async function dbGetOrCreateUser(telegramId) {
   const id = String(telegramId);
 
@@ -53,14 +54,15 @@ export async function dbGetOrCreateUser(telegramId) {
       .from('user_upgrades')
       .select('upgrade_id, quantity')
       .eq('telegram_id', id);
-    // isNew = true when nickname is null (not set yet)
-    return { user, upgrades: upgrades || [], isNew: user.nickname === null };
+    // isNew when nickname is still the default placeholder
+    const isNew = !user.nickname || user.nickname === 'ACE';
+    return { user, upgrades: upgrades || [], isNew };
   }
 
-  // First ever visit — create row with null nickname
+  // First ever visit — insert with placeholder 'ACE' (satisfies NOT NULL constraint)
   const { data: newUser, error: ce } = await supa
     .from('users')
-    .insert({ telegram_id: id, nickname: null, shmips: 0 })
+    .insert({ telegram_id: id, nickname: 'ACE', shmips: 0 })
     .select()
     .single();
 
@@ -68,9 +70,12 @@ export async function dbGetOrCreateUser(telegramId) {
   return { user: newUser, upgrades: [], isNew: true };
 }
 
-// ── Check if callsign is available ───────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Check if a callsign is available
+// ─────────────────────────────────────────────────────────────────────────────
 export async function dbCheckCallsign(nickname) {
   const clean = nickname.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  if (clean === 'ACE') return { available: false, clean, reason: 'RESERVED' };
   const { data } = await supa
     .from('users')
     .select('telegram_id')
@@ -79,45 +84,32 @@ export async function dbCheckCallsign(nickname) {
   return { available: !data, clean };
 }
 
-// ── Set callsign for the first time (free) ────────────────────────────────────
-export async function dbSetCallsign(telegramId, nickname) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Set callsign for the first time OR change it (unified function)
+// First time (current nickname is 'ACE') = FREE
+// Change (real callsign → new name) = costs 1,000 shmips
+// ─────────────────────────────────────────────────────────────────────────────
+export async function dbSaveCallsign(telegramId, nickname) {
   const id    = String(telegramId);
   const clean = nickname.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 12);
   if (!clean || clean.length < 2) throw new Error('MIN 2 CHARACTERS.');
 
-  const { data: updated, error } = await supa
-    .from('users')
-    .update({ nickname: clean })
-    .eq('telegram_id', id)
-    .is('nickname', null)   // only allow if nickname is still null
-    .select()
-    .single();
-
-  if (error) {
-    // Unique constraint violation
-    if (error.code === '23505') throw new Error('CALLSIGN TAKEN. CHOOSE ANOTHER.');
-    throw error;
-  }
-  if (!updated) throw new Error('CALLSIGN ALREADY SET OR NOT FOUND.');
-  return updated;
-}
-
-// ── Change callsign (costs 1,000 shmips) ─────────────────────────────────────
-export async function dbChangeCallsign(telegramId, newNick) {
-  const id    = String(telegramId);
-  const clean = newNick.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 12);
-  if (!clean || clean.length < 2) throw new Error('MIN 2 CHARACTERS.');
-
-  const { data: user } = await supa
+  const { data: user, error: ue } = await supa
     .from('users')
     .select('shmips, nickname')
     .eq('telegram_id', id)
     .single();
+  if (ue || !user) throw new Error('NOT FOUND. OPEN VIA TELEGRAM.');
 
-  if (!user) throw new Error('User not found.');
-  if (Number(user.shmips) < 1000) throw new Error('NEED 1,000 SHMIPS.');
+  const isFirst = !user.nickname || user.nickname === 'ACE';
 
-  const newShmips = Math.round((Number(user.shmips) - 1000) * 100) / 100;
+  if (!isFirst && Number(user.shmips) < 1000) {
+    throw new Error('NEED 1,000 SHMIPS TO RENAME.');
+  }
+
+  const newShmips = isFirst
+    ? Number(user.shmips)
+    : Math.round((Number(user.shmips) - 1000) * 100) / 100;
 
   const { data: updated, error } = await supa
     .from('users')
@@ -133,13 +125,14 @@ export async function dbChangeCallsign(telegramId, newNick) {
   return updated;
 }
 
-// ── Buy store item directly via Supabase ─────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Buy store item directly via Supabase (no Railway needed)
+// ─────────────────────────────────────────────────────────────────────────────
 export async function dbBuyItem(telegramId, itemId) {
   const id   = String(telegramId);
   const item = CATALOG.find(c => c.id === itemId);
   if (!item) throw new Error('Item not found.');
 
-  // Fetch current balance
   const { data: user, error: ue } = await supa
     .from('users')
     .select('shmips')
@@ -151,7 +144,6 @@ export async function dbBuyItem(telegramId, itemId) {
     throw new Error(`NOT ENOUGH SHMIPS. NEED ${item.cost}.`);
   }
 
-  // Check already owned (for non-stackable)
   if (!item.stackable) {
     const { data: existing } = await supa
       .from('user_upgrades')
@@ -164,14 +156,12 @@ export async function dbBuyItem(telegramId, itemId) {
 
   const newBalance = Math.round((Number(user.shmips) - item.cost) * 100) / 100;
 
-  // Deduct shmips
   const { error: de } = await supa
     .from('users')
     .update({ shmips: newBalance })
     .eq('telegram_id', id);
   if (de) throw de;
 
-  // Grant item
   const { data: owned } = await supa
     .from('user_upgrades')
     .select('quantity')
@@ -186,13 +176,17 @@ export async function dbBuyItem(telegramId, itemId) {
       .eq('telegram_id', id)
       .eq('upgrade_id', itemId);
   } else {
-    await supa.from('user_upgrades').insert({ telegram_id: id, upgrade_id: itemId, quantity: 1 });
+    await supa
+      .from('user_upgrades')
+      .insert({ telegram_id: id, upgrade_id: itemId, quantity: 1 });
   }
 
   return { newBalance, item };
 }
 
-// ── Save score at game over ───────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Save score at game over
+// ─────────────────────────────────────────────────────────────────────────────
 export async function dbSaveScore(telegramId, score, level) {
   const id = String(telegramId);
   const shmipsEarned = Math.round((score / 1000) * 100) / 100;
@@ -219,7 +213,9 @@ export async function dbSaveScore(telegramId, score, level) {
   return { totalShmips: newShmips, newBestScore: newBest, shmipsEarned };
 }
 
-// ── Leaderboard ───────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Leaderboard
+// ─────────────────────────────────────────────────────────────────────────────
 export async function dbGetLeaderboard() {
   const { data } = await supa
     .from('leaderboard')
@@ -228,7 +224,9 @@ export async function dbGetLeaderboard() {
   return data || [];
 }
 
-// ── Personal best scores ──────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Personal best scores
+// ─────────────────────────────────────────────────────────────────────────────
 export async function dbGetMyScores(telegramId) {
   const { data } = await supa
     .from('scores')
@@ -239,7 +237,9 @@ export async function dbGetMyScores(telegramId) {
   return data || [];
 }
 
-// ── User upgrades ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// User upgrades
+// ─────────────────────────────────────────────────────────────────────────────
 export async function dbGetUserUpgrades(telegramId) {
   const { data } = await supa
     .from('user_upgrades')
