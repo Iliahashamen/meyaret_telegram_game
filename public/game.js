@@ -966,10 +966,29 @@ class Game {
 
     label.textContent = 'LOADING PROFILE...';
     bar.style.width   = '40%';
-    _setStatus('CONNECTING TO DB...', '#ffee00');
+
+    // Retry Supabase up to 5 times (handles cold-start / project waking up)
+    let data = null;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        _setStatus(`CONNECTING TO DB... (${attempt}/5)`, '#ffee00');
+        data = await dbGetOrCreateUser(tid);
+        break; // success
+      } catch (e) {
+        console.warn(`[init] DB attempt ${attempt} failed:`, e.message);
+        if (attempt < 5) {
+          _setStatus(`DB RETRY ${attempt}/5 — ${e.message}`.slice(0, 55), '#ff9900');
+          await this._sleep(2000);
+        } else {
+          _setStatus(`DB ERROR: ${e.message}`.slice(0, 55), '#ff4466');
+          await this._sleep(2500);
+          this._goOffline(bar, label);
+          return;
+        }
+      }
+    }
 
     try {
-      const data = await dbGetOrCreateUser(tid);
       bar.style.width = '85%';
       _setStatus(`DB OK — ${data.isNew ? 'NEW USER' : data.user.nickname}`, '#00ffcc');
 
