@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { supabase } from '../supabase.js';
+import { supabase, DB_OK } from '../supabase.js';
 import { requireTelegramAuth } from '../middleware/auth.js';
 
 export const usersRouter = Router();
+const dbGuard = (_req, res, next) => DB_OK ? next() : res.status(503).json({ error: 'Database not configured. Check Railway env vars.' });
 
 // GET /api/users/me  — fetch or auto-create the calling user's profile
-usersRouter.get('/me', requireTelegramAuth, async (req, res) => {
+usersRouter.get('/me', dbGuard, requireTelegramAuth, async (req, res) => {
   const tid = req.telegramUserId;
 
   let { data: user, error } = await supabase
@@ -38,7 +39,7 @@ usersRouter.get('/me', requireTelegramAuth, async (req, res) => {
 });
 
 // PATCH /api/users/me/nickname  — change nickname (costs 1000 shmips)
-usersRouter.patch('/me/nickname', requireTelegramAuth, async (req, res) => {
+usersRouter.patch('/me/nickname', dbGuard, requireTelegramAuth, async (req, res) => {
   const tid = req.telegramUserId;
   const { nickname } = req.body;
 

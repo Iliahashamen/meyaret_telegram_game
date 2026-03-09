@@ -1,37 +1,36 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
-
-// Use service_role key in production (bypasses RLS — server-side only).
-// Falls back to anon key for local dev if service_role isn't set yet.
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY &&
   process.env.SUPABASE_SERVICE_ROLE_KEY !== 'PASTE_YOUR_SERVICE_ROLE_KEY_HERE'
     ? process.env.SUPABASE_SERVICE_ROLE_KEY
     : process.env.SUPABASE_ANON_KEY;
 
+// Log clearly what is missing — server will still start so /health responds
 if (!supabaseUrl) {
-  throw new Error(
-    'Missing SUPABASE_URL. Add it in Railway → your service → Variables tab.\n' +
-    'Value: https://fbcjmniqwqiurssqdnka.supabase.co'
+  console.error(
+    '[supabase] MISSING SUPABASE_URL !\n' +
+    '  Go to Railway → your service → Variables → add:\n' +
+    '  SUPABASE_URL = https://fbcjmniqwqiurssqdnka.supabase.co'
   );
 }
 if (!supabaseKey) {
-  throw new Error(
-    'Missing SUPABASE_SERVICE_ROLE_KEY (and SUPABASE_ANON_KEY fallback). ' +
-    'Add both in Railway → your service → Variables tab.'
+  console.error(
+    '[supabase] MISSING SUPABASE KEY !\n' +
+    '  Go to Railway → your service → Variables → add:\n' +
+    '  SUPABASE_SERVICE_ROLE_KEY = eyJhbGci...(your service_role JWT)'
   );
 }
-
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_ROLE_KEY === 'PASTE_YOUR_SERVICE_ROLE_KEY_HERE') {
-  console.warn(
-    '[supabase] WARNING: Using anon key — get your service_role key from\n' +
-    '  supabase.com → your project → Settings → API → service_role (secret)\n' +
-    '  and set SUPABASE_SERVICE_ROLE_KEY in .env and Railway variables.'
-  );
+  console.warn('[supabase] Using anon key — some operations may fail RLS policies.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false },
-});
+// Export null if config is missing so the server still boots
+// (routes will return 503 instead of crashing everything)
+export const supabase = supabaseUrl && supabaseKey
+  ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
+  : null;
+
+export const DB_OK = !!supabase;

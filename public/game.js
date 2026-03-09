@@ -59,22 +59,21 @@ const DEMO_USER = {
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
-  bg:       '#04000e',
-  grid:     '#00ffcc11',
-  gridLine: '#a855f722',
-  ship:     '#00ffcc',
-  bullet:   '#00ffcc',
-  laser:    '#ff2d78',
-  asteroid: '#a855f7',
-  asteroidFill: '#0c0020',
-  enemyRed:  '#ff3355',
-  enemyYellow: '#f59e0b',
-  rocket:   '#f59e0b',
-  flare:    '#ff6b35',
-  particle: '#ffffff',
-  golden:   '#ffd700',
-  hud:      '#00ffcc',
-  hudSub:   '#5a9a8a',
+  bg:           '#07000f',
+  ship:         '#00ffcc',
+  bullet:       '#00ffcc',
+  laser:        '#ff0077',
+  asteroid:     '#8800ff',
+  asteroidFill: '#0c0018',
+  enemyRed:     '#ff1144',
+  enemyYellow:  '#ffee00',
+  rocket:       '#ffee00',
+  flare:        '#ff6600',
+  particle:     '#ffffff',
+  golden:       '#ffd700',
+  hud:          '#00ffcc',
+  hudFlare:     '#ff6600',
+  hudLevel:     '#ff0077',
 };
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -656,25 +655,25 @@ const STARS_FG  = Array.from({ length: 7 }, (_, i) => ({
 function drawGrid(ctx, W, H, tick) {
   ctx.clearRect(0, 0, W, H);
 
-  // Deep space base — very dark purple-black
-  const bg = ctx.createRadialGradient(W * 0.5, H * 0.35, 0, W * 0.5, H * 0.35, Math.max(W, H) * 0.85);
-  bg.addColorStop(0,   '#0e0030');
-  bg.addColorStop(0.5, '#07001a');
-  bg.addColorStop(1,   '#04000e');
+  // Very dark synthwave base
+  const bg = ctx.createRadialGradient(W * 0.5, H * 0.4, 0, W * 0.5, H * 0.4, Math.max(W, H) * 0.9);
+  bg.addColorStop(0,   '#120025');
+  bg.addColorStop(0.5, '#09000f');
+  bg.addColorStop(1,   '#07000f');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle top-left nebula glow (very faint)
-  const neb = ctx.createRadialGradient(W * 0.15, H * 0.2, 0, W * 0.15, H * 0.2, W * 0.55);
-  neb.addColorStop(0,   'rgba(120,40,220,0.055)');
-  neb.addColorStop(0.5, 'rgba(80,10,160,0.025)');
+  // Faint magenta nebula — top right
+  const neb = ctx.createRadialGradient(W * 0.8, H * 0.15, 0, W * 0.8, H * 0.15, W * 0.5);
+  neb.addColorStop(0,   'rgba(180,0,80,0.055)');
+  neb.addColorStop(0.5, 'rgba(100,0,50,0.02)');
   neb.addColorStop(1,   'rgba(0,0,0,0)');
   ctx.fillStyle = neb;
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle bottom-right nebula glow (very faint, cyan tint)
-  const neb2 = ctx.createRadialGradient(W * 0.85, H * 0.8, 0, W * 0.85, H * 0.8, W * 0.45);
-  neb2.addColorStop(0,   'rgba(0,180,150,0.04)');
+  // Faint cyan nebula — bottom left
+  const neb2 = ctx.createRadialGradient(W * 0.1, H * 0.85, 0, W * 0.1, H * 0.85, W * 0.45);
+  neb2.addColorStop(0,   'rgba(0,200,160,0.045)');
   neb2.addColorStop(1,   'rgba(0,0,0,0)');
   ctx.fillStyle = neb2;
   ctx.fillRect(0, 0, W, H);
@@ -719,35 +718,46 @@ function drawGrid(ctx, W, H, tick) {
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
 function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier }) {
-  // Semi-transparent HUD panel behind top-left stats
-  ctx.globalAlpha = 0.6;
-  ctx.fillStyle   = '#0a001e';
-  roundRect(ctx, 8, 8, 160, 86, 5);
+  // HUD panel — semi-transparent pixel border style
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle   = '#0a0018';
+  roundRect(ctx, 6, 6, 152, 88, 0);
   ctx.fill();
   ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#00ffcc33';
+  ctx.lineWidth = 1;
+  roundRect(ctx, 6, 6, 152, 88, 0);
+  ctx.stroke();
 
-  ctx.font = '11px "Orbitron", "Courier New", monospace';
+  const FONT = '"Press Start 2P", "Courier New", monospace';
   ctx.textAlign = 'left';
 
-  // Score
+  // SCORE label
+  ctx.font = `8px ${FONT}`;
+  glow(ctx, C.hud, 6);
+  ctx.fillStyle = '#00ffcc88';
+  ctx.fillText('SCORE', 14, 24);
+
+  // Score value — bigger
+  ctx.font = `12px ${FONT}`;
   glow(ctx, C.hud, 10);
   ctx.fillStyle = C.hud;
-  ctx.fillText(`SCORE`, 18, 27);
-  ctx.font = '14px "Orbitron", "Courier New", monospace';
-  ctx.fillText(score.toLocaleString(), 18, 44);
+  ctx.fillText(score.toLocaleString(), 14, 42);
 
-  // Level small
-  ctx.font = '10px "Orbitron", "Courier New", monospace';
-  ctx.fillStyle = '#a855f7';
-  glow(ctx, '#a855f7', 6);
-  ctx.fillText(`LV ${level}`, 18, 60);
+  // LV label
+  ctx.font = `8px ${FONT}`;
+  ctx.fillStyle = C.hudLevel;
+  glow(ctx, C.hudLevel, 6);
+  ctx.fillText(`LV ${level}`, 14, 60);
 
-  // Lives as small ship triangles
-  ctx.fillText('LIVES', 18, 76);
+  // Lives label + ship triangles
+  ctx.fillStyle = C.hud;
+  glow(ctx, C.hud, 5);
+  ctx.fillText('LIVES', 14, 78);
   for (let i = 0; i < maxLives; i++) {
-    const lx = 70 + i * 15;
-    const ly = 76;
-    ctx.fillStyle   = i < lives ? C.hud : '#1a0040';
+    const lx = 68 + i * 16;
+    const ly = 78;
+    ctx.fillStyle   = i < lives ? C.hud : '#0a0020';
     ctx.shadowBlur  = i < lives ? 8 : 0;
     ctx.shadowColor = C.hud;
     ctx.beginPath();
@@ -755,22 +765,23 @@ function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier }) 
     ctx.closePath(); ctx.fill();
   }
 
-  // Flares — top right corner
-  ctx.font = '10px "Orbitron", "Courier New", monospace';
-  ctx.fillStyle = C.flare;
-  glow(ctx, C.flare, 8);
+  // Flares — top right
+  ctx.font = `8px ${FONT}`;
+  ctx.fillStyle = C.hudFlare;
+  glow(ctx, C.hudFlare, 8);
   ctx.textAlign = 'right';
-  ctx.fillText(`FLARE  ${flares}`, W - 12, 27);
+  ctx.fillText(`FLARE ${flares}`, W - 10, 24);
 
-  // Multiplier badge
+  // Multiplier
   if (multiplier > 1) {
-    ctx.fillStyle = '#f59e0b';
-    glow(ctx, '#f59e0b', 12);
-    ctx.fillText(`${multiplier}x BONUS`, W - 12, 46);
+    ctx.fillStyle = '#ffee00';
+    glow(ctx, '#ffee00', 10);
+    ctx.fillText(`${multiplier}x`, W - 10, 44);
   }
 
   ctx.textAlign  = 'left';
   ctx.shadowBlur = 0;
+  ctx.lineWidth  = 1;
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -789,12 +800,12 @@ function roundRect(ctx, x, y, w, h, r) {
 
 // ── Spin Wheel ────────────────────────────────────────────────────────────────
 const WHEEL_SEGMENTS = [
-  { label: '15 ⬡',        color: '#00ffcc' },
-  { label: '20 ⬡',        color: '#00ddaa' },
-  { label: '2× PTS',      color: '#a855f7' },
-  { label: '3× PTS',      color: '#f59e0b' },
-  { label: 'GOLDEN',      color: '#ffd700' },
-  { label: 'UPGRADE',     color: '#ff6b35' },
+  { label: '15 ⬡',   color: '#00ffcc' },
+  { label: '20 ⬡',   color: '#00ddaa' },
+  { label: '2x PTS', color: '#ff0077' },
+  { label: '3x PTS', color: '#ffee00' },
+  { label: 'GOLD',   color: '#ffd700' },
+  { label: 'UPGRAD', color: '#ff6600' },
 ];
 
 function drawSpinWheel(canvas, rotation) {
@@ -968,33 +979,40 @@ class Game {
 
   // Ping /health repeatedly until Railway responds (handles cold starts)
   async _wakeUpServer(bar, label) {
-    const MAX_ATTEMPTS = 14;     // ~70 seconds max wait
-    const PING_INTERVAL = 5000;  // 5s between pings
-    const PING_TIMEOUT  = 7000;  // 7s per ping timeout
+    const MAX_ATTEMPTS  = 20;    // up to 100s wait
+    const PING_INTERVAL = 5000;
+    const PING_TIMEOUT  = 8000;
 
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
-      if (i === 0) {
-        label.textContent = 'CONNECTING TO SERVER...';
-      } else {
-        label.textContent = `STARTING SERVER... ${i * 5}s`;
-        bar.style.width   = `${10 + Math.min(i * 2.5, 30)}%`;
-      }
+      label.textContent = i === 0 ? 'CONNECTING...' : `STARTING SERVER... ${i * 5}s`;
+      bar.style.width   = `${10 + Math.min(i * 1.5, 25)}%`;
+
       try {
-        const ctrl = new AbortController();
+        const ctrl  = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), PING_TIMEOUT);
         const res   = await fetch(API_BASE + '/health', { signal: ctrl.signal });
         clearTimeout(timer);
-        if (res.ok) {
-          console.log(`[init] Server online after ${i * 5}s`);
-          label.textContent = 'SERVER ONLINE';
+
+        const body = await res.json().catch(() => ({}));
+
+        if (body.missing && body.missing.length) {
+          // Server is up but Railway env vars are missing — tell the user exactly
+          console.error('[init] Railway missing env vars:', body.missing);
+          label.textContent = 'SERVER CONFIG ERROR';
+          // Still return true — server is reachable, routes will 503 gracefully
           return true;
         }
-      } catch (_) {
-        // Still starting up — keep waiting
-      }
+
+        if (res.ok || res.status < 500) {
+          console.log(`[init] Server online after ${i * 5}s`);
+          label.textContent = 'ONLINE';
+          return true;
+        }
+      } catch (_) { /* still booting */ }
+
       if (i < MAX_ATTEMPTS - 1) await this._sleep(PING_INTERVAL);
     }
-    console.warn('[init] Server did not respond after max wait');
+    console.warn('[init] Server unreachable after max wait — going offline');
     return false;
   }
 
