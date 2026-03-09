@@ -6,11 +6,12 @@ export const spinRouter = Router();
 
 // Spin reward table — weights must sum to 100
 const REWARDS = [
-  { id: 'shmips_15',    weight: 45, label: '15 Shmips',                    type: 'shmips',      value: 15   },
-  { id: 'shmips_20_2x', weight: 30, label: '20 Shmips + 2x Points (1hr)', type: 'shmips+multi', value: 20, multi: 2.0, duration: 60 },
-  { id: 'multi_3x',     weight: 12, label: '3x Points (1hr)',              type: 'multi',        multi: 3.0, duration: 60 },
-  { id: 'golden_plane', weight:  8, label: 'Golden Plane (1 game)',        type: 'golden_plane'  },
-  { id: 'random_upgrade',weight: 5, label: 'Random Upgrade',               type: 'upgrade'       },
+  { id: 'shmips_15',     weight: 40, label: '15 Shmips',          type: 'shmips',       value: 15                      },
+  { id: 'shmips_20',     weight: 20, label: '20 Shmips',          type: 'shmips',       value: 20                      },
+  { id: 'multi_2x',      weight: 17, label: '2× Points (1hr)',    type: 'multi',         multi: 2.0, duration: 60      },
+  { id: 'multi_3x',      weight: 10, label: '3× Points (1hr)',    type: 'multi',         multi: 3.0, duration: 60      },
+  { id: 'golden_plane',  weight:  8, label: 'Golden Plane',       type: 'golden_plane'                                 },
+  { id: 'random_upgrade',weight:  5, label: 'Random Upgrade',     type: 'upgrade'                                      },
 ];
 
 // Random pool of permanent upgrades given via spin
@@ -61,11 +62,6 @@ spinRouter.post('/', requireTelegramAuth, async (req, res) => {
 
   if (reward.type === 'shmips') {
     updates.shmips = user.shmips + reward.value;
-
-  } else if (reward.type === 'shmips+multi') {
-    updates.shmips          = user.shmips + reward.value;
-    updates.multiplier_value = reward.multi;
-    updates.multiplier_end   = new Date(now.getTime() + reward.duration * 60 * 1000).toISOString();
 
   } else if (reward.type === 'multi') {
     updates.multiplier_value = reward.multi;

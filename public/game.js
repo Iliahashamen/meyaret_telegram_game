@@ -711,11 +711,12 @@ function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, sh
 
 // ── Spin Wheel ────────────────────────────────────────────────────────────────
 const WHEEL_SEGMENTS = [
-  { label: '15 ⬡',       color: '#00ff41' },
-  { label: '20⬡ + 2×',   color: '#bf5fff' },
-  { label: '3× PTS',     color: '#ffdd00' },
-  { label: 'GOLDEN PLANE',color: '#ffd700' },
-  { label: 'UPGRADE',    color: '#ff6600' },
+  { label: '15 ⬡',        color: '#00ff41' },
+  { label: '20 ⬡',        color: '#00cc33' },
+  { label: '2× PTS',      color: '#bf5fff' },
+  { label: '3× PTS',      color: '#ffdd00' },
+  { label: 'GOLDEN PLANE', color: '#ffd700' },
+  { label: 'UPGRADE',     color: '#ff6600' },
 ];
 
 function drawSpinWheel(canvas, rotation) {
