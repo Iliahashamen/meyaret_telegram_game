@@ -690,6 +690,22 @@ input[type="text"]:focus {
   backdrop-filter: blur(8px);
 }
 
+/* ── MUTE BUTTON ──────────────────────────────────────────── */
+.mute-btn {
+  position: fixed; bottom: 16px; right: 16px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(8, 0, 28, 0.75);
+  border: 1px solid var(--border);
+  color: var(--cyan);
+  font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 200;
+  backdrop-filter: blur(6px);
+  transition: border-color 0.15s, color 0.15s;
+}
+.mute-btn.muted { color: var(--muted); border-color: rgba(90,64,128,0.3); }
+.mute-btn:active { transform: scale(0.9); }
+
 /* ── SCROLLBAR ────────────────────────────────────────────── */
 .store-grid::-webkit-scrollbar { width: 3px; }
 .store-grid::-webkit-scrollbar-track { background: transparent; }

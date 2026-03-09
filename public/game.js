@@ -2,6 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
+import { SFX } from './sounds.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -267,14 +268,17 @@ class Ship {
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
     if (this.hasLaser) {
       bullets.push(new Laser(nose.x, nose.y, this.angle));
+      SFX.laser();
     } else {
       bullets.push(new Bullet(nose.x, nose.y, this.angle, this.golden));
+      SFX.shoot();
     }
   }
 
   useFlare(rockets, particles) {
     if (this.flares <= 0) return;
     this.flares--;
+    SFX.flare();
     // Destroy nearby rockets
     for (let i = rockets.length - 1; i >= 0; i--) {
       if (dist(this, rockets[i]) < CFG.flareRadius) {
@@ -289,6 +293,7 @@ class Ship {
     if (this.shieldUp)   { this.shieldUp = false; this.invincible = true; this.invTimer = 60; return false; }
     burst(particles, this.x, this.y, this.golden ? C.golden : this.color, 20, 4, 40);
     this.lives--;
+    SFX.playerHit();
     if (this.lives <= 0) { this.alive = false; return true; }
     this.invincible = true;
     this.invTimer   = Math.floor(CFG.invincibleMs / 16);
@@ -412,8 +417,9 @@ class Asteroid {
 
   split(particles) {
     burst(particles, this.x, this.y, C.asteroid, 8, 2.5, 25);
-    if (this.size === 'large')  return [new Asteroid(this.x, this.y, 'medium'), new Asteroid(this.x, this.y, 'medium')];
-    if (this.size === 'medium') return [new Asteroid(this.x, this.y, 'small'),  new Asteroid(this.x, this.y, 'small')];
+    if (this.size === 'large')  { SFX.explodeLarge(); return [new Asteroid(this.x, this.y, 'medium'), new Asteroid(this.x, this.y, 'medium')]; }
+    if (this.size === 'medium') { SFX.explodeMed();   return [new Asteroid(this.x, this.y, 'small'),  new Asteroid(this.x, this.y, 'small')];  }
+    SFX.explodeSmall();
     return [];
   }
 }
@@ -450,6 +456,7 @@ class RedFighter {
       this.shootTimer = 0;
       const nose = { x: this.x + Math.cos(this.angle) * 18, y: this.y + Math.sin(this.angle) * 18 };
       bullets.push(new EnemyBullet(nose.x, nose.y, this.angle, '#ff3333'));
+      SFX.enemyShoot();
     }
   }
 
@@ -485,6 +492,7 @@ class RedFighter {
   hit(particles) {
     burst(particles, this.x, this.y, C.enemyRed, 8, 3, 20);
     this.health--;
+    if (this.health <= 0) SFX.enemyDie();
     return this.health <= 0;
   }
 }
@@ -515,10 +523,10 @@ class YellowAlien {
     this.shootTimer++;
     if (this.shootTimer >= this.shootRate) {
       this.shootTimer = 0;
-      // Fire rocket in random direction
       const ang = rng(0, TAU);
       const nose = { x: this.x + Math.cos(ang) * 20, y: this.y + Math.sin(ang) * 20 };
       bullets.push(new Rocket(nose.x, nose.y, ang));
+      SFX.rocketLaunch();
     }
   }
 
@@ -554,6 +562,7 @@ class YellowAlien {
   hit(particles) {
     burst(particles, this.x, this.y, C.enemyYellow, 8, 3, 20);
     this.health--;
+    if (this.health <= 0) SFX.enemyDie();
     return this.health <= 0;
   }
 }
@@ -1025,6 +1034,14 @@ class Game {
 
   // ── UI Binding ─────────────────────────────────────────────────────────────
   _bindUI() {
+    // Unlock audio context on first interaction (required by browsers)
+    const unlockOnce = () => { SFX.unlock(); document.removeEventListener('touchstart', unlockOnce); document.removeEventListener('mousedown', unlockOnce); };
+    document.addEventListener('touchstart', unlockOnce, { once: true });
+    document.addEventListener('mousedown',  unlockOnce, { once: true });
+
+    // Generic click sound for all buttons
+    document.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') SFX.btnClick(); });
+
     // Onboarding confirm
     document.getElementById('callsign-confirm').addEventListener('click', () => this._submitCallsign());
     document.getElementById('callsign-input').addEventListener('keydown', e => { if (e.key === 'Enter') this._submitCallsign(); });
@@ -1035,6 +1052,19 @@ class Game {
     document.getElementById('btn-store').addEventListener('click', () => this._openStore());
     document.getElementById('btn-quit').addEventListener('click',  () => { if (tg) tg.close(); });
     document.getElementById('profile-btn').addEventListener('click', () => this._openProfile());
+
+    // Mute button
+    const muteBtn = document.getElementById('mute-btn');
+    if (muteBtn) {
+      muteBtn.addEventListener('click', () => {
+        const muted = SFX.toggleMute();
+        muteBtn.textContent  = muted ? '✕' : '♪';
+        muteBtn.title = muted ? 'Unmute' : 'Mute';
+        muteBtn.classList.toggle('muted', muted);
+      });
+      // Reflect saved preference
+      if (SFX.muted) { muteBtn.textContent = '✕'; muteBtn.classList.add('muted'); }
+    }
 
     // Back buttons
     document.querySelectorAll('.back-btn').forEach(btn => {
@@ -1248,6 +1278,8 @@ class Game {
 
   // ── Start Game ─────────────────────────────────────────────────────────────
   _startGame() {
+    SFX.thrustStop();
+    this._wasThrusting = false;
     this.score   = 0;
     this.level   = 1;
     this.tick    = 0;
@@ -1308,6 +1340,7 @@ class Game {
 
   _nextLevel() {
     this.level++;
+    SFX.levelUp();
     this._spawnAsteroids(this.level);
   }
 
@@ -1337,8 +1370,12 @@ class Game {
     if (this.keys.fire)  this.ship.fire(this.bullets);
     if (this.keys.flare) {
       this.ship.useFlare(this.rockets, this.particles);
-      this.keys.flare = false; // consume single press
+      this.keys.flare = false;
     }
+
+    // Thrust sound
+    if (this.keys.up && !this._wasThrusting) { SFX.thrustStart(); this._wasThrusting = true;  }
+    if (!this.keys.up && this._wasThrusting)  { SFX.thrustStop();  this._wasThrusting = false; }
 
     this.ship.update(this.keys, this.W, this.H);
 
@@ -1509,6 +1546,8 @@ class Game {
   // ── Game Over ──────────────────────────────────────────────────────────────
   async _gameOver() {
     this.ship.alive = false;
+    SFX.thrustStop();
+    SFX.gameOver();
     this._showScreen('gameover');
 
     const rawScore       = this.score;
@@ -1520,6 +1559,8 @@ class Game {
 
     const isNew = effectiveScore > (this.userData?.best_score || 0);
     document.getElementById('go-title').textContent = isNew ? '✦ NEW HIGH SCORE ✦' : 'GAME OVER';
+    // Delayed shmip/fanfare sounds
+    setTimeout(() => isNew ? SFX.highScore() : SFX.shmipEarn(), 700);
 
     if (!OFFLINE_MODE) {
       try {
@@ -1634,14 +1675,22 @@ class Game {
     // Always animate the wheel first, regardless of online/offline
     const totalRot = TAU * (5 + Math.random() * 5);
     let gone = 0, rot = 0, speed = 0.04;
+    let lastTickRot = 0;
+    const tickEvery = TAU / 6; // one tick per segment
 
     await new Promise(resolve => {
       const frame = () => {
         gone  += speed;
         rot   += speed;
-        // Ease in then ease out
         if (gone < totalRot * 0.3)      speed = Math.min(speed + 0.018, 0.42);
         else if (gone > totalRot * 0.7) speed = Math.max(speed * 0.975, 0.008);
+
+        // Spin tick sound at each segment boundary
+        if (rot - lastTickRot >= tickEvery) {
+          lastTickRot = rot;
+          SFX.spinTick();
+        }
+
         drawSpinWheel(spinCanvas, rot);
         if (gone < totalRot || speed > 0.009) requestAnimationFrame(frame);
         else resolve();
