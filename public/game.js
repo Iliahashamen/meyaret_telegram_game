@@ -58,22 +58,22 @@ const DEMO_USER = {
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
-  bg:       '#050510',
-  grid:     '#003318',
-  gridLine: '#00ff4133',
-  ship:     '#00ff41',
-  bullet:   '#00ff41',
-  laser:    '#ff00cc',
-  asteroid: '#bf5fff',
-  asteroidFill: '#0a0018',
-  enemyRed:  '#ff3333',
-  enemyYellow: '#ffdd00',
-  rocket:   '#ffdd00',
-  flare:    '#ff6600',
+  bg:       '#04000e',
+  grid:     '#00ffcc11',
+  gridLine: '#a855f722',
+  ship:     '#00ffcc',
+  bullet:   '#00ffcc',
+  laser:    '#ff2d78',
+  asteroid: '#a855f7',
+  asteroidFill: '#0c0020',
+  enemyRed:  '#ff3355',
+  enemyYellow: '#f59e0b',
+  rocket:   '#f59e0b',
+  flare:    '#ff6b35',
   particle: '#ffffff',
   golden:   '#ffd700',
-  hud:      '#00ff41',
-  hudSub:   '#4a8a5a',
+  hud:      '#00ffcc',
+  hudSub:   '#5a9a8a',
 };
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -623,85 +623,169 @@ class Rocket {
 }
 
 // ── Background: Pure 1979-style Black + sparse dim stars ─────────────────────
-const STARS = Array.from({ length: 40 }, (_, i) => ({
-  x:     (i * 197 + 83)  % 1000,
-  y:     (i * 311 + 149) % 1000,
-  r:     i % 9 === 0 ? 1.4 : 0.7,
-  phase: i * 0.41,
+// Three star layers: tiny background · medium · bright foreground
+const STARS_BG  = Array.from({ length: 55 }, (_, i) => ({
+  x: (i * 173 + 31)  % 1000,
+  y: (i * 271 + 97)  % 1000,
+  r: 0.35,
+  phase: i * 0.37,
+}));
+const STARS_MID = Array.from({ length: 28 }, (_, i) => ({
+  x: (i * 229 + 61)  % 1000,
+  y: (i * 347 + 113) % 1000,
+  r: i % 5 === 0 ? 1.1 : 0.7,
+  phase: i * 0.61,
+  tint: i % 4 === 0 ? '#c4aaff' : '#ffffff',
+}));
+const STARS_FG  = Array.from({ length: 7 }, (_, i) => ({
+  x: (i * 397 + 211) % 1000,
+  y: (i * 503 + 89)  % 1000,
+  r: 1.6,
+  phase: i * 1.1,
 }));
 
 function drawGrid(ctx, W, H, tick) {
   ctx.clearRect(0, 0, W, H);
 
-  // Pure black — as close to the original CRT as possible
-  ctx.fillStyle = '#000000';
+  // Deep space base — very dark purple-black
+  const bg = ctx.createRadialGradient(W * 0.5, H * 0.35, 0, W * 0.5, H * 0.35, Math.max(W, H) * 0.85);
+  bg.addColorStop(0,   '#0e0030');
+  bg.addColorStop(0.5, '#07001a');
+  bg.addColorStop(1,   '#04000e');
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Very subtle, sparse stars — mostly white, almost invisible
-  for (const s of STARS) {
-    const sx      = (s.x / 1000) * W;
-    const sy      = (s.y / 1000) * H;
-    const twinkle = Math.sin(tick * 0.012 + s.phase) * 0.3 + 0.7;
+  // Subtle top-left nebula glow (very faint)
+  const neb = ctx.createRadialGradient(W * 0.15, H * 0.2, 0, W * 0.15, H * 0.2, W * 0.55);
+  neb.addColorStop(0,   'rgba(120,40,220,0.055)');
+  neb.addColorStop(0.5, 'rgba(80,10,160,0.025)');
+  neb.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = neb;
+  ctx.fillRect(0, 0, W, H);
 
-    ctx.globalAlpha = twinkle * (s.r > 1 ? 0.55 : 0.35);
-    ctx.fillStyle   = '#ffffff';
+  // Subtle bottom-right nebula glow (very faint, cyan tint)
+  const neb2 = ctx.createRadialGradient(W * 0.85, H * 0.8, 0, W * 0.85, H * 0.8, W * 0.45);
+  neb2.addColorStop(0,   'rgba(0,180,150,0.04)');
+  neb2.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = neb2;
+  ctx.fillRect(0, 0, W, H);
+
+  // Layer 1 — tiny background stars
+  for (const s of STARS_BG) {
+    const twinkle = Math.sin(tick * 0.008 + s.phase) * 0.15 + 0.85;
+    ctx.globalAlpha = twinkle * 0.22;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc((s.x / 1000) * W, (s.y / 1000) * H, s.r, 0, TAU);
+    ctx.fill();
+  }
+
+  // Layer 2 — medium stars, some with purple tint
+  for (const s of STARS_MID) {
+    const twinkle = Math.sin(tick * 0.011 + s.phase) * 0.25 + 0.75;
+    ctx.globalAlpha = twinkle * (s.r > 1 ? 0.55 : 0.38);
+    ctx.fillStyle = s.tint || '#ffffff';
+    ctx.beginPath();
+    ctx.arc((s.x / 1000) * W, (s.y / 1000) * H, s.r, 0, TAU);
+    ctx.fill();
+  }
+
+  // Layer 3 — bright foreground stars with soft glow
+  for (const s of STARS_FG) {
+    const twinkle = Math.sin(tick * 0.016 + s.phase) * 0.35 + 0.65;
+    const sx = (s.x / 1000) * W;
+    const sy = (s.y / 1000) * H;
+    ctx.globalAlpha = twinkle * 0.85;
+    ctx.shadowBlur  = 10;
+    ctx.shadowColor = '#ffffff';
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(sx, sy, s.r, 0, TAU);
     ctx.fill();
   }
+
   ctx.globalAlpha = 1;
   ctx.shadowBlur  = 0;
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
 function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier }) {
-  ctx.font = '13px "Courier New", monospace';
+  // Semi-transparent HUD panel behind top-left stats
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle   = '#0a001e';
+  roundRect(ctx, 8, 8, 160, 86, 5);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.font = '11px "Orbitron", "Courier New", monospace';
   ctx.textAlign = 'left';
 
-  glow(ctx, C.hud, 8);
+  // Score
+  glow(ctx, C.hud, 10);
   ctx.fillStyle = C.hud;
-  // Score as plain whole number, big and clear
-  ctx.fillText(`SCORE  ${score.toLocaleString()}`, 14, 24);
-  ctx.fillText(`LEVEL  ${level}`, 14, 42);
+  ctx.fillText(`SCORE`, 18, 27);
+  ctx.font = '14px "Orbitron", "Courier New", monospace';
+  ctx.fillText(score.toLocaleString(), 18, 44);
+
+  // Level small
+  ctx.font = '10px "Orbitron", "Courier New", monospace';
+  ctx.fillStyle = '#a855f7';
+  glow(ctx, '#a855f7', 6);
+  ctx.fillText(`LV ${level}`, 18, 60);
 
   // Lives as small ship triangles
-  ctx.fillText('LIVES  ', 14, 60);
+  ctx.fillText('LIVES', 18, 76);
   for (let i = 0; i < maxLives; i++) {
-    const lx = 78 + i * 16;
-    const ly = 60;
-    ctx.fillStyle   = i < lives ? C.hud : '#1a1a2a';
+    const lx = 70 + i * 15;
+    const ly = 76;
+    ctx.fillStyle   = i < lives ? C.hud : '#1a0040';
     ctx.shadowBlur  = i < lives ? 8 : 0;
     ctx.shadowColor = C.hud;
     ctx.beginPath();
-    ctx.moveTo(lx + 5, ly - 8); ctx.lineTo(lx + 10, ly); ctx.lineTo(lx, ly);
+    ctx.moveTo(lx + 4, ly - 7); ctx.lineTo(lx + 9, ly); ctx.lineTo(lx, ly);
     ctx.closePath(); ctx.fill();
   }
 
-  // Flares
-  ctx.fillStyle = '#ff6600';
-  glow(ctx, '#ff6600', 8);
-  ctx.fillText(`FLARES ${flares}`, 14, 80);
+  // Flares — top right corner
+  ctx.font = '10px "Orbitron", "Courier New", monospace';
+  ctx.fillStyle = C.flare;
+  glow(ctx, C.flare, 8);
+  ctx.textAlign = 'right';
+  ctx.fillText(`FLARE  ${flares}`, W - 12, 27);
 
-  // Multiplier top-right only if active
+  // Multiplier badge
   if (multiplier > 1) {
-    ctx.fillStyle = '#ffdd00';
-    glow(ctx, '#ffdd00', 12);
-    ctx.textAlign = 'right';
-    ctx.fillText(`${multiplier}x BONUS`, W - 14, 24);
-    ctx.textAlign = 'left';
+    ctx.fillStyle = '#f59e0b';
+    glow(ctx, '#f59e0b', 12);
+    ctx.fillText(`${multiplier}x BONUS`, W - 12, 46);
   }
 
+  ctx.textAlign  = 'left';
   ctx.shadowBlur = 0;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 // ── Spin Wheel ────────────────────────────────────────────────────────────────
 const WHEEL_SEGMENTS = [
-  { label: '15 ⬡',        color: '#00ff41' },
-  { label: '20 ⬡',        color: '#00cc33' },
-  { label: '2× PTS',      color: '#bf5fff' },
-  { label: '3× PTS',      color: '#ffdd00' },
-  { label: 'GOLDEN PLANE', color: '#ffd700' },
-  { label: 'UPGRADE',     color: '#ff6600' },
+  { label: '15 ⬡',        color: '#00ffcc' },
+  { label: '20 ⬡',        color: '#00ddaa' },
+  { label: '2× PTS',      color: '#a855f7' },
+  { label: '3× PTS',      color: '#f59e0b' },
+  { label: 'GOLDEN',      color: '#ffd700' },
+  { label: 'UPGRADE',     color: '#ff6b35' },
 ];
 
 function drawSpinWheel(canvas, rotation) {
