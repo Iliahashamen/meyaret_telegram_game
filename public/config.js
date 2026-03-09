@@ -15,18 +15,24 @@
     // GitHub Pages: backend is on Railway.
     // RAILWAY_URL is injected here by the GitHub Actions workflow
     // (set the RAILWAY_URL secret in repo Settings → Secrets → Actions).
-    window.MEYARET_API = '__RAILWAY_URL__';   // replaced by CI; fallback below
-    if (window.MEYARET_API === '__RAILWAY_URL__' || !window.MEYARET_API) {
-      // Secret not yet set — show a one-time setup hint in console
+    var injected = '__RAILWAY_URL__';
+    // Valid app URL must end in .up.railway.app or be a custom domain
+    // NOT the railway.com/project/... dashboard URL
+    var isValid = injected !== '__RAILWAY_URL__'
+      && !injected.includes('railway.com/project')
+      && injected.startsWith('https://');
+
+    if (isValid) {
+      window.MEYARET_API = injected;
+      console.log('[MEYARET] API →', window.MEYARET_API);
+    } else {
       console.warn(
-        '[MEYARET] RAILWAY_URL not injected yet.\n' +
-        'Add RAILWAY_URL secret to your GitHub repo:\n' +
-        '  github.com/Iliahashamen/meyaret_telegram_game\n' +
-        '  → Settings → Secrets → Actions → New secret\n' +
-        '  Name: RAILWAY_URL  Value: https://your-app.up.railway.app\n' +
-        'Then re-run the GitHub Actions workflow.'
+        '[MEYARET] RAILWAY_URL secret is not set correctly.\n' +
+        'It must be your app URL like: https://your-app.up.railway.app\n' +
+        'NOT the Railway dashboard URL (railway.com/project/...).\n' +
+        'Go to Railway → your service → Settings → Networking → copy the domain.'
       );
-      window.MEYARET_API = '';   // game still loads, API calls will fail gracefully
+      window.MEYARET_API = '';
     }
   } else {
     // Railway or localhost: same-origin API
