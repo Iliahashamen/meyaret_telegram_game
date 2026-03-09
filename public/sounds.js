@@ -493,60 +493,81 @@ export const SFX = {
     if (this.muted || _musicMode === 'menu') return;
     _stopMusicLoop();
     _musicMode = 'menu';
-    // Section A — melancholic minor, slow descent with suspensions
-    const a1 = [330, 311, 294, 277, 311, 330, 294, 262, 247, 277, 294, 330, 311, 277, 262];
-    const a2 = [247, 262, 294, 277, 247, 220, 208, 247, 262, 294, 277, 247, 220, 196, 220];
-    // Section B — brighter, ascending phrases with passing tones
-    const b1 = [220, 247, 262, 294, 330, 349, 330, 294, 311, 330, 370, 392, 370, 349, 330];
-    const b2 = [294, 311, 330, 370, 392, 415, 392, 370, 349, 330, 294, 277, 262, 247, 262];
-    // Section C — darker, lower register with tritone tension
-    const c1 = [196, 185, 208, 220, 233, 196, 185, 175, 196, 208, 220, 185, 175, 165, 175];
-    const c2 = [165, 185, 196, 220, 233, 247, 220, 196, 185, 175, 165, 156, 175, 185, 196];
-    const melody = [...a1, ...a2, ...b1, ...b2, ...c1, ...c2];
-    // Pad chord roots follow section changes
-    const padA = [165, 165, 165, 165, 165, 165, 165, 147, 147, 147, 147, 147, 147, 147, 147];
-    const padB = [175, 175, 175, 175, 175, 185, 185, 185, 185, 185, 196, 196, 196, 196, 196];
-    const padC = [147, 147, 147, 147, 156, 156, 156, 156, 139, 139, 139, 139, 131, 131, 131];
-    const pad = [...padA, ...padA, ...padB, ...padB, ...padC, ...padC];
-    // Bass follows root movement
-    const bassA = [82, 82, 82, 82, 82, 82, 82, 73, 73, 73, 73, 73, 73, 73, 73];
-    const bassB = [87, 87, 87, 87, 87, 92, 92, 92, 92, 92, 98, 98, 98, 98, 98];
-    const bassC = [73, 73, 73, 73, 78, 78, 78, 78, 69, 69, 69, 69, 65, 65, 65];
-    const bass = [...bassA, ...bassA, ...bassB, ...bassB, ...bassC, ...bassC];
+    const a = [330,311,294,277,311,330,294,262,247,277,294,330,311,277,262,247,262,294,277,247,220,208,247,262,294,277,247,220,196,220];
+    const b = [220,247,262,294,330,349,330,294,311,330,370,392,370,349,330,294,311,330,370,392,415,392,370,349,330,294,277,262,247,262];
+    const c = [196,185,208,220,233,196,185,175,196,208,220,185,175,165,175,165,185,196,220,233,247,220,196,185,175,165,156,175,185,196];
+    const melody = [...a, ...b, ...c];
+    const padR = [165,165,165,165,165,165,165,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147];
+    const padB = [175,175,175,175,175,185,185,185,185,185,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196];
+    const padC = [147,147,147,156,156,156,156,139,139,139,139,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131];
+    const pad = [...padR, ...padB, ...padC];
+    const bassA = [82,82,82,82,82,82,82,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73];
+    const bassBs = [87,87,87,87,87,92,92,92,92,92,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98];
+    const bassCs = [73,73,73,78,78,78,78,69,69,69,69,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65];
+    const bass = [...bassA, ...bassBs, ...bassCs];
     let i = 0;
     _musicTimer = setInterval(() => {
       if (this.muted || _musicMode !== 'menu') return;
       const t = _now();
       const idx = i % melody.length;
-      _playTone(melody[idx], t, 0.35, 'triangle', 0.035);
-      _playTone(pad[idx], t, 0.4, 'sine', 0.018);
-      _playTone(bass[idx], t, 0.4, 'sine', 0.015);
+      _playTone(melody[idx], t, 0.38, 'triangle', 0.032);
+      _playTone(pad[idx % pad.length], t, 0.45, 'sine', 0.016);
+      _playTone(bass[idx % bass.length], t, 0.45, 'sine', 0.012);
+      // Funky hi-hat percussion on every 2nd beat
+      if (i % 2 === 0) {
+        const hg = _gain(0.02);
+        const hf = _filter('highpass', 6000, hg);
+        const hn = _noise(0.04, hf);
+        hf.connect(hg);
+        hn.start(t); hn.stop(t + 0.04);
+      }
+      // Synth stab on every 4th beat
+      if (i % 4 === 0) {
+        _playTone(melody[idx] * 2, t + 0.02, 0.08, 'square', 0.012);
+      }
       i++;
-    }, 450);
+    }, 420);
   },
 
   startGameMusic() {
     if (this.muted || _musicMode === 'game') return;
     _stopMusicLoop();
     _musicMode = 'game';
-    // Aggressive — driving minor with chromatic tension
-    const aggr = [110, 117, 123, 110, 98, 104, 110, 123, 117, 110, 98, 92, 87, 98, 110, 123, 130, 123, 110, 98];
-    // Calm — sparse, sustained roots with breathing room
-    const calm = [82, 82, 87, 82, 78, 73, 78, 82, 87, 82, 78, 73, 69, 73, 78, 82, 87, 92, 87, 82];
-    // Building — ascending tension with minor seconds and tritones
-    const build = [98, 104, 110, 117, 123, 131, 139, 147, 131, 123, 117, 110, 123, 131, 139, 147, 156, 147, 139, 131];
-    // Release — resolution, descending back to root with relief
-    const rel = [147, 139, 131, 123, 117, 110, 104, 98, 92, 87, 82, 87, 92, 98, 104, 110, 98, 87, 82, 98];
-    const bass = [...aggr, ...calm, ...build, ...rel];
+    const aggr = [110,117,123,110,98,104,110,123,117,110,98,92,87,98,110,123,130,123,110,98];
+    const calm = [82,82,87,82,78,73,78,82,87,82,78,73,69,73,78,82,87,92,87,82];
+    const build = [98,104,110,117,123,131,139,147,131,123,117,110,123,131,139,147,156,147,139,131];
+    const rel = [147,139,131,123,117,110,104,98,92,87,82,87,92,98,104,110,98,87,82,98];
+    const funk = [110,110,123,98,110,82,98,110,123,146,110,98,82,110,123,98,82,73,98,110];
+    const bass = [...aggr, ...calm, ...build, ...rel, ...funk];
     let i = 0;
     _musicTimer = setInterval(() => {
       if (this.muted || _musicMode !== 'game') return;
       const t = _now();
       const root = bass[i % bass.length];
-      _playTone(root, t, 0.25, 'sawtooth', 0.025);
-      _playTone(root * 2, t + 0.04, 0.12, 'triangle', 0.015);
+      _playTone(root, t, 0.22, 'sawtooth', 0.022);
+      _playTone(root * 2, t + 0.03, 0.1, 'triangle', 0.014);
+      // Funky kick drum on every beat
+      const kg = _gain(0.04);
+      const ko = _osc('sine', 90, kg);
+      kg.gain.setValueAtTime(0.04, t);
+      kg.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      ko.frequency.setValueAtTime(90, t);
+      ko.frequency.exponentialRampToValueAtTime(30, t + 0.1);
+      ko.start(t); ko.stop(t + 0.1);
+      // Hi-hat on off-beats
+      if (i % 2 === 1) {
+        const hg = _gain(0.015);
+        const hf = _filter('highpass', 7000, hg);
+        const hn = _noise(0.03, hf);
+        hf.connect(hg);
+        hn.start(t + 0.05); hn.stop(t + 0.08);
+      }
+      // Synth arp accent every 3rd note
+      if (i % 3 === 0) {
+        _playTone(root * 3, t + 0.06, 0.06, 'square', 0.008);
+      }
       i++;
-    }, 350);
+    }, 300);
   },
 
   stopMusic() {

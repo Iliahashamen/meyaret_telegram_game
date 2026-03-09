@@ -215,6 +215,7 @@ class Ship {
     this.tempRapidUntil   = 0;
     this.tempPowerBoostUntil = 0;
     this.hasRocket = !!(upgrades.player_rocket || upgrades.plane_rocket);
+    this.rocketAmmo = this.hasRocket ? 3 : 0;
     this.rocketCooldown = 0;
     this.rocketRate = 120;
   }
@@ -347,11 +348,17 @@ class Ship {
   }
 
   fireRocket(bullets) {
-    if (!this.hasRocket || this.rocketCooldown > 0) return;
+    if (this.rocketAmmo <= 0) {
+      new FloatingText(this.x, this.y - 30, 'NO ROCKETS!', '#ff4444');
+      return false;
+    }
+    if (this.rocketCooldown > 0) return false;
+    this.rocketAmmo--;
     this.rocketCooldown = this.rocketRate;
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
     bullets.push(new PlayerRocket(nose.x, nose.y, this.angle));
     SFX.rocketFire();
+    return true;
   }
 
   useFlare(rockets, particles) {
@@ -513,6 +520,7 @@ class RedFighter {
     this.speed  = 1.2;
     this.shootTimer = 0;
     this.shootRate  = 200;
+    this.shotsLeft = 3;
     this.health = 3;
     this.radius = 14;
     this.bobTimer = 0;
@@ -532,8 +540,9 @@ class RedFighter {
     this.y = wrap(this.y + this.vy, 0, H);
 
     this.shootTimer++;
-    if (this.shootTimer >= this.shootRate) {
+    if (this.shootTimer >= this.shootRate && this.shotsLeft > 0) {
       this.shootTimer = 0;
+      this.shotsLeft--;
       const nose = { x: this.x + Math.cos(this.angle) * 18, y: this.y + Math.sin(this.angle) * 18 };
       bullets.push(new EnemyBullet(nose.x, nose.y, this.angle, '#ff3333'));
       SFX.enemyShoot();
@@ -895,7 +904,7 @@ function drawGrid(ctx, W, H, tick) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier }) {
+function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, rocketAmmo }) {
   // HUD panel — semi-transparent pixel border style
   ctx.globalAlpha = 0.55;
   ctx.fillStyle   = '#0a0018';
@@ -950,11 +959,18 @@ function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier }) 
   ctx.textAlign = 'right';
   ctx.fillText(`FLARE ${flares}`, W - 10, 24);
 
+  // Rockets
+  if (rocketAmmo > 0) {
+    ctx.fillStyle = '#ff6600';
+    glow(ctx, '#ff6600', 8);
+    ctx.fillText(`ROCKET ${rocketAmmo}`, W - 10, 44);
+  }
+
   // Multiplier
   if (multiplier > 1) {
     ctx.fillStyle = '#ffee00';
     glow(ctx, '#ffee00', 10);
-    ctx.fillText(`${multiplier}x`, W - 10, 44);
+    ctx.fillText(`${multiplier}x`, W - 10, rocketAmmo > 0 ? 64 : 44);
   }
 
   ctx.textAlign  = 'left';
@@ -1536,12 +1552,18 @@ class Game {
     this.yellowAlienTimer = 0;
 
     // Build upgrade map for ship constructor
+    // Boosts are consumed per-run — apply then clear
     const ups = {};
     if (this.upgrades.extra_life)  ups.extra_life  = this.upgrades.extra_life;
     if (this.upgrades.extra_flare) ups.extra_flare = this.upgrades.extra_flare;
+    if (this.upgrades.shield)      ups.shield       = 1;
+    // Clear per-run boosts after applying them
+    delete this.upgrades.extra_life;
+    delete this.upgrades.extra_flare;
+    delete this.upgrades.shield;
+    // Permanent upgrades
     if (this.upgrades.laser)       ups.laser        = 1;
     if (this.upgrades.rapid_fire)  ups.rapid_fire   = 1;
-    if (this.upgrades.shield)      ups.shield       = 1;
     if (this.upgrades.player_rocket) ups.player_rocket = 1;
 
     // Plane upgrades
@@ -1646,25 +1668,25 @@ class Game {
 
     this.ship.update(this.keys, this.W, this.H);
 
-    // Spawn enemies
-    const redInterval    = Math.max(900 - this.level * 20, 350);
-    const yellowInterval = Math.max(1200 - this.level * 25, 450);
+    // Spawn enemies — aliens most common, then rockets (from aliens), jets rarest
+    const alienInterval = Math.max(600 - this.level * 20, 300);
+    const redInterval   = Math.max(1400 - this.level * 25, 600);
 
-    this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && this.level >= 6) {
-      this.redFighterTimer = 0;
-      if (this.redFighters.length < 1 + Math.floor(this.level / 5)) {
+    this.yellowAlienTimer++;
+    if (this.yellowAlienTimer > alienInterval && this.level >= 3) {
+      this.yellowAlienTimer = 0;
+      if (this.yellowAliens.length < 1 + Math.floor(this.level / 4)) {
         const { x, y } = this._edgeSpawn();
-        this.redFighters.push(new RedFighter(x, y));
+        this.yellowAliens.push(new YellowAlien(x, y));
       }
     }
 
-    this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > yellowInterval && this.level >= 10) {
-      this.yellowAlienTimer = 0;
-      if (this.yellowAliens.length < 1 + Math.floor(this.level / 8)) {
+    this.redFighterTimer++;
+    if (this.redFighterTimer > redInterval && this.level >= 7) {
+      this.redFighterTimer = 0;
+      if (this.redFighters.length < Math.floor(this.level / 6)) {
         const { x, y } = this._edgeSpawn();
-        this.yellowAliens.push(new YellowAlien(x, y));
+        this.redFighters.push(new RedFighter(x, y));
       }
     }
 
@@ -1746,11 +1768,12 @@ class Game {
         const mx = this.mysteryPickups[mi].x, my = this.mysteryPickups[mi].y;
         const roll = Math.random();
         let label;
-        if (roll < 0.2) { ship.tempRapidUntil = 900; label = 'RAPID FIRE!'; }
-        else if (roll < 0.4) { ship.tempLaserUntil = 1200; label = 'LASER!'; }
-        else if (roll < 0.55) { ship.lives = Math.min(ship.lives + 1, ship.maxLives + 2); label = '+1 LIFE!'; }
-        else if (roll < 0.7) { ship.shieldUp = true; label = 'SHIELD!'; }
-        else if (roll < 0.85) { ship.flares = Math.min(ship.flares + 1, 9); label = '+1 FLARE!'; }
+        if (roll < 0.16) { ship.tempRapidUntil = 900; label = 'RAPID FIRE!'; }
+        else if (roll < 0.32) { ship.tempLaserUntil = 1200; label = 'LASER!'; }
+        else if (roll < 0.44) { ship.lives = Math.min(ship.lives + 1, ship.maxLives + 2); label = '+1 LIFE!'; }
+        else if (roll < 0.56) { ship.shieldUp = true; label = 'SHIELD!'; }
+        else if (roll < 0.68) { ship.flares = Math.min(ship.flares + 1, 9); label = '+1 FLARE!'; }
+        else if (roll < 0.82) { ship.rocketAmmo = (ship.rocketAmmo || 0) + 1; label = '+1 ROCKET!'; }
         else { ship.tempPowerBoostUntil = 1200; label = '2X DAMAGE!'; }
         SFX.mysteryPickup();
         burst(this.particles, mx, my, '#aa00ff', 12, 3, 25);
@@ -1889,9 +1912,26 @@ class Game {
       }
     }
 
-    // Red fighters vs ship (ram)
-    for (const rf of this.redFighters) {
+    // Red fighters vs asteroids (jet crashes and dies, asteroid stays)
+    for (let fi = this.redFighters.length - 1; fi >= 0; fi--) {
+      const rf = this.redFighters[fi];
+      for (const a of this.asteroids) {
+        if (dist(rf, a) < rf.radius + a.radius) {
+          burst(this.particles, rf.x, rf.y, C.enemyRed, 15, 4, 30);
+          SFX.enemyDie();
+          this.redFighters.splice(fi, 1);
+          break;
+        }
+      }
+    }
+
+    // Red fighters vs ship (ram — jet explodes, player loses 1 life, jet dies)
+    for (let fi = this.redFighters.length - 1; fi >= 0; fi--) {
+      const rf = this.redFighters[fi];
       if (dist(rf, ship) < rf.radius + ship.radius) {
+        burst(this.particles, rf.x, rf.y, C.enemyRed, 20, 5, 35);
+        SFX.enemyDie();
+        this.redFighters.splice(fi, 1);
         if (ship.hit(this.particles)) { this._gameOver(); return; }
       }
     }
@@ -1925,6 +1965,7 @@ class Game {
       maxLives:   this.ship?.maxLives ?? 3,
       flares:     this.ship?.flares   ?? 0,
       multiplier: this.activeMultiplier,
+      rocketAmmo: this.ship?.rocketAmmo ?? 0,
     });
   }
 
