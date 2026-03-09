@@ -19,16 +19,13 @@ const PORT = process.env.PORT || 3000;
 
 // ── Security & Middleware ──────────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
-// Allow GitHub Pages + Railway + any local dev origin
+// Open CORS — Mini App is accessed from Telegram's WebView which sends
+// Telegram-specific origins. Restrict by validating initData instead (auth.js).
 app.use(cors({
-  origin: [
-    'https://iliahashamen.github.io',
-    process.env.MINI_APP_URL,
-    process.env.WEBHOOK_URL,
-    'http://localhost:3000',
-  ].filter(Boolean),
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  origin: true,   // reflect request origin — safe because auth uses HMAC initData
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'X-Telegram-Init-Data'],
+  credentials: true,
 }));
 app.use(express.json());
 app.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));

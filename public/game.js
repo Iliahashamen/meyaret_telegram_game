@@ -14,18 +14,44 @@ const INIT_DATA = tg?.initData || '';
 // Set window.MEYARET_API in config.js when using GitHub Pages
 const API_BASE = (typeof window !== 'undefined' && window.MEYARET_API) || '';
 
+// Offline/demo mode: set to true if backend is unreachable
+let OFFLINE_MODE = false;
+
 async function apiFetch(path, opts = {}) {
-  const res = await fetch(API_BASE + path, {
-    ...opts,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': INIT_DATA,
-      ...(opts.headers || {}),
-    },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-  return res.json();
+  const url = API_BASE + path;
+  try {
+    const res = await fetch(url, {
+      ...opts,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': INIT_DATA,
+        ...(opts.headers || {}),
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 120)}`);
+    }
+    OFFLINE_MODE = false;
+    return res.json();
+  } catch (err) {
+    console.warn(`[API] ${opts.method || 'GET'} ${url} failed:`, err.message);
+    throw err;
+  }
 }
+
+// Demo user used when backend is unreachable
+const DEMO_USER = {
+  telegram_id: 0,
+  nickname: 'PILOT',
+  shmips: 0,
+  best_score: 0,
+  total_games: 0,
+  has_golden_plane: false,
+  multiplier_value: 1.0,
+  multiplier_end: null,
+};
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
@@ -852,14 +878,21 @@ class Game {
       }
 
     } catch (err) {
-      console.error('Init failed:', err);
-      // Fallback: show menu in demo mode (no Telegram)
+      console.warn('[init] Backend unreachable — starting in demo mode:', err.message);
+      OFFLINE_MODE = true;
       bar.style.width = '100%';
-      this.userData = { telegram_id: 0, nickname: 'ACE', shmips: 0, best_score: 0, total_games: 0 };
-      await this._sleep(500);
+      this.userData = { ...DEMO_USER };
+      await this._sleep(400);
       document.getElementById('loading-screen').style.display = 'none';
+      // Show offline banner in menu
       this._loadMenu();
       this._showScreen('menu');
+      // Small non-blocking notice in the multiplier banner slot
+      const banner = document.getElementById('multiplier-banner');
+      banner.textContent = 'OFFLINE MODE — SCORES NOT SAVED';
+      banner.style.borderColor = '#ff4466';
+      banner.style.color = '#ff4466';
+      banner.classList.remove('hidden');
     }
 
     this.state = 'menu';
@@ -1283,16 +1316,22 @@ class Game {
     const isNew = effectiveScore > (this.userData?.best_score || 0);
     document.getElementById('go-title').textContent = isNew ? '✦ NEW HIGH SCORE ✦' : 'GAME OVER';
 
-    try {
-      const result = await apiFetch('/api/scores', {
-        method: 'POST',
-        body: { score: rawScore, level: this.level },
-      });
-      if (result.totalShmips !== undefined) {
-        this.userData.shmips     = result.totalShmips;
-        this.userData.best_score = result.newBestScore;
-      }
-    } catch { /* save failed; show offline result */ }
+    if (!OFFLINE_MODE) {
+      try {
+        const result = await apiFetch('/api/scores', {
+          method: 'POST',
+          body: { score: rawScore, level: this.level },
+        });
+        if (result.totalShmips !== undefined) {
+          this.userData.shmips     = result.totalShmips;
+          this.userData.best_score = result.newBestScore;
+        }
+      } catch { /* save failed silently */ }
+    } else {
+      // Demo mode: track locally
+      this.userData.shmips     = (this.userData.shmips || 0) + shmipsEarned;
+      this.userData.best_score = Math.max(this.userData.best_score || 0, effectiveScore);
+    }
 
     try {
       const lb = await apiFetch('/api/scores/leaderboard');
