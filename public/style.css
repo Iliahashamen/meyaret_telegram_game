@@ -225,6 +225,16 @@ input[type="text"]:focus {
   pointer-events: none;
 }
 #loading-screen > * { position: relative; z-index: 1; }
+#loading-madeby {
+  position: fixed;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--muted2);
+}
 
 .logo-text {
   font-size: clamp(28px, 9vw, 52px);
@@ -352,7 +362,11 @@ input[type="text"]:focus {
   padding: 5px 8px;
   line-height: 2;
   box-shadow: 2px 2px 0 #ff007722;
+  font-family: var(--font);
+  text-align: left;
+  cursor: pointer;
 }
+.lb-label, #lb-entries { pointer-events: none; }
 .lb-label {
   color: var(--yellow);
   text-shadow: var(--glow-y);
@@ -425,7 +439,11 @@ input[type="text"]:focus {
   background: transparent; border: none;
   color: var(--muted2); font-family: var(--font);
   font-size: 8px; letter-spacing: 1px; cursor: pointer;
-  line-height: 2;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
 }
 .back-btn:active { color: var(--cyan); }
 
@@ -546,7 +564,8 @@ input[type="text"]:focus {
   gap: 12px;
   pointer-events: all;
 }
-#ctrl-right { flex-direction: column; align-items: center; gap: 10px; }
+#ctrl-left { flex-direction: column-reverse; align-items: center; gap: 12px; }
+#ctrl-right { flex-direction: column; align-items: center; gap: 12px; }
 
 /* Virtual Joystick */
 #vjoy-base {
@@ -614,6 +633,19 @@ input[type="text"]:focus {
   color: var(--orange);
   box-shadow: 0 0 10px #ff660055;
 }
+#ctrl-thrust {
+  width: 66px; height: 66px;
+}
+.ctrl-thrust-btn {
+  background: radial-gradient(circle, rgba(0,160,255,0.16) 0%, transparent 100%);
+  border: 2px solid #38b9ff;
+  color: #6fd0ff;
+  box-shadow: 0 0 10px #38b9ff66;
+}
+.ctrl-thrust-btn:active {
+  background: rgba(56,185,255,0.28);
+  box-shadow: 0 0 24px #38b9ff;
+}
 #ctrl-flare:active {
   background: rgba(255,102,0,0.28);
   box-shadow: 0 0 24px #ff6600;
@@ -654,16 +686,17 @@ input[type="text"]:focus {
 /* ── MUTE BUTTON ──────────────────────────────────────────── */
 .mute-btn {
   position: fixed; bottom: 14px; right: 14px;
-  width: 34px; height: 34px;
+  width: 46px; height: 34px;
   background: rgba(7, 0, 15, 0.88);
   border: var(--px) solid var(--border-c);
   color: var(--cyan);
-  font-size: 14px; line-height: 1;
+  font-size: 9px; line-height: 1;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; z-index: 200;
   box-shadow: 2px 2px 0 #00ffcc22;
   transition: border-color 0.15s;
 }
+.mute-btn.low { color: var(--yellow); border-color: var(--border-y); box-shadow: 2px 2px 0 #ffee0022; }
 .mute-btn.muted { color: var(--muted); border-color: var(--muted); box-shadow: none; }
 .mute-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #00ffcc22; }
 

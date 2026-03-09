@@ -4,14 +4,27 @@ import { requireTelegramAuth } from '../middleware/auth.js';
 
 export const spinRouter = Router();
 
-// Spin reward table — weights must sum to 100
+// Spin reward table — 18 prizes, weights sum to 100
+// Includes 5 separate "5 $$" prizes by request.
 const REWARDS = [
-  { id: 'shmips_15',     weight: 40, label: '15 Shmips',          type: 'shmips',       value: 15                      },
-  { id: 'shmips_20',     weight: 20, label: '20 Shmips',          type: 'shmips',       value: 20                      },
-  { id: 'multi_2x',      weight: 17, label: '2× Points (1hr)',    type: 'multi',         multi: 2.0, duration: 60      },
-  { id: 'multi_3x',      weight: 10, label: '3× Points (1hr)',    type: 'multi',         multi: 3.0, duration: 60      },
-  { id: 'golden_plane',  weight:  8, label: 'Golden Plane',       type: 'golden_plane'                                 },
-  { id: 'random_upgrade',weight:  5, label: 'Random Upgrade',     type: 'upgrade'                                      },
+  { id: 'cash_5_a',        weight: 8, label: '5 $$',              type: 'shmips', value: 5 },
+  { id: 'cash_5_b',        weight: 8, label: '5 $$',              type: 'shmips', value: 5 },
+  { id: 'cash_5_c',        weight: 8, label: '5 $$',              type: 'shmips', value: 5 },
+  { id: 'cash_5_d',        weight: 8, label: '5 $$',              type: 'shmips', value: 5 },
+  { id: 'cash_5_e',        weight: 8, label: '5 $$',              type: 'shmips', value: 5 },
+  { id: 'cash_10',         weight: 11, label: '10 $$',            type: 'shmips', value: 10 },
+  { id: 'cash_15',         weight: 8,  label: '15 $$',            type: 'shmips', value: 15 },
+  { id: 'cash_20',         weight: 6,  label: '20 $$',            type: 'shmips', value: 20 },
+  { id: 'cash_30',         weight: 3,  label: '30 $$',            type: 'shmips', value: 30 },
+  { id: 'cash_50',         weight: 1,  label: '50 $$',            type: 'shmips', value: 50 },
+  { id: 'multi_2x_15',     weight: 6,  label: '2x Points (15m)',  type: 'multi',  multi: 2.0, duration: 15 },
+  { id: 'multi_2x_30',     weight: 5,  label: '2x Points (30m)',  type: 'multi',  multi: 2.0, duration: 30 },
+  { id: 'multi_2x_60',     weight: 4,  label: '2x Points (1h)',   type: 'multi',  multi: 2.0, duration: 60 },
+  { id: 'multi_3x_20',     weight: 2,  label: '3x Points (20m)',  type: 'multi',  multi: 3.0, duration: 20 },
+  { id: 'multi_3x_60',     weight: 1,  label: '3x Points (1h)',   type: 'multi',  multi: 3.0, duration: 60 },
+  { id: 'golden_plane',    weight: 1,  label: 'Golden Plane',     type: 'golden_plane' },
+  { id: 'random_upgrade_a',weight: 6,  label: 'Random Upgrade',   type: 'upgrade' },
+  { id: 'random_upgrade_b',weight: 6,  label: 'Random Upgrade',   type: 'upgrade' },
 ];
 
 // Random pool of permanent upgrades given via spin

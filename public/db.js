@@ -28,20 +28,24 @@ async function supa(path, opts = {}) {
 
 // Store catalog — no server needed
 export const CATALOG = [
-  { id: 'extra_life',        name: 'Extra Life',      category: 'upgrade', cost: 500,  description: '+1 life per game',          stackable: true  },
-  { id: 'extra_flare',       name: 'Extra Flare',     category: 'upgrade', cost: 300,  description: '+1 flare per game',         stackable: true  },
-  { id: 'rapid_fire',        name: 'Rapid Fire',      category: 'upgrade', cost: 800,  description: '2x bullet fire rate',       stackable: false },
-  { id: 'laser',             name: 'Laser Cannon',    category: 'upgrade', cost: 1500, description: 'Replaces bullets w/ laser', stackable: false },
-  { id: 'shield',            name: 'Shield Module',   category: 'upgrade', cost: 1000, description: 'Absorbs one hit per game',  stackable: false },
-  { id: 'ship_purple',       name: 'Purple Wing',      category: 'skin', cost: 5,   description: 'Classic purple hull',     color: '#bf5fff' },
-  { id: 'ship_cyan',         name: 'Cyan Blade',       category: 'skin', cost: 5,   description: 'Electric cyan body',      color: '#00ffff' },
-  { id: 'ship_orange',       name: 'Orange Inferno',   category: 'skin', cost: 10,  description: 'Fiery orange shell',      color: '#ff6600' },
-  { id: 'ship_pink',         name: 'Neon Pink',        category: 'skin', cost: 15,  description: 'Hot pink chrome',         color: '#ff00cc' },
-  { id: 'ship_purple_gold',  name: 'Royal Hunter',     category: 'skin', cost: 50,  description: 'Purple + gold trim',      color: '#bf5fff', accent: '#ffd700' },
-  { id: 'ship_green_purple', name: 'Synthwave Reaper', category: 'skin', cost: 50,  description: 'Green + purple gradient', color: '#00ff41', accent: '#bf5fff' },
-  { id: 'ship_gold',         name: 'Gold Commander',   category: 'skin', cost: 200, description: 'Full gold prestige hull', color: '#ffd700' },
-  { id: 'plane_stealth', name: 'Stealth Viper',  category: 'plane', cost: 2000, description: '4 lives · 4 flares · Rapid Fire', lives: 4, flares: 4, rapidFire: true },
-  { id: 'plane_titan',   name: 'Titan Fortress', category: 'plane', cost: 5000, description: '6 lives · Shield · Laser',         lives: 6, flares: 2, shield: true, laser: true },
+  // Affordable per-run powerups
+  { id: 'extra_life',        name: 'Extra Life',      category: 'upgrade', cost: 80,   description: '+1 life for one run',        stackable: true  },
+  { id: 'extra_flare',       name: 'Extra Flare',     category: 'upgrade', cost: 60,   description: '+1 flare for one run',       stackable: true  },
+  { id: 'shield',            name: 'Shield Module',   category: 'upgrade', cost: 120,  description: 'Absorb one hit in a run',    stackable: false },
+  // Longer-term progression
+  { id: 'rapid_fire',        name: 'Rapid Fire',      category: 'upgrade', cost: 900,  description: '2x bullet fire rate',        stackable: false },
+  { id: 'laser',             name: 'Laser Cannon',    category: 'upgrade', cost: 1700, description: 'Replace bullets with laser',  stackable: false },
+  // Skins
+  { id: 'ship_purple',       name: 'Purple Wing',      category: 'skin',  cost: 120,  description: 'Classic purple hull',      color: '#bf5fff' },
+  { id: 'ship_cyan',         name: 'Cyan Blade',       category: 'skin',  cost: 120,  description: 'Electric cyan body',       color: '#00ffff' },
+  { id: 'ship_orange',       name: 'Orange Inferno',   category: 'skin',  cost: 200,  description: 'Fiery orange shell',       color: '#ff6600' },
+  { id: 'ship_pink',         name: 'Neon Pink',        category: 'skin',  cost: 280,  description: 'Hot pink chrome',          color: '#ff00cc' },
+  { id: 'ship_purple_gold',  name: 'Royal Hunter',     category: 'skin',  cost: 900,  description: 'Purple + gold trim',       color: '#bf5fff', accent: '#ffd700' },
+  { id: 'ship_green_purple', name: 'Synthwave Reaper', category: 'skin',  cost: 950,  description: 'Green + purple gradient',  color: '#00ff41', accent: '#bf5fff' },
+  { id: 'ship_gold',         name: 'Gold Commander',   category: 'skin',  cost: 2200, description: 'Full gold prestige hull',  color: '#ffd700' },
+  // Planes
+  { id: 'plane_stealth',     name: 'Stealth Viper',    category: 'plane', cost: 3800, description: '4 lives · 4 flares · Rapid Fire', lives: 4, flares: 4, rapidFire: true },
+  { id: 'plane_titan',       name: 'Titan Fortress',   category: 'plane', cost: 7800, description: '6 lives · Shield · Laser',         lives: 6, flares: 2, shield: true, laser: true },
 ];
 
 // ── Get or create user ────────────────────────────────────────────────────────

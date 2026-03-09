@@ -6,6 +6,7 @@
 const _AudioCtx = window.AudioContext || window.webkitAudioContext;
 let _ctx   = null;
 let _master = null;
+let _volumeMode = 'high'; // high | low | mute
 
 function _getCtx() {
   if (!_ctx) {
@@ -63,10 +64,47 @@ function _noise(duration, dest) {
 let _thrustGain = null;
 let _thrustOsc  = null;
 let _thrustOn   = false;
+let _musicTimer = null;
+let _musicMode = null;
+
+function _stopMusicLoop() {
+  if (_musicTimer) clearInterval(_musicTimer);
+  _musicTimer = null;
+  _musicMode = null;
+}
+
+function _playTone(freq, start, dur, type = 'triangle', vol = 0.07) {
+  const g = _gain(vol);
+  const o = _osc(type, freq, g);
+  g.gain.setValueAtTime(vol, start);
+  g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+  o.start(start);
+  o.stop(start + dur);
+}
 
 // ── Public API ────────────────────────────────────────────────────────────────
 export const SFX = {
   muted: false,
+
+  _applyVolumeMode(mode) {
+    _volumeMode = mode;
+    this.muted = mode === 'mute';
+    const c = _getCtx();
+    const target = mode === 'high' ? 0.7 : mode === 'low' ? 0.32 : 0.0;
+    _master.gain.setTargetAtTime(target, c.currentTime, 0.02);
+    try { localStorage.setItem('meyaret_volume_mode', mode); } catch (_) {}
+  },
+
+  getVolumeMode() {
+    return _volumeMode;
+  },
+
+  cycleVolume() {
+    const next = _volumeMode === 'high' ? 'low' : _volumeMode === 'low' ? 'mute' : 'high';
+    this._applyVolumeMode(next);
+    if (next !== 'mute') this.btnClick();
+    return next;
+  },
 
   // ── Player Bullet ─────────────────────────────────────────────────────────
   shoot() {
@@ -379,10 +417,9 @@ export const SFX = {
 
   // ── Mute toggle ───────────────────────────────────────────────────────────
   toggleMute() {
-    this.muted = !this.muted;
+    const next = this.muted ? 'high' : 'mute';
+    this._applyVolumeMode(next);
     if (this.muted && _thrustOn) this.thrustStop();
-    // Persist preference
-    try { localStorage.setItem('meyaret_muted', this.muted ? '1' : '0'); } catch (_) {}
     return this.muted;
   },
 
@@ -390,9 +427,48 @@ export const SFX = {
   unlock() {
     _getCtx();
   },
+
+  startMenuMusic() {
+    if (this.muted || _musicMode === 'menu') return;
+    _stopMusicLoop();
+    _musicMode = 'menu';
+    const seq = [220, 277, 330, 277, 220, 196, 165, 196];
+    let i = 0;
+    _musicTimer = setInterval(() => {
+      if (this.muted || _musicMode !== 'menu') return;
+      const t = _now();
+      _playTone(seq[i % seq.length], t, 0.25, 'triangle', 0.045);
+      _playTone(seq[(i + 2) % seq.length] * 0.5, t, 0.28, 'sine', 0.03);
+      i++;
+    }, 320);
+  },
+
+  startGameMusic() {
+    if (this.muted || _musicMode === 'game') return;
+    _stopMusicLoop();
+    _musicMode = 'game';
+    const bass = [110, 123, 98, 82, 110, 146, 123, 98];
+    let i = 0;
+    _musicTimer = setInterval(() => {
+      if (this.muted || _musicMode !== 'game') return;
+      const t = _now();
+      _playTone(bass[i % bass.length], t, 0.22, 'sawtooth', 0.035);
+      _playTone(bass[i % bass.length] * 2, t + 0.03, 0.12, 'square', 0.02);
+      i++;
+    }, 240);
+  },
+
+  stopMusic() {
+    _stopMusicLoop();
+  },
 };
 
 // Restore mute preference
 try {
-  if (localStorage.getItem('meyaret_muted') === '1') SFX.muted = true;
+  const saved = localStorage.getItem('meyaret_volume_mode');
+  if (saved === 'high' || saved === 'low' || saved === 'mute') {
+    SFX._applyVolumeMode(saved);
+  } else if (localStorage.getItem('meyaret_muted') === '1') {
+    SFX._applyVolumeMode('mute');
+  }
 } catch (_) {}

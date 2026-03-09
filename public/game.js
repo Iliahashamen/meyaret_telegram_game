@@ -7,7 +7,7 @@ import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
-  dbGetMyScores, dbGetUserUpgrades, dbBuyItem,
+  dbGetUserUpgrades, dbBuyItem,
 } from './db.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ const CFG = {
   bulletSpeed:  6,
   bulletLife:   65,
   laserLife:    25,
-  rocketSpeed:  2.6,
+  rocketSpeed:  1.7,
   flareRadius:  85,
   asteroidSizes: { large: 42, medium: 21, small: 10 },
   asteroidScores: { large: 20, medium: 50, small: 100 },
@@ -206,11 +206,13 @@ class Ship {
     }
 
     if (keys.joyActive && keys.joyAngle !== null) {
-      // 360° joystick: snap ship to face joystick direction, thrust that way
+      // 360° look: snap ship facing to joystick direction
       this.angle    = keys.joyAngle - Math.PI / 2; // -90° because ship draws "up"
-      this.thrusting = true;
-      this.vx += Math.cos(keys.joyAngle) * CFG.thrustPower;
-      this.vy += Math.sin(keys.joyAngle) * CFG.thrustPower;
+      this.thrusting = keys.up;
+      if (keys.up) {
+        this.vx += Math.cos(keys.joyAngle) * CFG.thrustPower;
+        this.vy += Math.sin(keys.joyAngle) * CFG.thrustPower;
+      }
     } else {
       // Keyboard / no joystick
       if (keys.left)  this.angle -= CFG.rotSpeed;
@@ -308,12 +310,10 @@ class Ship {
     if (this.flares <= 0) return;
     this.flares--;
     SFX.flare();
-    // Destroy nearby rockets
+    // Destroy all rockets globally (panic-flare)
     for (let i = rockets.length - 1; i >= 0; i--) {
-      if (dist(this, rockets[i]) < CFG.flareRadius) {
-        burst(particles, rockets[i].x, rockets[i].y, C.flare, 10, 4);
-        rockets.splice(i, 1);
-      }
+      burst(particles, rockets[i].x, rockets[i].y, C.flare, 10, 4);
+      rockets.splice(i, 1);
     }
   }
 
@@ -464,7 +464,7 @@ class RedFighter {
     this.angle = 0;
     this.speed  = 1.6;
     this.shootTimer = 0;
-    this.shootRate  = 90;
+    this.shootRate  = 130;
     this.health = 3;
     this.radius = 14;
     this.bobTimer = 0;
@@ -537,37 +537,36 @@ class YellowAlien {
     this.vx = Math.cos(ang) * rng(0.8, 1.5);
     this.vy = Math.sin(ang) * rng(0.8, 1.5);
     this.angle = 0;
-    this.shootTimer = 0;
-    this.shootRate  = 120;
+    this.lifeTimer = 0;
+    this.maxLife   = 720;
+    this.swoops = 0;
     this.health = 2;
     this.radius = 16;
     this.bobTimer = 0;
   }
 
-  update(bullets, W, H, particles) {
+  update(_bullets, W, H, _particles) {
     this.bobTimer++;
-    this.x = wrap(this.x + this.vx, 0, W);
-    this.y = wrap(this.y + this.vy, 0, H);
+    this.lifeTimer++;
+    this.x += this.vx;
+    this.y += this.vy;
+    if (this.x < -20) { this.x = W + 20; this.swoops++; }
+    if (this.x > W + 20) { this.x = -20; this.swoops++; }
+    this.y = wrap(this.y, 0, H);
     // Bounce off edges (soft)
     if (this.x < 60 || this.x > W - 60) this.vx *= -1;
     if (this.y < 60 || this.y > H - 60) this.vy *= -1;
 
-    this.shootTimer++;
-    if (this.shootTimer >= this.shootRate) {
-      this.shootTimer = 0;
-      const ang = rng(0, TAU);
-      const nose = { x: this.x + Math.cos(ang) * 20, y: this.y + Math.sin(ang) * 20 };
-      bullets.push(new Rocket(nose.x, nose.y, ang));
-      SFX.rocketLaunch();
-    }
+    // Green alien does 2 swoops then leaves (no shooting)
+    this.dead = this.swoops >= 2 || this.lifeTimer > this.maxLife;
   }
 
   draw(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y + Math.sin(this.bobTimer * 0.04) * 4);
 
-    glow(ctx, C.enemyYellow, 16);
-    ctx.strokeStyle = C.enemyYellow;
+    glow(ctx, '#00ff66', 16);
+    ctx.strokeStyle = '#00ff66';
     ctx.fillStyle   = '#110f00';
     ctx.lineWidth   = 2;
 
@@ -583,7 +582,7 @@ class YellowAlien {
     for (let i = 0; i < 5; i++) {
       const lx = (i - 2) * 7;
       const on = Math.floor(this.bobTimer / 8 + i) % 2 === 0;
-      ctx.fillStyle = on ? C.enemyYellow : '#555500';
+      ctx.fillStyle = on ? '#00ff66' : '#005522';
       ctx.beginPath(); ctx.arc(lx, 1, 2, 0, TAU); ctx.fill();
     }
 
@@ -603,8 +602,8 @@ class YellowAlien {
 class EnemyBullet {
   constructor(x, y, angle, color = '#ff3333') {
     this.x = x; this.y = y;
-    this.vx = Math.cos(angle) * 5.5;
-    this.vy = Math.sin(angle) * 5.5;
+    this.vx = Math.cos(angle) * 4.2;
+    this.vy = Math.sin(angle) * 4.2;
     this.life = 70;
     this.color = color;
     this.radius = 4;
@@ -833,12 +832,18 @@ function roundRect(ctx, x, y, w, h, r) {
 
 // ── Spin Wheel ────────────────────────────────────────────────────────────────
 const WHEEL_SEGMENTS = [
-  { label: '15 ⬡',   color: '#00ffcc' },
-  { label: '20 ⬡',   color: '#00ddaa' },
-  { label: '2x PTS', color: '#ff0077' },
-  { label: '3x PTS', color: '#ffee00' },
+  { label: '5 $$',   color: '#00ffcc' },
+  { label: '5 $$',   color: '#00ddaa' },
+  { label: '10 $$',  color: '#00ffcc' },
+  { label: '15 $$',  color: '#00ddaa' },
+  { label: '20 $$',  color: '#ffee00' },
+  { label: '30 $$',  color: '#ffd700' },
+  { label: '2X 15M', color: '#ff0077' },
+  { label: '2X 30M', color: '#ff3399' },
+  { label: '2X 1H',  color: '#ff0077' },
+  { label: '3X 20M', color: '#ff6600' },
   { label: 'GOLD',   color: '#ffd700' },
-  { label: 'UPGRAD', color: '#ff6600' },
+  { label: 'UPGRD',  color: '#8800ff' },
 ];
 
 function drawSpinWheel(canvas, rotation) {
@@ -926,13 +931,15 @@ class Game {
     this.yellowAlienTimer = 0;
 
     // Keys
-    this.keys = { left: false, right: false, up: false, fire: false, flare: false };
+    this.keys = { left: false, right: false, up: false, fire: false, flare: false, joyActive: false, joyAngle: null };
+    this._lastFrameTs = 0;
+    this._accum = 0;
 
     this._bindInputs();
     this._bindUI();
     this._init();
 
-    requestAnimationFrame(() => this._loop());
+    requestAnimationFrame((ts) => this._loop(ts));
   }
 
   resize() {
@@ -950,8 +957,8 @@ class Game {
     const _setStatus = (msg, color) => { if (status) { status.textContent = msg; status.style.color = color || '#00ffcc'; } };
 
     bar.style.width = '15%';
-    label.textContent = 'CONNECTING...';
-    _setStatus('WAITING FOR TELEGRAM...', '#ffee00');
+    label.textContent = 'WARMING ENGINES...';
+    _setStatus('CALIBRATING RETRO RADAR...', '#ffee00');
 
     // Wait up to 3 seconds for Telegram to provide user data
     const tgUser = await waitForTelegramUser();
@@ -961,11 +968,7 @@ class Game {
     const hasWebApp = !!window.Telegram?.WebApp;
     const rawData   = window.Telegram?.WebApp?.initData || '';
     _setStatus(
-      tid
-        ? `TG: ${tid}`
-        : hasWebApp
-          ? `TG FOUND, NO USER. DATA=${rawData ? 'YES' : 'EMPTY'}`
-          : 'NO TELEGRAM SDK',
+      tid ? 'PILOT LINK ESTABLISHED' : (hasWebApp ? 'WAITING FOR PILOT LINK...' : 'COMM CHANNEL OFFLINE'),
       tid ? '#00ffcc' : '#ff4466'
     );
     console.log('[init] tg present:', hasWebApp, '| initData:', rawData.slice(0, 60), '| user:', TG_USER);
@@ -976,23 +979,23 @@ class Game {
       return;
     }
 
-    label.textContent = 'LOADING PROFILE...';
+    label.textContent = 'SYNCING HANGAR...';
     bar.style.width   = '40%';
 
     // Retry Supabase up to 5 times (handles cold-start / project waking up)
     let data = null;
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
-        _setStatus(`CONNECTING TO DB... (${attempt}/5)`, '#ffee00');
+        _setStatus(`SYNCING HANGAR DATA... (${attempt}/5)`, '#ffee00');
         data = await dbGetOrCreateUser(tid);
         break; // success
       } catch (e) {
         console.warn(`[init] DB attempt ${attempt} failed:`, e.message);
         if (attempt < 5) {
-          _setStatus(`DB RETRY ${attempt}/5 — ${e.message}`.slice(0, 55), '#ff9900');
+          _setStatus('RETRYING COMMS LINK...', '#ff9900');
           await this._sleep(2000);
         } else {
-          _setStatus(`DB ERROR: ${e.message}`.slice(0, 55), '#ff4466');
+          _setStatus('HANGAR LINK LOST — OFFLINE MODE', '#ff4466');
           await this._sleep(2500);
           this._goOffline(bar, label);
           return;
@@ -1002,7 +1005,7 @@ class Game {
 
     try {
       bar.style.width = '85%';
-      _setStatus(`DB OK — ${data.isNew ? 'NEW USER' : data.user.nickname}`, '#00ffcc');
+      _setStatus(`WELCOME ${data.isNew ? 'PILOT' : data.user.nickname}`, '#00ffcc');
 
       this.userData = data.user;
       this._parseUpgrades(data.upgrades || []);
@@ -1013,8 +1016,8 @@ class Game {
       }
 
       bar.style.width   = '100%';
-      label.textContent = 'READY';
-      await this._sleep(300);
+      label.textContent = 'READY FOR LAUNCH';
+      await this._sleep(2500);
       document.getElementById('loading-screen').style.display = 'none';
 
       if (data.isNew) {
@@ -1055,7 +1058,7 @@ class Game {
     label.textContent = 'OFFLINE';
     const saved = localStorage.getItem('meyaret_callsign');
     this.userData = { ...DEMO_USER, nickname: saved || null };
-    this._sleep(350).then(() => {
+    this._sleep(2500).then(() => {
       document.getElementById('loading-screen').style.display = 'none';
       if (!saved) {
         this._showScreen('onboarding');
@@ -1087,7 +1090,7 @@ class Game {
 
   // ── Screen Management ──────────────────────────────────────────────────────
   _showScreen(name) {
-    ['onboarding','menu','profile','spin','store','gameover'].forEach(s => {
+    ['onboarding','menu','profile','spin','store','arsenal','gameover'].forEach(s => {
       const el = document.getElementById(`${s}-screen`);
       if (el) el.classList.add('hidden');
     });
@@ -1097,9 +1100,11 @@ class Game {
     if (name === 'game') {
       this.canvas.style.display = 'block';
       if (this._isMobile()) document.getElementById('controls-overlay').classList.remove('hidden');
+      SFX.startGameMusic();
     } else {
       const el = document.getElementById(`${name}-screen`);
       if (el) el.classList.remove('hidden');
+      SFX.startMenuMusic();
     }
     this.state = name;
   }
@@ -1124,20 +1129,22 @@ class Game {
     document.getElementById('btn-play').addEventListener('click',  () => this._startGame());
     document.getElementById('btn-spin').addEventListener('click',  () => this._openSpin());
     document.getElementById('btn-store').addEventListener('click', () => this._openStore());
+    document.getElementById('btn-arsenal').addEventListener('click', () => this._openArsenal());
     document.getElementById('btn-quit').addEventListener('click',  () => { if (tg) tg.close(); });
     document.getElementById('profile-btn').addEventListener('click', () => this._openProfile());
+    document.getElementById('leaderboard-strip').addEventListener('click', () => this._showTop5Popup());
 
     // Mute button
     const muteBtn = document.getElementById('mute-btn');
     if (muteBtn) {
-      muteBtn.addEventListener('click', () => {
-        const muted = SFX.toggleMute();
-        muteBtn.textContent  = muted ? '✕' : '♪';
-        muteBtn.title = muted ? 'Unmute' : 'Mute';
-        muteBtn.classList.toggle('muted', muted);
-      });
-      // Reflect saved preference
-      if (SFX.muted) { muteBtn.textContent = '✕'; muteBtn.classList.add('muted'); }
+      const applyVolumeUi = (mode) => {
+        muteBtn.classList.toggle('low', mode === 'low');
+        muteBtn.classList.toggle('muted', mode === 'mute');
+        muteBtn.textContent = mode.toUpperCase();
+        muteBtn.title = `Volume: ${mode}`;
+      };
+      applyVolumeUi(SFX.getVolumeMode());
+      muteBtn.addEventListener('click', () => applyVolumeUi(SFX.cycleVolume()));
     }
 
     // Back buttons
@@ -1156,6 +1163,7 @@ class Game {
 
     // Spin
     document.getElementById('spin-btn').addEventListener('click', () => this._doSpin());
+    document.getElementById('arsenal-open-store').addEventListener('click', () => this._openStore());
 
     // Store tabs
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1209,14 +1217,12 @@ class Game {
         // Inside deadzone — no movement
         this.keys.joyAngle  = null;
         this.keys.joyActive = false;
-        this.keys.up        = false;
         this.keys.left      = false;
         this.keys.right     = false;
       } else {
-        // 360° directional boost: ship faces the joystick direction and thrusts
+        // 360° looking: ship faces joystick, thrust is controlled by THRUST button
         this.keys.joyAngle  = ang;          // angle in radians (Math.atan2)
         this.keys.joyActive = true;
-        this.keys.up        = true;         // always thrust when joystick active
         this.keys.left      = false;
         this.keys.right     = false;
       }
@@ -1228,7 +1234,6 @@ class Game {
       this.keys.joyActive = false;
       this.keys.left      = false;
       this.keys.right     = false;
-      this.keys.up        = false;
     };
 
     if (joyBase) {
@@ -1300,8 +1305,9 @@ class Game {
       el.addEventListener('mousedown',  ()  => { this.keys[key] = true;  });
       el.addEventListener('mouseup',    ()  => { this.keys[key] = false; });
     };
-    bindAction('ctrl-fire',  'fire');
+    bindAction('ctrl-fire', 'fire');
     bindAction('ctrl-flare', 'flare');
+    bindAction('ctrl-thrust', 'up');
   }
 
   // ── Onboarding ─────────────────────────────────────────────────────────────
@@ -1359,7 +1365,7 @@ class Game {
     document.getElementById('menu-nickname').textContent  = nick;
     document.getElementById('menu-trust-name').textContent = nick;
     const shmips = Number(this.userData.shmips || 0);
-    document.getElementById('menu-shmips').textContent    = `${shmips % 1 === 0 ? shmips : shmips.toFixed(2)} ⬡`;
+    document.getElementById('menu-shmips').textContent    = `${shmips % 1 === 0 ? shmips : shmips.toFixed(2)} $$`;
     this._loadLeaderboard();
   }
 
@@ -1432,7 +1438,11 @@ class Game {
       do {
         x = rng(0, this.W); y = rng(0, this.H);
       } while (dist({ x, y }, { x: this.W / 2, y: this.H / 2 }) < 130);
-      this.asteroids.push(new Asteroid(x, y, 'large', null, level));
+      const roll = Math.random();
+      const size =
+        level <= 2 ? (roll < 0.65 ? 'medium' : 'small')
+        : (roll < 0.5 ? 'large' : roll < 0.8 ? 'medium' : 'small');
+      this.asteroids.push(new Asteroid(x, y, size, null, level));
     }
   }
 
@@ -1443,21 +1453,29 @@ class Game {
   }
 
   // ── Main Loop ──────────────────────────────────────────────────────────────
-  _loop() {
-    requestAnimationFrame(() => this._loop());
+  _loop(ts = performance.now()) {
+    requestAnimationFrame((nextTs) => this._loop(nextTs));
+    if (!this._lastFrameTs) this._lastFrameTs = ts;
+    const frameMs = Math.min(48, ts - this._lastFrameTs);
+    this._lastFrameTs = ts;
+    this._accum += frameMs;
 
     if (this.state !== 'game') {
       if (this.state === 'menu' || this.state === 'profile' ||
-          this.state === 'store' || this.state === 'spin'   ||
-          this.state === 'onboarding') {
-        // Draw animated grid behind screens
+          this.state === 'store' || this.state === 'spin' ||
+          this.state === 'arsenal' || this.state === 'onboarding') {
         drawGrid(this.ctx, this.W, this.H, this.tick++);
       }
       return;
     }
 
-    this.tick++;
-    this._update();
+    // Fixed timestep (60hz) so Android/iPhone behave the same.
+    const step = 1000 / 60;
+    while (this._accum >= step) {
+      this.tick++;
+      this._update();
+      this._accum -= step;
+    }
     this._draw();
   }
 
@@ -1482,7 +1500,7 @@ class Game {
     const yellowInterval = Math.max(900 - this.level * 40, 350);
 
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && this.level >= 3) {  // red fighter from level 3
+    if (this.redFighterTimer > redInterval && this.level >= 4) {  // smoother ramp
       this.redFighterTimer = 0;
       if (this.redFighters.length < 1 + Math.floor(this.level / 4)) {
         const { x, y } = this._edgeSpawn();
@@ -1491,7 +1509,7 @@ class Game {
     }
 
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > yellowInterval && this.level >= 5) {  // alien from level 5
+    if (this.yellowAlienTimer > yellowInterval && this.level >= 7) {  // smoother ramp
       this.yellowAlienTimer = 0;
       if (this.yellowAliens.length < 1 + Math.floor(this.level / 6)) {
         const { x, y } = this._edgeSpawn();
@@ -1516,6 +1534,7 @@ class Game {
 
     this.redFighters.forEach(rf => rf.update(this.ship, this.enemyBullets, this.W, this.H, this.particles));
     this.yellowAliens.forEach(ya => ya.update(this.rockets, this.W, this.H, this.particles));
+    this.yellowAliens = this.yellowAliens.filter(ya => !ya.dead);
 
     this._collisions();
 
@@ -1605,6 +1624,17 @@ class Game {
       }
     }
 
+    // Rockets can be evaded by crashing them into asteroids
+    for (let ri = this.rockets.length - 1; ri >= 0; ri--) {
+      for (let ai = this.asteroids.length - 1; ai >= 0; ai--) {
+        if (dist(this.rockets[ri], this.asteroids[ai]) < this.asteroids[ai].radius + this.rockets[ri].radius) {
+          burst(this.particles, this.rockets[ri].x, this.rockets[ri].y, C.rocket, 8, 3);
+          this.rockets.splice(ri, 1);
+          break;
+        }
+      }
+    }
+
     // Red fighters vs ship (ram)
     for (const rf of this.redFighters) {
       if (dist(rf, ship) < rf.radius + ship.radius) {
@@ -1653,7 +1683,7 @@ class Game {
     const shmipsEarned   = (effectiveScore / 1000);
 
     document.getElementById('go-score').textContent  = `SCORE  ${effectiveScore.toLocaleString()}`;
-    document.getElementById('go-shmips').textContent = `+${shmipsEarned.toFixed(2)} ⬡  SHMIPS EARNED`;
+    document.getElementById('go-shmips').textContent = `+${shmipsEarned.toFixed(2)} $$ EARNED`;
 
     const isNew = effectiveScore > (this.userData?.best_score || 0);
     document.getElementById('go-title').textContent = isNew ? '✦ NEW HIGH SCORE ✦' : 'GAME OVER';
@@ -1693,20 +1723,23 @@ class Game {
 
     this._showScreen('profile');
 
-    const tid = TG_USER?.id || this.userData?.telegram_id;
-    if (tid) {
-      try {
-        const scores = await dbGetMyScores(tid);
-        const list   = document.getElementById('prof-scores-list');
-        list.innerHTML = '';
-        scores.forEach((s, i) => {
-          const row = document.createElement('div');
-          row.className = 'score-row';
-          row.innerHTML = `<span>${i+1}. ${Number(s.score).toLocaleString()}  LV${s.level}</span><span>+${Number(s.shmips_earned).toFixed(2)} ⬡</span>`;
-          list.appendChild(row);
-        });
-      } catch { /* non-critical */ }
-    }
+    // Personal best list removed by request.
+  }
+
+  _showTop5Popup() {
+    const txt = document.getElementById('lb-entries')?.textContent || 'NO SCORES YET';
+    alert(`TOP 5 PILOTS\n\n${txt.replaceAll(' · ', '\n')}`);
+  }
+
+  _openArsenal() {
+    this._showScreen('arsenal');
+    const hasTitan = !!this.upgrades.plane_titan;
+    const hasStealth = !!this.upgrades.plane_stealth;
+    const weapon = this.upgrades.laser ? 'LASER' : this.upgrades.rapid_fire ? 'RAPID FIRE' : 'BULLETS';
+    const ability = this.upgrades.shield ? 'SHIELD' : this.upgrades.extra_flare ? 'EXTRA FLARE' : 'NONE';
+    document.getElementById('ars-jet').textContent = hasTitan ? 'TITAN' : hasStealth ? 'STEALTH' : 'STARTER';
+    document.getElementById('ars-weapon').textContent = weapon;
+    document.getElementById('ars-ability').textContent = ability;
   }
 
   async _changeNickname() {
@@ -1841,7 +1874,7 @@ class Game {
   async _openStore() {
     this._showScreen('store');
     document.getElementById('store-balance').textContent =
-      `BALANCE: ${(this.userData?.shmips || 0).toLocaleString()} ⬡`;
+      `BALANCE: ${(this.userData?.shmips || 0).toLocaleString()} $$`;
     this._catalog = CATALOG;
     // Restore last active tab (so re-opening store keeps your position)
     const activeTab = this._lastStoreTab || 'upgrade';
@@ -1865,7 +1898,7 @@ class Game {
             <div class="store-item-name">${item.icon || ''} ${item.name}</div>
             <div class="store-item-desc">${item.description}</div>
           </div>
-          <span class="store-item-cost">${item.cost} ⬡</span>
+          <span class="store-item-cost">${item.cost} $$</span>
           <button class="store-buy-btn${owned ? ' owned' : ''}" data-id="${item.id}">
             ${owned ? 'OWNED' : 'BUY'}
           </button>`;
@@ -1893,7 +1926,7 @@ class Game {
       const { newBalance } = await dbBuyItem(tid, item.id);
       this.userData.shmips = newBalance;
       this.upgrades[item.id] = (this.upgrades[item.id] || 0) + 1;
-      document.getElementById('store-balance').textContent = `BALANCE: ${newBalance.toLocaleString()} ⬡`;
+      document.getElementById('store-balance').textContent = `BALANCE: ${newBalance.toLocaleString()} $$`;
       msg.textContent = `${item.name} ACQUIRED!`;
       msg.className = 'store-msg success';
       msg.classList.remove('hidden');

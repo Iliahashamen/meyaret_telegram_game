@@ -19,6 +19,7 @@
     <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
     <div class="loading-label" id="loading-label">INITIALIZING SYSTEMS...</div>
     <div id="loading-status" style="font-size:0.45rem;color:#00ffcc;margin-top:8px;letter-spacing:0.05em;min-height:1.2em;text-align:center;"></div>
+    <div id="loading-madeby">MADE BY SHAMEN</div>
   </div>
 
   <!-- Onboarding: Choose Call Sign -->
@@ -37,27 +38,28 @@
     <!-- Profile badge (top right) -->
     <button id="profile-btn" class="profile-badge">
       <span id="menu-nickname">ACE</span>
-      <span id="menu-shmips" class="shmips-count">0 ⬡</span>
+      <span id="menu-shmips" class="shmips-count">0 $$</span>
     </button>
 
     <!-- Live leaderboard top strip -->
-    <div id="leaderboard-strip">
+    <button id="leaderboard-strip" type="button">
       <span class="lb-label">TOP 5</span>
       <span id="lb-entries">—</span>
-    </div>
+    </button>
 
     <div class="logo-menu">MEYARET</div>
     <div class="logo-trust">WE TRUST YOU <span id="menu-trust-name">PILOT</span></div>
 
     <div class="menu-buttons">
-      <button id="btn-play"  class="btn-primary btn-big">▶  PLAY</button>
-      <button id="btn-spin"  class="btn-secondary btn-big">◎  DAILY SPIN</button>
-      <button id="btn-store" class="btn-secondary btn-big">◈  STORE</button>
-      <button id="btn-quit"  class="btn-ghost btn-big">✕  QUIT</button>
+      <button id="btn-play" class="btn-primary btn-big">PLAY</button>
+      <button id="btn-spin" class="btn-secondary btn-big">DAILY SPIN</button>
+      <button id="btn-store" class="btn-secondary btn-big">STORE</button>
+      <button id="btn-arsenal" class="btn-secondary btn-big">ARSENAL</button>
+      <button id="btn-quit" class="btn-ghost btn-big">QUIT</button>
     </div>
 
     <div id="multiplier-banner" class="hidden"></div>
-    <button id="mute-btn" class="mute-btn" title="Toggle sound">♪</button>
+    <button id="mute-btn" class="mute-btn" title="Volume mode">HIGH</button>
   </div>
 
   <!-- Profile Screen -->
@@ -71,15 +73,29 @@
         <div class="stat"><span class="stat-label">BEST SCORE</span><span id="prof-best">0</span></div>
         <div class="stat"><span class="stat-label">GAMES PLAYED</span><span id="prof-games">0</span></div>
       </div>
-      <div class="top-scores-label">PERSONAL BEST 5</div>
-      <div id="prof-scores-list"></div>
     </div>
-    <button id="change-nick-btn" class="btn-secondary">CHANGE CALL SIGN (1,000 ⬡)</button>
+    <button id="change-nick-btn" class="btn-secondary">CHANGE CALL SIGN (1,000 $$)</button>
     <div id="change-nick-area" class="hidden">
       <input id="new-nick-input" type="text" maxlength="12" placeholder="NEW CALL SIGN" />
       <button id="new-nick-confirm" class="btn-primary">CONFIRM</button>
       <div id="new-nick-error" class="error-msg"></div>
     </div>
+  </div>
+
+  <!-- Arsenal Screen -->
+  <div id="arsenal-screen" class="screen hidden">
+    <button class="back-btn" data-back="menu">← BACK</button>
+    <div class="screen-title">ARSENAL</div>
+    <div class="profile-card">
+      <div class="top-scores-label">JET CRAFT</div>
+      <div class="profile-stats">
+        <div class="stat"><span class="stat-label">JET</span><span id="ars-jet">STARTER</span></div>
+        <div class="stat"><span class="stat-label">WEAPON</span><span id="ars-weapon">BULLETS</span></div>
+        <div class="stat"><span class="stat-label">ABILITY</span><span id="ars-ability">NONE</span></div>
+      </div>
+      <div class="store-msg">All attachments are shared between all jets.</div>
+    </div>
+    <button id="arsenal-open-store" class="btn-primary">OPEN STORE</button>
   </div>
 
   <!-- Daily Spin Screen -->
@@ -113,19 +129,17 @@
 
   <!-- Mobile Controls Overlay (shown during gameplay) -->
   <div id="controls-overlay" class="hidden">
-    <!-- Left: Virtual Arcade Joystick -->
+    <!-- Left -->
     <div id="ctrl-left">
       <div id="vjoy-base">
         <div id="vjoy-knob"></div>
-        <span class="vjoy-hint vjoy-hint-up">▲</span>
-        <span class="vjoy-hint vjoy-hint-left">◀</span>
-        <span class="vjoy-hint vjoy-hint-right">▶</span>
       </div>
-    </div>
-    <!-- Right: Action Buttons -->
-    <div id="ctrl-right">
       <button class="ctrl-round" id="ctrl-flare">FLARE</button>
-      <button class="ctrl-round ctrl-fire-btn" id="ctrl-fire">FIRE</button>
+    </div>
+    <!-- Right -->
+    <div id="ctrl-right">
+      <button class="ctrl-round ctrl-fire-btn" id="ctrl-fire">SHOOT</button>
+      <button class="ctrl-round ctrl-thrust-btn" id="ctrl-thrust">THRUST</button>
     </div>
   </div>
 
