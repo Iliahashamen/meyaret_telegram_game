@@ -52,11 +52,11 @@ spinRouter.post('/', requireTelegramAuth, async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
 
-  // Check cooldown: 21 hours from last spin, earliest allowed at 07:00 local server time.
+  // Check cooldown: 6 hours from last spin
   const now = new Date();
   if (user.last_spin_at) {
     const lastSpin      = new Date(user.last_spin_at);
-    const cooldownMs    = 21 * 60 * 60 * 1000;
+    const cooldownMs    = 6 * 60 * 60 * 1000;
     const nextAvailable = new Date(lastSpin.getTime() + cooldownMs);
     if (now < nextAvailable) {
       return res.status(429).json({
@@ -117,7 +117,7 @@ spinRouter.post('/', requireTelegramAuth, async (req, res) => {
       type:  reward.type,
       upgrade: grantedUpgrade,
     },
-    nextAvailableAt: new Date(now.getTime() + 21 * 60 * 60 * 1000).toISOString(),
+    nextAvailableAt: new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString(),
   });
 });
 
@@ -136,7 +136,7 @@ spinRouter.get('/status', requireTelegramAuth, async (req, res) => {
     return res.json({ available: true, remainingMs: 0 });
   }
 
-  const nextAvailable = new Date(new Date(user.last_spin_at).getTime() + 21 * 60 * 60 * 1000);
+  const nextAvailable = new Date(new Date(user.last_spin_at).getTime() + 6 * 60 * 60 * 1000);
   const available     = now >= nextAvailable;
 
   res.json({

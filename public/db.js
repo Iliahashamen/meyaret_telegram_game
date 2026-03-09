@@ -30,9 +30,9 @@ async function supa(path, opts = {}) {
 // +10 colors, +6 upgrades, +2 planes
 export const CATALOG = [
   // Affordable per-run powerups
-  { id: 'extra_life',        name: 'Extra Life',      category: 'upgrade', cost: 80,   description: '+1 life for one run',        stackable: true  },
-  { id: 'extra_flare',       name: 'Extra Flare',     category: 'upgrade', cost: 60,   description: '+1 flare for one run',       stackable: true  },
-  { id: 'shield',            name: 'Shield Module',   category: 'upgrade', cost: 120,  description: 'Absorb one hit in a run',    stackable: false },
+  { id: 'extra_life',        name: 'Extra Life',      category: 'upgrade', cost: 10,   description: '+1 life for one run',        stackable: true  },
+  { id: 'extra_flare',       name: 'Extra Flare',     category: 'upgrade', cost: 5,    description: '+1 flare for one run',       stackable: true  },
+  { id: 'shield',            name: 'Shield Module',   category: 'upgrade', cost: 10,   description: 'Absorb one hit in a run',    stackable: false },
   // Longer-term progression
   { id: 'rapid_fire',        name: 'Rapid Fire',      category: 'upgrade', cost: 900,  description: '2x bullet fire rate',        stackable: false },
   { id: 'laser',             name: 'Laser Cannon',    category: 'upgrade', cost: 1700, description: 'Replace bullets with laser',  stackable: false },
@@ -170,6 +170,20 @@ export async function dbBuyItem(telegramId, itemId) {
   return { newBalance, item };
 }
 
+// ── Add bonus shmips (e.g. from coin pickups) ───────────────────────────────────
+export async function dbAddBonusShmips(telegramId, bonus) {
+  const id = String(telegramId);
+  const rows = await supa(`users?telegram_id=eq.${id}&select=shmips`);
+  const user = rows[0];
+  if (!user) return null;
+  const newShmips = Math.round((Number(user.shmips) + bonus) * 100) / 100;
+  await supa(`users?telegram_id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ shmips: newShmips }),
+  });
+  return { shmips: newShmips };
+}
+
 // ── Save score ────────────────────────────────────────────────────────────────
 export async function dbSaveScore(telegramId, score, level) {
   const id = String(telegramId);
@@ -226,6 +240,19 @@ export async function dbGetUserUpgrades(telegramId) {
 }
 
 // ── Daily Spin (direct Supabase — no Railway needed) ───────────────────────────
+// Wheel segments and rewards MUST match 1:1 — exported for drawSpinWheel
+export const SPIN_WHEEL_SEGMENTS = [
+  { label: '5 $$',   color: '#00ffcc', rewardIndex: 0 },
+  { label: '10 $$',  color: '#00ddaa', rewardIndex: 1 },
+  { label: '15 $$',  color: '#00ffcc', rewardIndex: 2 },
+  { label: '20 $$',  color: '#ffcc00', rewardIndex: 3 },
+  { label: '30 $$',  color: '#ffd700', rewardIndex: 4 },
+  { label: '50 $$',  color: '#ffaa00', rewardIndex: 5 },
+  { label: '2X 1H',  color: '#ff0077', rewardIndex: 6 },
+  { label: '3X 1H',  color: '#ff3399', rewardIndex: 7 },
+  { label: 'GOLD',   color: '#ffd700', rewardIndex: 8 },
+  { label: 'UPGRD',  color: '#8800ff', rewardIndex: 9 },
+];
 const SPIN_REWARDS = [
   { id: 'cash_5',   weight: 35, label: '5 $$',   type: 'shmips', value: 5 },
   { id: 'cash_10',  weight: 15, label: '10 $$',  type: 'shmips', value: 10 },
@@ -233,13 +260,13 @@ const SPIN_REWARDS = [
   { id: 'cash_20',  weight: 8,  label: '20 $$',  type: 'shmips', value: 20 },
   { id: 'cash_30',  weight: 4,  label: '30 $$',  type: 'shmips', value: 30 },
   { id: 'cash_50',  weight: 1,  label: '50 $$',  type: 'shmips', value: 50 },
-  { id: 'multi_2x', weight: 12, label: '2x Pts (1h)', type: 'multi', multi: 2, duration: 60 },
-  { id: 'multi_3x', weight: 4,  label: '3x Pts (1h)', type: 'multi', multi: 3, duration: 60 },
-  { id: 'golden',   weight: 2,  label: 'Golden Plane', type: 'golden_plane' },
-  { id: 'upgrade',  weight: 7,  label: 'Random Upgrade', type: 'upgrade' },
+  { id: 'multi_2x', weight: 12, label: '2X 1H',  type: 'multi', multi: 2, duration: 60 },
+  { id: 'multi_3x', weight: 4,  label: '3X 1H',  type: 'multi', multi: 3, duration: 60 },
+  { id: 'golden',   weight: 2,  label: 'GOLD',   type: 'golden_plane' },
+  { id: 'upgrade',  weight: 7,  label: 'UPGRD',  type: 'upgrade' },
 ];
 const SPIN_UPGRADE_POOL = ['extra_life', 'extra_flare', 'rapid_fire', 'laser', 'ship_purple', 'ship_cyan', 'ship_pink'];
-const COOLDOWN_MS = 21 * 60 * 60 * 1000;
+const COOLDOWN_MS = 6 * 60 * 60 * 1000;  // 6 hours
 
 function pickSpinReward() {
   const roll = Math.random() * 100;
@@ -306,7 +333,7 @@ export async function dbDoSpin(telegramId) {
 
   const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
   return {
-    reward: { id: reward.id, label: reward.label, type: reward.type, upgrade: grantedUpgrade },
+    reward: { id: reward.id, label: reward.label, type: reward.type, upgrade: grantedUpgrade, segmentIndex: SPIN_WHEEL_SEGMENTS.findIndex(s => s.label === reward.label) },
     user: updated[0],
   };
 }

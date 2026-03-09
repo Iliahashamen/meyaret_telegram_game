@@ -8,7 +8,8 @@ import {
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem,
-  dbSpinStatus, dbDoSpin,
+  dbSpinStatus, dbDoSpin, dbAddBonusShmips,
+  SPIN_WHEEL_SEGMENTS,
 } from './db.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
@@ -101,8 +102,8 @@ const C = {
 // ── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
   rotSpeed:     0.042,        // joystick rotation (still used for keyboard)
-  thrustPower:  0.07,         // gentler acceleration
-  friction:     0.988,        // slightly more drag so ship slows down faster
+  thrustPower:  0.09,         // responsive thrust
+  friction:     0.965,       // strong friction — ship points where it goes, no drift
   bulletSpeed:  6,
   bulletLife:   65,
   laserLife:    25,
@@ -197,6 +198,9 @@ class Ship {
     this.fireCooldown  = 0;
     this.fireRate      = this.hasRapid ? 12 : 22;
     this.thrusting     = false;
+    this.tempLaserUntil   = 0;
+    this.tempRapidUntil   = 0;
+    this.tempPowerBoostUntil = 0;
   }
 
   update(keys, W, H) {
@@ -207,12 +211,27 @@ class Ship {
     }
 
     if (keys.joyActive && keys.joyAngle !== null) {
-      // 360° look: snap ship facing to joystick direction
-      this.angle    = keys.joyAngle - Math.PI / 2; // -90° because ship draws "up"
+      // Ship faces joystick; thrust aligns velocity with facing (no drift)
+      this.angle = keys.joyAngle - Math.PI / 2;
       this.thrusting = keys.up;
       if (keys.up) {
-        this.vx += Math.cos(keys.joyAngle) * CFG.thrustPower;
-        this.vy += Math.sin(keys.joyAngle) * CFG.thrustPower;
+        const tx = Math.cos(keys.joyAngle) * CFG.thrustPower;
+        const ty = Math.sin(keys.joyAngle) * CFG.thrustPower;
+        this.vx += tx;
+        this.vy += ty;
+        // Strong alignment: bias velocity toward thrust direction to reduce drift
+        const spd = Math.hypot(this.vx, this.vy);
+        if (spd > 0.3) {
+          const want = Math.atan2(ty, tx);
+          const cur = Math.atan2(this.vy, this.vx);
+          let diff = want - cur;
+          while (diff > Math.PI) diff -= TAU;
+          while (diff < -Math.PI) diff += TAU;
+          const blend = 0.25;
+          const nang = cur + diff * blend;
+          this.vx = Math.cos(nang) * spd;
+          this.vy = Math.sin(nang) * spd;
+        }
       }
     } else {
       // Keyboard / no joystick
@@ -293,12 +312,15 @@ class Ship {
   }
 
   canFire() { return this.fireCooldown <= 0; }
+  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0; }
+  get effectiveRapid() { return this.hasRapid || this.tempRapidUntil > 0; }
+  get effectiveFireRate() { return this.effectiveRapid ? 12 : 22; }
 
   fire(bullets) {
     if (!this.canFire()) return;
-    this.fireCooldown = this.fireRate;
+    this.fireCooldown = this.effectiveFireRate;
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
-    if (this.hasLaser) {
+    if (this.effectiveLaser) {
       bullets.push(new Laser(nose.x, nose.y, this.angle));
       SFX.laser();
     } else {
@@ -400,8 +422,8 @@ class Asteroid {
     this.x = x; this.y = y;
     this.size = size;
     this.radius = CFG.asteroidSizes[size];
-    // Speed scales gently with level: level 1 = very slow, level 5+ = normal
-    const speedMult = 0.35 + Math.min(level - 1, 8) * 0.085;
+    // Gentler difficulty ramp — level 3+ not as punishing
+    const speedMult = 0.4 + Math.min(level - 1, 10) * 0.05;
     const baseSpd = size === 'large' ? rng(0.20, 0.45) : size === 'medium' ? rng(0.40, 0.80) : rng(0.65, 1.2);
     const spd = baseSpd * speedMult;
     const ang = angle !== null ? angle : rng(0, TAU);
@@ -623,6 +645,63 @@ class EnemyBullet {
   get dead() { return this.life <= 0; }
 }
 
+// ── Coin Pickup (+1 shmip, lasts 5 sec) ───────────────────────────────────────
+class CoinPickup {
+  constructor(x, y, W, H) {
+    this.x = x; this.y = y;
+    this.radius = 12;
+    this.life = 300;  // 5 sec at 60fps
+  }
+  update() { this.life--; }
+  draw(ctx) {
+    const pulse = Math.sin(Date.now() * 0.008) * 0.2 + 0.8;
+    ctx.globalAlpha = pulse;
+    glow(ctx, '#ffdd00', 14);
+    ctx.fillStyle = '#ffdd00';
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#332200';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('$', this.x, this.y + 1);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+  get dead() { return this.life <= 0; }
+}
+
+// ── Mystery Pickup (? — random boost) ─────────────────────────────────────────
+class MysteryPickup {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.radius = 14;
+    this.life = 420;  // 7 sec to collect
+  }
+  update() { this.life--; }
+  draw(ctx) {
+    const pulse = Math.sin(Date.now() * 0.01) * 0.25 + 0.75;
+    ctx.globalAlpha = pulse;
+    glow(ctx, '#aa00ff', 16);
+    ctx.fillStyle = '#220033';
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = '#aa00ff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#ff00ff';
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', this.x, this.y + 1);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+  get dead() { return this.life <= 0; }
+}
+
 // ── Rocket (from Yellow Alien, deflectable by flare) ──────────────────────────
 class Rocket {
   constructor(x, y, angle) {
@@ -831,30 +910,15 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ── Spin Wheel ────────────────────────────────────────────────────────────────
-const WHEEL_SEGMENTS = [
-  { label: '5 $$',   color: '#00ffcc' },
-  { label: '5 $$',   color: '#00ddaa' },
-  { label: '10 $$',  color: '#00ffcc' },
-  { label: '15 $$',  color: '#00ddaa' },
-  { label: '20 $$',  color: '#ffee00' },
-  { label: '30 $$',  color: '#ffd700' },
-  { label: '2X 15M', color: '#ff0077' },
-  { label: '2X 30M', color: '#ff3399' },
-  { label: '2X 1H',  color: '#ff0077' },
-  { label: '3X 20M', color: '#ff6600' },
-  { label: 'GOLD',   color: '#ffd700' },
-  { label: 'UPGRD',  color: '#8800ff' },
-];
-
+// ── Spin Wheel (segments from db.js — must match rewards 1:1) ───────────────────
 function drawSpinWheel(canvas, rotation) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   const cx = W / 2, cy = H / 2, r = W / 2 - 8;
   ctx.clearRect(0, 0, W, H);
-  const n = WHEEL_SEGMENTS.length;
+  const n = SPIN_WHEEL_SEGMENTS.length;
 
-  WHEEL_SEGMENTS.forEach((seg, i) => {
+  SPIN_WHEEL_SEGMENTS.forEach((seg, i) => {
     const start = rotation + (TAU / n) * i;
     const end   = start + TAU / n;
 
@@ -1395,6 +1459,10 @@ class Game {
     this.particles    = [];
     this.redFighters  = [];
     this.yellowAliens = [];
+    this.coins        = [];
+    this.mysteryPickups = [];
+    this.runShmipsBonus = 0;
+    this.pickupSpawnTimer = 0;
     this.redFighterTimer  = 0;
     this.yellowAlienTimer = 0;
 
@@ -1409,13 +1477,18 @@ class Game {
     // Plane upgrades
     if (this.upgrades.plane_stealth) { ups.plane_lives = 1; ups.plane_flares = 2; ups.plane_rapid = true; }
     if (this.upgrades.plane_titan)   { ups.plane_lives = 3; ups.plane_shield = true; ups.plane_laser = true; }
+    if (this.upgrades.plane_phantom) { ups.plane_lives = 2; ups.plane_flares = 1; ups.plane_laser = true; }
+    if (this.upgrades.plane_scout)   { ups.plane_lives = 1; ups.plane_flares = 0; ups.plane_rapid = true; }
 
-    // Ship skin
+    // Ship skin (order matters: later overrides if multiple owned)
     const skinColors = {
       ship_purple: '#bf5fff', ship_cyan: '#00ffff', ship_orange: '#ff6600',
-      ship_pink: '#ff00cc',   ship_gold: '#ffd700',
+      ship_pink: '#ff00cc', ship_red: '#ff2244', ship_blue: '#3388ff', ship_green: '#00ff88',
+      ship_yellow: '#ffdd00', ship_white: '#eeeeff', ship_teal: '#00ddcc', ship_violet: '#9944ff',
+      ship_coral: '#ff6644', ship_lime: '#aaff00', ship_gold: '#ffd700',
       ship_purple_gold: { color: '#bf5fff', accent: '#ffd700' },
       ship_green_purple: { color: '#00ff41', accent: '#bf5fff' },
+      ship_rainbow: { color: '#ff0077', accent: '#00ffcc' },
     };
     for (const [key, val] of Object.entries(skinColors)) {
       if (this.upgrades[key]) {
@@ -1442,8 +1515,9 @@ class Game {
       } while (dist({ x, y }, { x: this.W / 2, y: this.H / 2 }) < 130);
       const roll = Math.random();
       const size =
-        level <= 2 ? (roll < 0.65 ? 'medium' : 'small')
-        : (roll < 0.5 ? 'large' : roll < 0.8 ? 'medium' : 'small');
+        level <= 2 ? (roll < 0.7 ? 'medium' : 'small')
+        : level <= 4 ? (roll < 0.3 ? 'large' : roll < 0.7 ? 'medium' : 'small')
+        : (roll < 0.45 ? 'large' : roll < 0.8 ? 'medium' : 'small');
       this.asteroids.push(new Asteroid(x, y, size, null, level));
     }
   }
@@ -1498,11 +1572,11 @@ class Game {
     this.ship.update(this.keys, this.W, this.H);
 
     // Spawn enemies
-    const redInterval    = Math.max(600 - this.level * 30, 250);
-    const yellowInterval = Math.max(900 - this.level * 40, 350);
+    const redInterval    = Math.max(750 - this.level * 25, 300);
+    const yellowInterval = Math.max(1000 - this.level * 35, 400);
 
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && this.level >= 4) {  // smoother ramp
+    if (this.redFighterTimer > redInterval && this.level >= 5) {  // red fighters from level 5
       this.redFighterTimer = 0;
       if (this.redFighters.length < 1 + Math.floor(this.level / 4)) {
         const { x, y } = this._edgeSpawn();
@@ -1511,7 +1585,7 @@ class Game {
     }
 
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > yellowInterval && this.level >= 7) {  // smoother ramp
+    if (this.yellowAlienTimer > yellowInterval && this.level >= 8) {  // yellow aliens from level 8
       this.yellowAlienTimer = 0;
       if (this.yellowAliens.length < 1 + Math.floor(this.level / 6)) {
         const { x, y } = this._edgeSpawn();
@@ -1538,6 +1612,27 @@ class Game {
     this.yellowAliens.forEach(ya => ya.update(this.rockets, this.W, this.H, this.particles));
     this.yellowAliens = this.yellowAliens.filter(ya => !ya.dead);
 
+    this.coins.forEach(c => c.update());
+    this.coins = this.coins.filter(c => !c.dead);
+    this.mysteryPickups.forEach(m => m.update());
+    this.mysteryPickups = this.mysteryPickups.filter(m => !m.dead);
+
+    if (this.ship.tempLaserUntil > 0) this.ship.tempLaserUntil--;
+    if (this.ship.tempRapidUntil > 0) this.ship.tempRapidUntil--;
+    if (this.ship.tempPowerBoostUntil > 0) this.ship.tempPowerBoostUntil--;
+
+    this.pickupSpawnTimer++;
+    if (this.pickupSpawnTimer > 360 && this.coins.length === 0 && this.mysteryPickups.length === 0) {
+      this.pickupSpawnTimer = 0;
+      const x = rng(60, this.W - 60);
+      const y = rng(60, this.H - 60);
+      if (Math.random() < 0.6) {
+        this.coins.push(new CoinPickup(x, y, this.W, this.H));
+      } else {
+        this.mysteryPickups.push(new MysteryPickup(x, y));
+      }
+    }
+
     this._collisions();
 
     if (this.asteroids.length === 0) this._nextLevel();
@@ -1555,6 +1650,29 @@ class Game {
   _collisions() {
     const ship = this.ship;
 
+    // Ship vs coin
+    for (let ci = this.coins.length - 1; ci >= 0; ci--) {
+      if (dist(ship, this.coins[ci]) < ship.radius + this.coins[ci].radius) {
+        this.runShmipsBonus += 1;
+        SFX.shmipEarn();
+        burst(this.particles, this.coins[ci].x, this.coins[ci].y, '#ffdd00', 8, 2, 20);
+        this.coins.splice(ci, 1);
+      }
+    }
+
+    // Ship vs mystery ?
+    for (let mi = this.mysteryPickups.length - 1; mi >= 0; mi--) {
+      if (dist(ship, this.mysteryPickups[mi]) < ship.radius + this.mysteryPickups[mi].radius) {
+        const roll = Math.random();
+        if (roll < 0.34) ship.tempRapidUntil = 900;       // 15 sec rapid fire
+        else if (roll < 0.67) ship.tempLaserUntil = 1200; // 20 sec laser
+        else ship.tempPowerBoostUntil = 1200;             // 20 sec 2x damage
+        SFX.levelUp();
+        burst(this.particles, this.mysteryPickups[mi].x, this.mysteryPickups[mi].y, '#aa00ff', 12, 3, 25);
+        this.mysteryPickups.splice(mi, 1);
+      }
+    }
+
     // Player bullets vs asteroids
     for (let bi = this.bullets.length - 1; bi >= 0; bi--) {
       const b = this.bullets[bi];
@@ -1564,7 +1682,8 @@ class Game {
           this.bullets.splice(bi, 1);
           const frags = a.split(this.particles);
           this.asteroids.splice(ai, 1, ...frags);
-          this._addScore(a.score);
+          const dmg = ship.tempPowerBoostUntil > 0 ? 2 : 1;
+          this._addScore(a.score * dmg);
           break;
         }
       }
@@ -1578,7 +1697,8 @@ class Game {
           this.bullets.splice(bi, 1);
           if (this.redFighters[ei].hit(this.particles)) {
             burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 20, 5, 35);
-            this._addScore(CFG.enemyRedScore);
+            const dmg = ship.tempPowerBoostUntil > 0 ? 2 : 1;
+            this._addScore(CFG.enemyRedScore * dmg);
             this.redFighters.splice(ei, 1);
           }
           break;
@@ -1594,7 +1714,8 @@ class Game {
           this.bullets.splice(bi, 1);
           if (this.yellowAliens[ei].hit(this.particles)) {
             burst(this.particles, this.yellowAliens[ei].x, this.yellowAliens[ei].y, C.enemyYellow, 20, 5, 35);
-            this._addScore(CFG.enemyYellowScore);
+            const dmg = ship.tempPowerBoostUntil > 0 ? 2 : 1;
+            this._addScore(CFG.enemyYellowScore * dmg);
             this.yellowAliens.splice(ei, 1);
           }
           break;
@@ -1655,6 +1776,8 @@ class Game {
     drawGrid(ctx, W, H, this.tick);
 
     this.particles.forEach(p => p.draw(ctx));
+    this.coins.forEach(c => c.draw(ctx));
+    this.mysteryPickups.forEach(m => m.draw(ctx));
     this.asteroids.forEach(a => a.draw(ctx));
     this.bullets.forEach(b => b.draw(ctx));
     this.enemyBullets.forEach(b => b.draw(ctx));
@@ -1682,7 +1805,7 @@ class Game {
 
     const rawScore       = this.score;
     const effectiveScore = Math.floor(rawScore * this.activeMultiplier);
-    const shmipsEarned   = (effectiveScore / 1000);
+    const shmipsEarned   = (effectiveScore / 1000) + (this.runShmipsBonus || 0);
 
     document.getElementById('go-score').textContent  = `SCORE  ${effectiveScore.toLocaleString()}`;
     document.getElementById('go-shmips').textContent = `+${shmipsEarned.toFixed(2)} $$ EARNED`;
@@ -1697,8 +1820,12 @@ class Game {
       try {
         const result = await dbSaveScore(tid, rawScore, this.level);
         if (result) {
-          this.userData.shmips     = result.totalShmips;
+          this.userData.shmips = result.totalShmips;
           this.userData.best_score = result.newBestScore;
+          if (this.runShmipsBonus > 0) {
+            const updated = await dbAddBonusShmips(tid, this.runShmipsBonus);
+            if (updated) this.userData.shmips = updated.shmips;
+          }
         }
       } catch (e) { console.warn('[gameOver] score save failed:', e.message); }
     } else {
@@ -1823,33 +1950,6 @@ class Game {
     btn.disabled = true;
     result.classList.add('hidden');
 
-    // Always animate the wheel first, regardless of online/offline
-    const totalRot = TAU * (5 + Math.random() * 5);
-    let gone = 0, rot = 0, speed = 0.04;
-    let lastTickRot = 0;
-    const tickEvery = TAU / 6; // one tick per segment
-
-    await new Promise(resolve => {
-      const frame = () => {
-        gone  += speed;
-        rot   += speed;
-        if (gone < totalRot * 0.3)      speed = Math.min(speed + 0.018, 0.42);
-        else if (gone > totalRot * 0.7) speed = Math.max(speed * 0.975, 0.008);
-
-        // Spin tick sound at each segment boundary
-        if (rot - lastTickRot >= tickEvery) {
-          lastTickRot = rot;
-          SFX.spinTick();
-        }
-
-        drawSpinWheel(spinCanvas, rot);
-        if (gone < totalRot || speed > 0.009) requestAnimationFrame(frame);
-        else resolve();
-      };
-      requestAnimationFrame(frame);
-    });
-
-    // Now handle online/offline result
     if (OFFLINE_MODE) {
       result.textContent = 'OFFLINE — SPIN REQUIRES CONNECTION';
       result.classList.remove('hidden');
@@ -1863,9 +1963,7 @@ class Game {
       data = await apiFetch('/api/spin', { method: 'POST' });
     } catch {
       if (tid) {
-        try {
-          data = await dbDoSpin(tid);
-        } catch (e) {
+        try { data = await dbDoSpin(tid); } catch (e) {
           result.textContent = (e.message || 'SPIN FAILED').toUpperCase();
           result.classList.remove('hidden');
           btn.disabled = false;
@@ -1884,15 +1982,55 @@ class Game {
       btn.disabled = false;
       return;
     }
-    if (data?.reward) {
-      result.textContent = `YOU GOT: ${data.reward.label}!`;
-      result.classList.remove('hidden');
-      if (tid) {
-        const me = await dbGetOrCreateUser(tid).catch(() => null);
-        if (me) { this.userData = me.user; this._parseUpgrades(me.upgrades || []); }
-      }
-      this._loadMenu();
+    const reward = data?.reward;
+    if (!reward) return;
+
+    // Animate wheel to land on the ACTUAL reward (wheel display = reward received)
+    const apiLabelMap = { '5 $$':0, '10 $$':1, '15 $$':2, '20 $$':3, '30 $$':4, '50 $$':5,
+      '2x points (1h)':6, '2x pts (1h)':6, '2x 1h':6,
+      '3x points (1h)':7, '3x pts (1h)':7, '3x 1h':7,
+      'golden plane':8, 'gold':8, 'random upgrade':9, 'upgrd':9 };
+    const norm = (s) => (s || '').toLowerCase().replace(/\s/g, ' ').trim();
+    let segIdx = reward.segmentIndex;
+    if (segIdx == null) {
+      segIdx = SPIN_WHEEL_SEGMENTS.findIndex(s => norm(s.label) === norm(reward.label));
+      if (segIdx < 0) segIdx = apiLabelMap[norm(reward.label)] ?? 0;
     }
+    const n = SPIN_WHEEL_SEGMENTS.length;
+    const targetSeg = segIdx >= 0 ? segIdx : 0;
+    const finalRot = TAU * (6 + Math.random() * 4) - (targetSeg + 0.5) * (TAU / n);
+
+    let gone = 0, rot = 0, speed = 0.04;
+    let lastTickRot = 0;
+    const tickEvery = TAU / n;
+    await new Promise(resolve => {
+      const frame = () => {
+        gone += speed;
+        rot += speed;
+        if (gone < finalRot * 0.3) speed = Math.min(speed + 0.018, 0.42);
+        else if (gone > finalRot * 0.7) speed = Math.max(speed * 0.975, 0.008);
+        if (rot - lastTickRot >= tickEvery) { lastTickRot = rot; SFX.spinTick(); }
+        drawSpinWheel(spinCanvas, rot);
+        if (gone < finalRot || speed > 0.009) requestAnimationFrame(frame);
+        else resolve();
+      };
+      requestAnimationFrame(frame);
+    });
+
+    result.textContent = `YOU GOT: ${reward.label}!`;
+    result.classList.remove('hidden');
+    if (tid) {
+      const me = await dbGetOrCreateUser(tid).catch(() => null);
+      if (me) { this.userData = me.user; this._parseUpgrades(me.upgrades || []); }
+    }
+    this._loadMenu();
+
+    // Spin is now locked — next open will show countdown
+    btn.disabled = true;
+    btn.style.opacity = '0.4';
+    const timer = document.getElementById('spin-countdown');
+    timer.classList.remove('hidden');
+    this._startSpinCountdown(6 * 60 * 60 * 1000, timer);
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────
