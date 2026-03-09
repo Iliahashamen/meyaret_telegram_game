@@ -44,7 +44,7 @@ async function apiFetch(path, opts = {}) {
 // Demo user used when backend is unreachable
 const DEMO_USER = {
   telegram_id: 0,
-  nickname: 'PILOT',
+  nickname: localStorage.getItem('meyaret_callsign') || null,
   shmips: 0,
   best_score: 0,
   total_games: 0,
@@ -75,15 +75,15 @@ const C = {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
-  rotSpeed:     0.055,
-  thrustPower:  0.22,
-  friction:     0.985,
-  bulletSpeed:  9,
-  bulletLife:   55,
-  laserLife:    18,
-  rocketSpeed:  4.5,
-  flareRadius:  70,
-  asteroidSizes: { large: 44, medium: 22, small: 11 },
+  rotSpeed:     0.038,
+  thrustPower:  0.14,
+  friction:     0.989,
+  bulletSpeed:  7,
+  bulletLife:   60,
+  laserLife:    22,
+  rocketSpeed:  3.2,
+  flareRadius:  80,
+  asteroidSizes: { large: 42, medium: 21, small: 10 },
   asteroidScores: { large: 20, medium: 50, small: 100 },
   enemyRedScore:    200,
   enemyYellowScore: 150,
@@ -362,7 +362,7 @@ class Asteroid {
     this.x = x; this.y = y;
     this.size = size;
     this.radius = CFG.asteroidSizes[size];
-    const spd = size === 'large' ? rng(0.6, 1.2) : size === 'medium' ? rng(1, 2) : rng(1.6, 3);
+    const spd = size === 'large' ? rng(0.35, 0.8) : size === 'medium' ? rng(0.6, 1.3) : rng(1.0, 2.0);
     const ang = angle !== null ? angle : rng(0, TAU);
     this.vx = Math.cos(ang) * spd;
     this.vy = Math.sin(ang) * spd;
@@ -619,74 +619,46 @@ class Rocket {
   get dead() { return this.life <= 0; }
 }
 
-// ── Perspective Grid Background ───────────────────────────────────────────────
-function drawGrid(ctx, W, H, tick) {
-  const horizon = H * 0.55;
-  const cols = 12;
-  const rows = 16;
-  const scrollY = (tick * 1.5) % (H / rows);
+// ── Background: Deep Purple Space + Glowing Stars ────────────────────────────
+const STARS = Array.from({ length: 90 }, (_, i) => ({
+  x:     (i * 197 + 83)  % 1000,
+  y:     (i * 311 + 149) % 1000,
+  r:     i % 7 === 0 ? 1.8 : i % 3 === 0 ? 1.2 : 0.65,
+  phase: i * 0.37,
+  color: ['#ffffff','#ffffff','#ffffff','#cc88ff','#8899ff','#dd99ff'][i % 6],
+}));
 
+function drawGrid(ctx, W, H, tick) {
   ctx.clearRect(0, 0, W, H);
 
-  // Sky gradient
-  const sky = ctx.createLinearGradient(0, 0, 0, horizon);
-  sky.addColorStop(0, '#010108');
-  sky.addColorStop(1, '#050518');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, horizon);
+  // Deep purple void
+  ctx.fillStyle = '#0d0010';
+  ctx.fillRect(0, 0, W, H);
 
-  // Ground
-  const gnd = ctx.createLinearGradient(0, horizon, 0, H);
-  gnd.addColorStop(0, '#060f06');
-  gnd.addColorStop(1, '#020502');
-  ctx.fillStyle = gnd;
-  ctx.fillRect(0, horizon, W, H - horizon);
+  // Soft nebula glow
+  const radial = ctx.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, W * 0.72);
+  radial.addColorStop(0, 'rgba(90,0,130,0.16)');
+  radial.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = radial;
+  ctx.fillRect(0, 0, W, H);
 
-  ctx.save();
-  ctx.strokeStyle = C.gridLine;
-  ctx.lineWidth   = 1;
+  // Glowing stars
+  for (const s of STARS) {
+    const sx      = (s.x / 1000) * W;
+    const sy      = (s.y / 1000) * H;
+    const twinkle = Math.sin(tick * 0.016 + s.phase) * 0.5 + 0.5;
+    const alpha   = 0.2 + twinkle * 0.7;
 
-  const vp = { x: W / 2, y: horizon };
-
-  // Vertical perspective lines
-  for (let c = 0; c <= cols; c++) {
-    const gx = (c / cols) * W;
-    const alpha = 0.18 + 0.12 * Math.sin((c / cols) * Math.PI);
     ctx.globalAlpha = alpha;
+    ctx.shadowColor = s.color;
+    ctx.shadowBlur  = s.r > 1.4 ? 12 : 5;
+    ctx.fillStyle   = s.color;
     ctx.beginPath();
-    ctx.moveTo(vp.x, vp.y);
-    ctx.lineTo(gx, H);
-    ctx.stroke();
-  }
-
-  // Horizontal rows (scrolling down)
-  for (let r = 0; r <= rows; r++) {
-    const t = (r / rows + scrollY / (H - horizon));
-    const clamped = clamp(t, 0, 1);
-    const y = horizon + (H - horizon) * (clamped * clamped);
-    const alpha = clamp(clamped * 0.5, 0.04, 0.35);
-    ctx.globalAlpha = alpha;
-    // Project horizontal line width at this depth
-    const progress = clamped;
-    const x0 = vp.x - (vp.x) * progress;
-    const x1 = vp.x + (W - vp.x) * progress;
-    ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
-  }
-
-  ctx.globalAlpha = 1;
-  ctx.restore();
-
-  // Stars in sky
-  ctx.fillStyle = '#ffffff';
-  const starSeed = 42;
-  for (let i = 0; i < 60; i++) {
-    const sx = ((starSeed * i * 73 + i * 137) % W);
-    const sy = ((starSeed * i * 31 + i * 97)  % horizon);
-    const br  = (tick / 40 + i * 0.3) % 1;
-    ctx.globalAlpha = 0.2 + 0.5 * Math.abs(Math.sin(br * Math.PI));
-    ctx.beginPath(); ctx.arc(sx, sy, 0.8, 0, TAU); ctx.fill();
+    ctx.arc(sx, sy, s.r, 0, TAU);
+    ctx.fill();
   }
   ctx.globalAlpha = 1;
+  ctx.shadowBlur  = 0;
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
@@ -881,18 +853,23 @@ class Game {
       console.warn('[init] Backend unreachable — starting in demo mode:', err.message);
       OFFLINE_MODE = true;
       bar.style.width = '100%';
-      this.userData = { ...DEMO_USER };
+      const savedCallsign = localStorage.getItem('meyaret_callsign');
+      this.userData = { ...DEMO_USER, nickname: savedCallsign || null };
       await this._sleep(400);
       document.getElementById('loading-screen').style.display = 'none';
-      // Show offline banner in menu
-      this._loadMenu();
-      this._showScreen('menu');
-      // Small non-blocking notice in the multiplier banner slot
-      const banner = document.getElementById('multiplier-banner');
-      banner.textContent = 'OFFLINE MODE — SCORES NOT SAVED';
-      banner.style.borderColor = '#ff4466';
-      banner.style.color = '#ff4466';
-      banner.classList.remove('hidden');
+
+      if (!savedCallsign) {
+        // No callsign yet — show onboarding even in offline mode
+        this._showScreen('onboarding');
+      } else {
+        this._loadMenu();
+        this._showScreen('menu');
+        const banner = document.getElementById('multiplier-banner');
+        banner.textContent = 'OFFLINE MODE — SCORES NOT SAVED';
+        banner.style.borderColor = '#ff4466';
+        banner.style.color = '#ff4466';
+        banner.classList.remove('hidden');
+      }
     }
 
     this.state = 'menu';
@@ -990,8 +967,51 @@ class Game {
       if (k) this.keys[k] = false;
     });
 
-    // Mobile controls
-    const bind = (id, key, isToggle = false) => {
+    // ── Virtual Joystick ────────────────────────────────────────────────────────
+    const joyBase = document.getElementById('vjoy-base');
+    const joyKnob = document.getElementById('vjoy-knob');
+
+    const applyJoy = (clientX, clientY) => {
+      const rect = joyBase.getBoundingClientRect();
+      const cx = rect.left + rect.width  / 2;
+      const cy = rect.top  + rect.height / 2;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      const maxR = rect.width / 2 - 8;
+      const d    = Math.min(Math.hypot(dx, dy), maxR);
+      const ang  = Math.atan2(dy, dx);
+      const kx   = Math.cos(ang) * d;
+      const ky   = Math.sin(ang) * d;
+
+      joyKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+
+      const deadzone = 12;
+      this.keys.left  = dx < -deadzone;
+      this.keys.right = dx >  deadzone;
+      this.keys.up    = dy < -deadzone;
+    };
+
+    const resetJoy = () => {
+      joyKnob.style.transform = 'translate(-50%, -50%)';
+      this.keys.left  = false;
+      this.keys.right = false;
+      this.keys.up    = false;
+    };
+
+    if (joyBase) {
+      joyBase.addEventListener('touchstart', e => { e.preventDefault(); applyJoy(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+      joyBase.addEventListener('touchmove',  e => { e.preventDefault(); applyJoy(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+      joyBase.addEventListener('touchend',   e => { e.preventDefault(); resetJoy(); },                                           { passive: false });
+      // Mouse fallback for desktop testing
+      let joyDown = false;
+      joyBase.addEventListener('mousedown',  e => { joyDown = true;  applyJoy(e.clientX, e.clientY); });
+      joyBase.addEventListener('mousemove',  e => { if (joyDown) applyJoy(e.clientX, e.clientY); });
+      joyBase.addEventListener('mouseup',    ()  => { joyDown = false; resetJoy(); });
+      joyBase.addEventListener('mouseleave', ()  => { joyDown = false; resetJoy(); });
+    }
+
+    // ── Action Buttons ──────────────────────────────────────────────────────────
+    const bindAction = (id, key) => {
       const el = document.getElementById(id);
       if (!el) return;
       el.addEventListener('touchstart', e => { e.preventDefault(); this.keys[key] = true;  }, { passive: false });
@@ -999,18 +1019,31 @@ class Game {
       el.addEventListener('mousedown',  ()  => { this.keys[key] = true;  });
       el.addEventListener('mouseup',    ()  => { this.keys[key] = false; });
     };
-    bind('ctrl-rotl',  'left');
-    bind('ctrl-rotr',  'right');
-    bind('ctrl-thrust','up');
-    bind('ctrl-fire',  'fire');
-    bind('ctrl-flare', 'flare');
+    bindAction('ctrl-fire',  'fire');
+    bindAction('ctrl-flare', 'flare');
   }
 
   // ── Onboarding ─────────────────────────────────────────────────────────────
   async _submitCallsign() {
     const raw = document.getElementById('callsign-input').value.trim().toUpperCase().replace(/[^A-Z0-9_]/g,'');
     const errEl = document.getElementById('callsign-error');
-    if (!raw || raw.length < 2) { errEl.textContent = 'Min 2 characters.'; return; }
+    if (!raw || raw.length < 2) { errEl.textContent = 'MIN 2 CHARACTERS.'; return; }
+    if (raw.length > 12)         { errEl.textContent = 'MAX 12 CHARACTERS.'; return; }
+
+    // Always save locally first
+    localStorage.setItem('meyaret_callsign', raw);
+
+    if (OFFLINE_MODE) {
+      this.userData = { ...DEMO_USER, nickname: raw };
+      this._loadMenu();
+      this._showScreen('menu');
+      const banner = document.getElementById('multiplier-banner');
+      banner.textContent = 'OFFLINE MODE — SCORES NOT SAVED';
+      banner.style.borderColor = '#ff4466';
+      banner.style.color = '#ff4466';
+      banner.classList.remove('hidden');
+      return;
+    }
 
     try {
       const data = await apiFetch('/api/users/me/nickname', { method: 'PATCH', body: { nickname: raw } });
@@ -1018,14 +1051,23 @@ class Game {
       this.userData = data.user;
       this._loadMenu();
       this._showScreen('menu');
-    } catch { errEl.textContent = 'Connection error. Try again.'; }
+    } catch {
+      // API failed but we have localStorage — proceed offline
+      OFFLINE_MODE = true;
+      this.userData = { ...DEMO_USER, nickname: raw };
+      this._loadMenu();
+      this._showScreen('menu');
+    }
   }
 
   // ── Menu ───────────────────────────────────────────────────────────────────
   _loadMenu() {
     if (!this.userData) return;
-    document.getElementById('menu-nickname').textContent = this.userData.nickname;
-    document.getElementById('menu-shmips').textContent   = `${this.userData.shmips.toLocaleString()} ⬡`;
+    const nick = this.userData.nickname || localStorage.getItem('meyaret_callsign') || 'PILOT';
+    document.getElementById('menu-nickname').textContent  = nick;
+    document.getElementById('menu-trust-name').textContent = nick;
+    const shmips = Number(this.userData.shmips || 0);
+    document.getElementById('menu-shmips').textContent    = `${shmips % 1 === 0 ? shmips : shmips.toFixed(2)} ⬡`;
     this._loadLeaderboard();
   }
 
@@ -1289,7 +1331,7 @@ class Game {
     this.yellowAliens.forEach(ya => ya.draw(ctx));
     if (this.ship?.alive) this.ship.draw(ctx);
 
-    const shmipsSession = Math.floor(this.score / 1000);
+    const shmipsSession = (this.score / 1000).toFixed(2);
     drawHUD(ctx, W, {
       score: this.score,
       level: this.level,
@@ -1306,12 +1348,12 @@ class Game {
     this.ship.alive = false;
     this._showScreen('gameover');
 
-    const rawScore    = this.score;
+    const rawScore       = this.score;
     const effectiveScore = Math.floor(rawScore * this.activeMultiplier);
-    const shmipsEarned   = Math.floor(effectiveScore / 1000);
+    const shmipsEarned   = (effectiveScore / 1000);
 
     document.getElementById('go-score').textContent  = `SCORE  ${effectiveScore.toLocaleString()}`;
-    document.getElementById('go-shmips').textContent = `+${shmipsEarned} ⬡  SHMIPS EARNED`;
+    document.getElementById('go-shmips').textContent = `+${shmipsEarned.toFixed(2)} ⬡  SHMIPS EARNED`;
 
     const isNew = effectiveScore > (this.userData?.best_score || 0);
     document.getElementById('go-title').textContent = isNew ? '✦ NEW HIGH SCORE ✦' : 'GAME OVER';
@@ -1424,6 +1466,12 @@ class Game {
     const result = document.getElementById('spin-result');
     btn.disabled = true;
 
+    if (OFFLINE_MODE) {
+      result.textContent = 'SPIN UNAVAILABLE — OFFLINE MODE';
+      result.classList.remove('hidden');
+      return;
+    }
+
     // Animate wheel spin
     const spinCanvas = document.getElementById('spin-canvas');
     let   speed = 0.35;
@@ -1457,9 +1505,13 @@ class Game {
       const me = await apiFetch('/api/users/me');
       this.userData = me.user;
       this._parseUpgrades(me.upgrades || []);
-    } catch {
-      result.textContent = 'Error — try again.';
+    } catch (err) {
+      result.textContent = OFFLINE_MODE
+        ? 'SPIN UNAVAILABLE — OFFLINE MODE'
+        : 'CONNECTION ERROR — TRY AGAIN';
       result.classList.remove('hidden');
+      console.error('[spin]', err.message);
+      btn.disabled = false;
     }
   }
 

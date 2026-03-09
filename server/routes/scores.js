@@ -29,9 +29,9 @@ scoresRouter.post('/', requireTelegramAuth, async (req, res) => {
   const effectiveMultiplier = multiplierActive ? Number(user.multiplier_value) : 1.0;
   const adjustedScore = Math.floor(score * effectiveMultiplier);
 
-  // 1000 pts = 1 shmip
-  const shmipsEarned = Math.floor(adjustedScore / 1000);
-  const newShmips    = user.shmips + shmipsEarned;
+  // 1000 pts = 1 shmip (decimal — 650 pts = 0.65 shmips)
+  const shmipsEarned = Math.round((adjustedScore / 1000) * 100) / 100;
+  const newShmips    = Math.round((Number(user.shmips) + shmipsEarned) * 100) / 100;
   const newBest      = Math.max(user.best_score, adjustedScore);
 
   // Insert score record

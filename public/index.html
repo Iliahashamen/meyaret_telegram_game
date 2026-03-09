@@ -44,6 +44,7 @@
 
     <div class="logo-menu">MEYARET</div>
     <div class="logo-sub">SYNTHWAVE SPACE COMBAT</div>
+    <div class="logo-trust">WE TRUST YOU <span id="menu-trust-name">PILOT</span></div>
 
     <div class="menu-buttons">
       <button id="btn-play"  class="btn-primary btn-big">▶  PLAY</button>
@@ -108,14 +109,19 @@
 
   <!-- Mobile Controls Overlay (shown during gameplay) -->
   <div id="controls-overlay" class="hidden">
+    <!-- Left: Virtual Arcade Joystick -->
     <div id="ctrl-left">
-      <button class="ctrl-btn" id="ctrl-rotl">◁</button>
-      <button class="ctrl-btn ctrl-thrust" id="ctrl-thrust">▲</button>
-      <button class="ctrl-btn" id="ctrl-rotr">▷</button>
+      <div id="vjoy-base">
+        <div id="vjoy-knob"></div>
+        <span class="vjoy-hint vjoy-hint-up">▲</span>
+        <span class="vjoy-hint vjoy-hint-left">◀</span>
+        <span class="vjoy-hint vjoy-hint-right">▶</span>
+      </div>
     </div>
+    <!-- Right: Action Buttons -->
     <div id="ctrl-right">
-      <button class="ctrl-btn ctrl-flare" id="ctrl-flare">🔥</button>
-      <button class="ctrl-btn ctrl-fire" id="ctrl-fire">●</button>
+      <button class="ctrl-round" id="ctrl-flare">FLARE</button>
+      <button class="ctrl-round ctrl-fire-btn" id="ctrl-fire">FIRE</button>
     </div>
   </div>
 

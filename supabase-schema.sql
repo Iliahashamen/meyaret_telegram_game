@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS users (
   telegram_id       BIGINT PRIMARY KEY,
   nickname          TEXT NOT NULL DEFAULT 'ACE',
-  shmips            INTEGER NOT NULL DEFAULT 0,
+  shmips            NUMERIC(10,2) NOT NULL DEFAULT 0,
   multiplier_value  NUMERIC(3,1) NOT NULL DEFAULT 1.0,
   multiplier_end    TIMESTAMPTZ,
   has_golden_plane  BOOLEAN NOT NULL DEFAULT FALSE,
@@ -95,6 +95,16 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- ── Migrate shmips to decimal (run once on existing DB) ──────────────────────
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='users' AND column_name='shmips' AND data_type='integer'
+  ) THEN
+    ALTER TABLE users ALTER COLUMN shmips TYPE NUMERIC(10,2) USING shmips::NUMERIC(10,2);
+  END IF;
+END $$;
 
 DROP TRIGGER IF EXISTS users_updated_at ON users;
 CREATE TRIGGER users_updated_at
