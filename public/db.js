@@ -4,7 +4,7 @@
 // ============================================================
 
 const SUPA_URL = 'https://fbcjmniqwqiurssdqnka.supabase.co/rest/v1';
-const SUPA_KEY = 'sb_publishable_yWYuHRBLU3m_-XUdDVJDBw_KsEm8Kpk';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiY2ptbmlxd3FpdXJzc2RxbmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNTI0MzksImV4cCI6MjA4ODYyODQzOX0.QDC0jN8Zf1JgvmvDVa3h_CD4wPih6Ly2L4kEFK1Q48E';
 
 const HDR = {
   'apikey':        SUPA_KEY,
