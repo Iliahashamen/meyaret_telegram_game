@@ -17,27 +17,30 @@ const API_BASE = (typeof window !== 'undefined' && window.MEYARET_API) || '';
 // Offline/demo mode: set to true if backend is unreachable
 let OFFLINE_MODE = false;
 
-async function apiFetch(path, opts = {}) {
+async function apiFetch(path, opts = {}, retries = 2) {
   const url = API_BASE + path;
-  try {
-    const res = await fetch(url, {
-      ...opts,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Telegram-Init-Data': INIT_DATA,
-        ...(opts.headers || {}),
-      },
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text.slice(0, 120)}`);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        ...opts,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Init-Data': INIT_DATA,
+          ...(opts.headers || {}),
+        },
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text.slice(0, 120)}`);
+      }
+      OFFLINE_MODE = false;
+      return res.json();
+    } catch (err) {
+      console.warn(`[API] attempt ${attempt + 1}/${retries + 1} — ${opts.method || 'GET'} ${url}:`, err.message);
+      if (attempt < retries) await new Promise(r => setTimeout(r, 1200 * (attempt + 1)));
+      else throw err;
     }
-    OFFLINE_MODE = false;
-    return res.json();
-  } catch (err) {
-    console.warn(`[API] ${opts.method || 'GET'} ${url} failed:`, err.message);
-    throw err;
   }
 }
 
@@ -75,14 +78,14 @@ const C = {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
-  rotSpeed:     0.038,
-  thrustPower:  0.14,
-  friction:     0.989,
-  bulletSpeed:  7,
-  bulletLife:   60,
-  laserLife:    22,
-  rocketSpeed:  3.2,
-  flareRadius:  80,
+  rotSpeed:     0.030,
+  thrustPower:  0.11,
+  friction:     0.991,
+  bulletSpeed:  6,
+  bulletLife:   65,
+  laserLife:    25,
+  rocketSpeed:  2.6,
+  flareRadius:  85,
   asteroidSizes: { large: 42, medium: 21, small: 10 },
   asteroidScores: { large: 20, medium: 50, small: 100 },
   enemyRedScore:    200,
@@ -170,7 +173,7 @@ class Ship {
     this.golden = !!(upgrades.golden_plane);
 
     this.fireCooldown  = 0;
-    this.fireRate      = this.hasRapid ? 7 : 14;
+    this.fireRate      = this.hasRapid ? 12 : 22;
     this.thrusting     = false;
   }
 
@@ -362,7 +365,7 @@ class Asteroid {
     this.x = x; this.y = y;
     this.size = size;
     this.radius = CFG.asteroidSizes[size];
-    const spd = size === 'large' ? rng(0.35, 0.8) : size === 'medium' ? rng(0.6, 1.3) : rng(1.0, 2.0);
+    const spd = size === 'large' ? rng(0.25, 0.55) : size === 'medium' ? rng(0.45, 0.9) : rng(0.7, 1.4);
     const ang = angle !== null ? angle : rng(0, TAU);
     this.vx = Math.cos(ang) * spd;
     this.vy = Math.sin(ang) * spd;
@@ -619,40 +622,29 @@ class Rocket {
   get dead() { return this.life <= 0; }
 }
 
-// ── Background: Deep Purple Space + Glowing Stars ────────────────────────────
-const STARS = Array.from({ length: 90 }, (_, i) => ({
+// ── Background: Pure 1979-style Black + sparse dim stars ─────────────────────
+const STARS = Array.from({ length: 40 }, (_, i) => ({
   x:     (i * 197 + 83)  % 1000,
   y:     (i * 311 + 149) % 1000,
-  r:     i % 7 === 0 ? 1.8 : i % 3 === 0 ? 1.2 : 0.65,
-  phase: i * 0.37,
-  color: ['#ffffff','#ffffff','#ffffff','#cc88ff','#8899ff','#dd99ff'][i % 6],
+  r:     i % 9 === 0 ? 1.4 : 0.7,
+  phase: i * 0.41,
 }));
 
 function drawGrid(ctx, W, H, tick) {
   ctx.clearRect(0, 0, W, H);
 
-  // Deep purple void
-  ctx.fillStyle = '#0d0010';
+  // Pure black — as close to the original CRT as possible
+  ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, W, H);
 
-  // Soft nebula glow
-  const radial = ctx.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, W * 0.72);
-  radial.addColorStop(0, 'rgba(90,0,130,0.16)');
-  radial.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = radial;
-  ctx.fillRect(0, 0, W, H);
-
-  // Glowing stars
+  // Very subtle, sparse stars — mostly white, almost invisible
   for (const s of STARS) {
     const sx      = (s.x / 1000) * W;
     const sy      = (s.y / 1000) * H;
-    const twinkle = Math.sin(tick * 0.016 + s.phase) * 0.5 + 0.5;
-    const alpha   = 0.2 + twinkle * 0.7;
+    const twinkle = Math.sin(tick * 0.012 + s.phase) * 0.3 + 0.7;
 
-    ctx.globalAlpha = alpha;
-    ctx.shadowColor = s.color;
-    ctx.shadowBlur  = s.r > 1.4 ? 12 : 5;
-    ctx.fillStyle   = s.color;
+    ctx.globalAlpha = twinkle * (s.r > 1 ? 0.55 : 0.35);
+    ctx.fillStyle   = '#ffffff';
     ctx.beginPath();
     ctx.arc(sx, sy, s.r, 0, TAU);
     ctx.fill();
@@ -662,27 +654,24 @@ function drawGrid(ctx, W, H, tick) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, shmipsSession }) {
+function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier }) {
   ctx.font = '13px "Courier New", monospace';
   ctx.textAlign = 'left';
 
   glow(ctx, C.hud, 8);
   ctx.fillStyle = C.hud;
+  // Score as plain whole number, big and clear
   ctx.fillText(`SCORE  ${score.toLocaleString()}`, 14, 24);
   ctx.fillText(`LEVEL  ${level}`, 14, 42);
 
-  // Lives as triangles
+  // Lives as small ship triangles
   ctx.fillText('LIVES  ', 14, 60);
   for (let i = 0; i < maxLives; i++) {
     const lx = 78 + i * 16;
     const ly = 60;
-    if (i < lives) {
-      ctx.fillStyle = C.hud;
-      glow(ctx, C.hud, 8);
-    } else {
-      ctx.fillStyle = '#1a3a1a';
-      ctx.shadowBlur = 0;
-    }
+    ctx.fillStyle   = i < lives ? C.hud : '#1a1a2a';
+    ctx.shadowBlur  = i < lives ? 8 : 0;
+    ctx.shadowColor = C.hud;
     ctx.beginPath();
     ctx.moveTo(lx + 5, ly - 8); ctx.lineTo(lx + 10, ly); ctx.lineTo(lx, ly);
     ctx.closePath(); ctx.fill();
@@ -693,19 +682,15 @@ function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, sh
   glow(ctx, '#ff6600', 8);
   ctx.fillText(`FLARES ${flares}`, 14, 80);
 
-  // Session shmips
-  ctx.fillStyle = C.golden;
-  glow(ctx, C.golden, 8);
-  ctx.textAlign = 'right';
-  ctx.fillText(`⬡ +${shmipsSession}`, W - 14, 24);
-
+  // Multiplier top-right only if active
   if (multiplier > 1) {
     ctx.fillStyle = '#ffdd00';
     glow(ctx, '#ffdd00', 12);
-    ctx.fillText(`${multiplier}x MULTIPLIER`, W - 14, 44);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${multiplier}x BONUS`, W - 14, 24);
+    ctx.textAlign = 'left';
   }
 
-  ctx.textAlign = 'left';
   ctx.shadowBlur = 0;
 }
 
@@ -972,23 +957,26 @@ class Game {
     const joyKnob = document.getElementById('vjoy-knob');
 
     const applyJoy = (clientX, clientY) => {
-      const rect = joyBase.getBoundingClientRect();
-      const cx = rect.left + rect.width  / 2;
-      const cy = rect.top  + rect.height / 2;
-      const dx = clientX - cx;
-      const dy = clientY - cy;
-      const maxR = rect.width / 2 - 8;
-      const d    = Math.min(Math.hypot(dx, dy), maxR);
-      const ang  = Math.atan2(dy, dx);
-      const kx   = Math.cos(ang) * d;
-      const ky   = Math.sin(ang) * d;
+      const rect  = joyBase.getBoundingClientRect();
+      const cx    = rect.left + rect.width  / 2;
+      const cy    = rect.top  + rect.height / 2;
+      const dx    = clientX - cx;
+      const dy    = clientY - cy;
+      const maxR  = rect.width / 2 - 6;
+      const d     = Math.min(Math.hypot(dx, dy), maxR);
+      const ang   = Math.atan2(dy, dx);
+      const kx    = Math.cos(ang) * d;
+      const ky    = Math.sin(ang) * d;
 
       joyKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
 
-      const deadzone = 12;
-      this.keys.left  = dx < -deadzone;
-      this.keys.right = dx >  deadzone;
-      this.keys.up    = dy < -deadzone;
+      // Directional thresholds: 25% of radius for rotation, 20% for thrust
+      const rotDead = maxR * 0.22;
+      const thrDead = maxR * 0.18;
+      this.keys.left  = dx < -rotDead;
+      this.keys.right = dx >  rotDead;
+      // Thrust: upper half of joystick — negative dy = upward
+      this.keys.up    = dy < -thrDead;
     };
 
     const resetJoy = () => {
@@ -1331,15 +1319,13 @@ class Game {
     this.yellowAliens.forEach(ya => ya.draw(ctx));
     if (this.ship?.alive) this.ship.draw(ctx);
 
-    const shmipsSession = (this.score / 1000).toFixed(2);
     drawHUD(ctx, W, {
-      score: this.score,
-      level: this.level,
-      lives: this.ship?.lives ?? 0,
-      maxLives: this.ship?.maxLives ?? 3,
-      flares: this.ship?.flares ?? 0,
+      score:      this.score,
+      level:      this.level,
+      lives:      this.ship?.lives    ?? 0,
+      maxLives:   this.ship?.maxLives ?? 3,
+      flares:     this.ship?.flares   ?? 0,
       multiplier: this.activeMultiplier,
-      shmipsSession,
     });
   }
 
@@ -1462,40 +1448,44 @@ class Game {
   }
 
   async _doSpin() {
-    const btn    = document.getElementById('spin-btn');
-    const result = document.getElementById('spin-result');
-    btn.disabled = true;
-
-    if (OFFLINE_MODE) {
-      result.textContent = 'SPIN UNAVAILABLE — OFFLINE MODE';
-      result.classList.remove('hidden');
-      return;
-    }
-
-    // Animate wheel spin
+    const btn        = document.getElementById('spin-btn');
+    const result     = document.getElementById('spin-result');
     const spinCanvas = document.getElementById('spin-canvas');
-    let   speed = 0.35;
-    let   rot   = 0;
+    btn.disabled = true;
+    result.classList.add('hidden');
+
+    // Always animate the wheel first, regardless of online/offline
     const totalRot = TAU * (5 + Math.random() * 5);
-    let   gone  = 0;
+    let gone = 0, rot = 0, speed = 0.04;
 
     await new Promise(resolve => {
       const frame = () => {
-        gone += speed;
-        rot  += speed;
-        speed = gone < totalRot ? Math.min(speed + 0.01, 0.35) : speed * 0.97;
+        gone  += speed;
+        rot   += speed;
+        // Ease in then ease out
+        if (gone < totalRot * 0.3)      speed = Math.min(speed + 0.018, 0.42);
+        else if (gone > totalRot * 0.7) speed = Math.max(speed * 0.975, 0.008);
         drawSpinWheel(spinCanvas, rot);
-        if (gone < totalRot || speed > 0.01) requestAnimationFrame(frame);
+        if (gone < totalRot || speed > 0.009) requestAnimationFrame(frame);
         else resolve();
       };
       requestAnimationFrame(frame);
     });
 
+    // Now handle online/offline result
+    if (OFFLINE_MODE) {
+      result.textContent = 'OFFLINE — SPIN REQUIRES CONNECTION';
+      result.classList.remove('hidden');
+      btn.disabled = false;
+      return;
+    }
+
     try {
       const data = await apiFetch('/api/spin', { method: 'POST' });
       if (data.error) {
-        result.textContent = data.error;
+        result.textContent = data.error.toUpperCase();
         result.classList.remove('hidden');
+        btn.disabled = false;
         return;
       }
       result.textContent = `YOU GOT: ${data.reward.label}!`;
@@ -1505,10 +1495,9 @@ class Game {
       const me = await apiFetch('/api/users/me');
       this.userData = me.user;
       this._parseUpgrades(me.upgrades || []);
+      this._loadMenu();
     } catch (err) {
-      result.textContent = OFFLINE_MODE
-        ? 'SPIN UNAVAILABLE — OFFLINE MODE'
-        : 'CONNECTION ERROR — TRY AGAIN';
+      result.textContent = 'CONNECTION ERROR — TRY AGAIN';
       result.classList.remove('hidden');
       console.error('[spin]', err.message);
       btn.disabled = false;
