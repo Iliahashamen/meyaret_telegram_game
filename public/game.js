@@ -891,57 +891,102 @@ class Game {
 
   // ── Init: load user, then show menu or onboarding ──────────────────────────
   async _init() {
-    const bar = document.getElementById('loading-bar');
-    bar.style.width = '30%';
+    const bar   = document.getElementById('loading-bar');
+    const label = document.getElementById('loading-label') || { textContent: '' };
+    bar.style.width = '10%';
 
-    try {
-      const data = await apiFetch('/api/users/me');
-      bar.style.width = '80%';
-      this.userData = data.user;
-      this._parseUpgrades(data.upgrades || []);
+    // ── Step 1: Wake up Railway (cold starts can take 30-60s) ──────────────────
+    const serverUp = await this._wakeUpServer(bar, label);
+    bar.style.width = '45%';
 
-      // Check active multiplier
-      if (data.user.multiplier_end && new Date(data.user.multiplier_end) > new Date()) {
-        this.activeMultiplier = Number(data.user.multiplier_value);
-        this._showMultiplierBanner();
-      }
+    // ── Step 2: Fetch user profile ─────────────────────────────────────────────
+    if (serverUp) {
+      label.textContent = 'LOADING PROFILE...';
+      try {
+        const data = await apiFetch('/api/users/me', {}, 1);
+        bar.style.width = '85%';
+        this.userData = data.user;
+        this._parseUpgrades(data.upgrades || []);
 
-      bar.style.width = '100%';
-      await this._sleep(400);
+        if (data.user.multiplier_end && new Date(data.user.multiplier_end) > new Date()) {
+          this.activeMultiplier = Number(data.user.multiplier_value);
+          this._showMultiplierBanner();
+        }
 
-      document.getElementById('loading-screen').style.display = 'none';
+        bar.style.width = '100%';
+        label.textContent = 'READY';
+        await this._sleep(350);
+        document.getElementById('loading-screen').style.display = 'none';
 
-      if (data.isNew) {
-        this._showScreen('onboarding');
-      } else {
-        this._loadMenu();
-        this._showScreen('menu');
-      }
+        if (data.isNew) {
+          this._showScreen('onboarding');
+        } else {
+          this._loadMenu();
+          this._showScreen('menu');
+        }
+        this.state = 'menu';
+        return;
 
-    } catch (err) {
-      console.warn('[init] Backend unreachable — starting in demo mode:', err.message);
-      OFFLINE_MODE = true;
-      bar.style.width = '100%';
-      const savedCallsign = localStorage.getItem('meyaret_callsign');
-      this.userData = { ...DEMO_USER, nickname: savedCallsign || null };
-      await this._sleep(400);
-      document.getElementById('loading-screen').style.display = 'none';
-
-      if (!savedCallsign) {
-        // No callsign yet — show onboarding even in offline mode
-        this._showScreen('onboarding');
-      } else {
-        this._loadMenu();
-        this._showScreen('menu');
-        const banner = document.getElementById('multiplier-banner');
-        banner.textContent = 'OFFLINE MODE — SCORES NOT SAVED';
-        banner.style.borderColor = '#ff4466';
-        banner.style.color = '#ff4466';
-        banner.classList.remove('hidden');
+      } catch (err) {
+        console.warn('[init] Auth failed even though server is up:', err.message);
+        // Fall through to offline mode
       }
     }
 
+    // ── Offline fallback ───────────────────────────────────────────────────────
+    console.warn('[init] Going offline');
+    OFFLINE_MODE = true;
+    bar.style.width = '100%';
+    label.textContent = 'OFFLINE MODE';
+    const savedCallsign = localStorage.getItem('meyaret_callsign');
+    this.userData = { ...DEMO_USER, nickname: savedCallsign || null };
+    await this._sleep(400);
+    document.getElementById('loading-screen').style.display = 'none';
+
+    if (!savedCallsign) {
+      this._showScreen('onboarding');
+    } else {
+      this._loadMenu();
+      this._showScreen('menu');
+      const banner = document.getElementById('multiplier-banner');
+      banner.textContent = 'OFFLINE MODE — SCORES NOT SAVED';
+      banner.style.borderColor = 'var(--pink)';
+      banner.style.color       = 'var(--pink)';
+      banner.classList.remove('hidden');
+    }
     this.state = 'menu';
+  }
+
+  // Ping /health repeatedly until Railway responds (handles cold starts)
+  async _wakeUpServer(bar, label) {
+    const MAX_ATTEMPTS = 14;     // ~70 seconds max wait
+    const PING_INTERVAL = 5000;  // 5s between pings
+    const PING_TIMEOUT  = 7000;  // 7s per ping timeout
+
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      if (i === 0) {
+        label.textContent = 'CONNECTING TO SERVER...';
+      } else {
+        label.textContent = `STARTING SERVER... ${i * 5}s`;
+        bar.style.width   = `${10 + Math.min(i * 2.5, 30)}%`;
+      }
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), PING_TIMEOUT);
+        const res   = await fetch(API_BASE + '/health', { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (res.ok) {
+          console.log(`[init] Server online after ${i * 5}s`);
+          label.textContent = 'SERVER ONLINE';
+          return true;
+        }
+      } catch (_) {
+        // Still starting up — keep waiting
+      }
+      if (i < MAX_ATTEMPTS - 1) await this._sleep(PING_INTERVAL);
+    }
+    console.warn('[init] Server did not respond after max wait');
+    return false;
   }
 
   _parseUpgrades(list) {
