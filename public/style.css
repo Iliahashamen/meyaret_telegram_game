@@ -654,13 +654,15 @@ input[type="text"]:focus {
 /* ── GAME OVER SCREEN ─────────────────────────────────────── */
 #gameover-screen { z-index: 60; gap: 6px; }
 .go-title {
-  font-size: clamp(18px, 5.5vw, 30px);
-  letter-spacing: 4px;
+  font-size: clamp(14px, 4.2vw, 22px);
+  letter-spacing: 3px;
   text-shadow: var(--glow-m);
   color: var(--magenta);
   margin-bottom: 10px;
   text-align: center;
   line-height: 1.6;
+  white-space: nowrap;
+  width: 100%;
 }
 .go-score {
   font-size: 16px; letter-spacing: 2px;
@@ -683,10 +685,53 @@ input[type="text"]:focus {
   box-shadow: 4px 4px 0 #ff007722;
 }
 
+/* ── Top 5 Modal (themed) ──────────────────────────────────── */
+.top5-modal {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 300;
+  padding: 20px;
+}
+.top5-modal.hidden { display: none !important; }
+.top5-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(2,0,8,0.9);
+}
+.top5-panel {
+  position: relative;
+  background: var(--card);
+  border: var(--px) solid var(--magenta);
+  padding: 20px;
+  width: min(320px, 92vw);
+  box-shadow: var(--glow-m), 6px 6px 0 #ff007733;
+  text-align: center;
+}
+.top5-title {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--magenta);
+  text-shadow: var(--glow-m);
+  margin-bottom: 14px;
+  font-family: var(--font);
+}
+.top5-entries {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+  line-height: 2.2;
+  text-align: left;
+  font-family: var(--font);
+  min-height: 60px;
+  margin-bottom: 14px;
+}
+.top5-panel .btn-primary { margin-top: 0; }
+
 /* ── MUTE BUTTON ──────────────────────────────────────────── */
 .mute-btn {
   position: fixed; bottom: 14px; right: 14px;
-  width: 46px; height: 34px;
+  min-width: 58px; height: 34px;
+  padding: 0 8px;
+  font-size: 8px;
   background: rgba(7, 0, 15, 0.88);
   border: var(--px) solid var(--border-c);
   color: var(--cyan);

@@ -432,30 +432,48 @@ export const SFX = {
     if (this.muted || _musicMode === 'menu') return;
     _stopMusicLoop();
     _musicMode = 'menu';
-    const seq = [220, 277, 330, 277, 220, 196, 165, 196];
+    // Extended menu melody — longer loop, more variation (A3 minor progression + B section)
+    const seq = [
+      220, 277, 330, 277, 220, 196, 165, 196, 220,
+      165, 196, 220, 247, 196, 165, 147, 165,
+      220, 277, 330, 370, 330, 277, 247, 220,
+      247, 220, 196, 165, 196, 220, 247, 277,
+      220, 196, 220, 277, 330, 277, 220, 196,
+      165, 196, 220, 247, 277, 330, 277, 247,
+    ];
     let i = 0;
     _musicTimer = setInterval(() => {
       if (this.muted || _musicMode !== 'menu') return;
       const t = _now();
-      _playTone(seq[i % seq.length], t, 0.25, 'triangle', 0.045);
-      _playTone(seq[(i + 2) % seq.length] * 0.5, t, 0.28, 'sine', 0.03);
+      _playTone(seq[i % seq.length], t, 0.28, 'triangle', 0.045);
+      _playTone(seq[(i + 3) % seq.length] * 0.5, t, 0.32, 'sine', 0.028);
       i++;
-    }, 320);
+    }, 380);
   },
 
   startGameMusic() {
     if (this.muted || _musicMode === 'game') return;
     _stopMusicLoop();
     _musicMode = 'game';
-    const bass = [110, 123, 98, 82, 110, 146, 123, 98];
+    // Extended game bass — longer, more varied progression (synthwave/arcade feel)
+    const bass = [
+      110, 123, 98, 82, 110, 146, 123, 98,
+      82, 98, 110, 73, 82, 98, 110, 123,
+      110, 98, 82, 98, 110, 146, 98, 110,
+      123, 110, 98, 82, 73, 82, 98, 110,
+      146, 123, 98, 123, 110, 98, 82, 110,
+      98, 82, 73, 82, 98, 110, 123, 146,
+      110, 123, 98, 110, 82, 98, 110, 123,
+    ];
     let i = 0;
     _musicTimer = setInterval(() => {
       if (this.muted || _musicMode !== 'game') return;
       const t = _now();
-      _playTone(bass[i % bass.length], t, 0.22, 'sawtooth', 0.035);
-      _playTone(bass[i % bass.length] * 2, t + 0.03, 0.12, 'square', 0.02);
+      const root = bass[i % bass.length];
+      _playTone(root, t, 0.24, 'sawtooth', 0.035);
+      _playTone(root * 2, t + 0.03, 0.12, 'square', 0.02);
       i++;
-    }, 240);
+    }, 280);
   },
 
   stopMusic() {

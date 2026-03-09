@@ -27,6 +27,7 @@ async function supa(path, opts = {}) {
 }
 
 // Store catalog — no server needed
+// +10 colors, +6 upgrades, +2 planes
 export const CATALOG = [
   // Affordable per-run powerups
   { id: 'extra_life',        name: 'Extra Life',      category: 'upgrade', cost: 80,   description: '+1 life for one run',        stackable: true  },
@@ -35,17 +36,35 @@ export const CATALOG = [
   // Longer-term progression
   { id: 'rapid_fire',        name: 'Rapid Fire',      category: 'upgrade', cost: 900,  description: '2x bullet fire rate',        stackable: false },
   { id: 'laser',             name: 'Laser Cannon',    category: 'upgrade', cost: 1700, description: 'Replace bullets with laser',  stackable: false },
-  // Skins
+  { id: 'power_boost',       name: 'Power Boost',     category: 'upgrade', cost: 1100, description: '+15% bullet damage',         stackable: false },
+  { id: 'magnet_field',      name: 'Magnet Field',    category: 'upgrade', cost: 650,  description: 'Slightly pull collectibles', stackable: false },
+  { id: 'double_shmips',    name: 'Double Shmips',   category: 'upgrade', cost: 2500, description: '2x $$ per 1000 pts',         stackable: false },
+  { id: 'extra_bullet',     name: 'Extra Bullet',    category: 'upgrade', cost: 750,  description: '+1 max bullets',             stackable: false },
+  { id: 'quick_reload',     name: 'Quick Reload',    category: 'upgrade', cost: 850,  description: 'Faster cooldown',           stackable: false },
+  { id: 'armor_plating',    name: 'Armor Plating',  category: 'upgrade', cost: 1400, description: '1 extra hit absorption',     stackable: false },
+  // Skins (17 total — 10 more)
   { id: 'ship_purple',       name: 'Purple Wing',      category: 'skin',  cost: 120,  description: 'Classic purple hull',      color: '#bf5fff' },
   { id: 'ship_cyan',         name: 'Cyan Blade',       category: 'skin',  cost: 120,  description: 'Electric cyan body',       color: '#00ffff' },
   { id: 'ship_orange',       name: 'Orange Inferno',   category: 'skin',  cost: 200,  description: 'Fiery orange shell',       color: '#ff6600' },
   { id: 'ship_pink',         name: 'Neon Pink',        category: 'skin',  cost: 280,  description: 'Hot pink chrome',          color: '#ff00cc' },
+  { id: 'ship_red',          name: 'Crimson Rush',     category: 'skin',  cost: 180,  description: 'Deep red hull',            color: '#ff2244' },
+  { id: 'ship_blue',         name: 'Azure Strike',     category: 'skin',  cost: 180,  description: 'Cool blue body',            color: '#3388ff' },
+  { id: 'ship_green',        name: 'Emerald Edge',    category: 'skin',  cost: 220,  description: 'Green neon trim',           color: '#00ff88' },
+  { id: 'ship_yellow',       name: 'Solar Flare',     category: 'skin',  cost: 240,  description: 'Bright yellow',             color: '#ffdd00' },
+  { id: 'ship_white',        name: 'Arctic Ghost',    category: 'skin',  cost: 320,  description: 'White chrome',              color: '#eeeeff' },
+  { id: 'ship_teal',         name: 'Teal Storm',      category: 'skin',  cost: 190,  description: 'Teal gradient',             color: '#00ddcc' },
+  { id: 'ship_violet',       name: 'Violet Pulse',    category: 'skin',  cost: 210,  description: 'Violet glow',                color: '#9944ff' },
+  { id: 'ship_coral',        name: 'Coral Blaze',    category: 'skin',  cost: 230,  description: 'Coral orange',               color: '#ff6644' },
+  { id: 'ship_lime',         name: 'Lime Zap',        category: 'skin',  cost: 200,  description: 'Electric lime',             color: '#aaff00' },
   { id: 'ship_purple_gold',  name: 'Royal Hunter',     category: 'skin',  cost: 900,  description: 'Purple + gold trim',       color: '#bf5fff', accent: '#ffd700' },
   { id: 'ship_green_purple', name: 'Synthwave Reaper', category: 'skin',  cost: 950,  description: 'Green + purple gradient',  color: '#00ff41', accent: '#bf5fff' },
   { id: 'ship_gold',         name: 'Gold Commander',   category: 'skin',  cost: 2200, description: 'Full gold prestige hull',  color: '#ffd700' },
-  // Planes
+  { id: 'ship_rainbow',      name: 'Rainbow Ace',      category: 'skin',  cost: 1500, description: 'Prismatic hull',          color: '#ff0077', accent: '#00ffcc' },
+  // Planes (4 total — +2)
   { id: 'plane_stealth',     name: 'Stealth Viper',    category: 'plane', cost: 3800, description: '4 lives · 4 flares · Rapid Fire', lives: 4, flares: 4, rapidFire: true },
   { id: 'plane_titan',       name: 'Titan Fortress',   category: 'plane', cost: 7800, description: '6 lives · Shield · Laser',         lives: 6, flares: 2, shield: true, laser: true },
+  { id: 'plane_phantom',     name: 'Phantom X',        category: 'plane', cost: 5200, description: '5 lives · 3 flares · Laser',      lives: 5, flares: 3, laser: true },
+  { id: 'plane_scout',       name: 'Scout Hawk',      category: 'plane', cost: 2900, description: '4 lives · 2 flares · Rapid Fire', lives: 4, flares: 2, rapidFire: true },
 ];
 
 // ── Get or create user ────────────────────────────────────────────────────────
@@ -204,4 +223,90 @@ export async function dbGetUserUpgrades(telegramId) {
     `user_upgrades?telegram_id=eq.${telegramId}&select=upgrade_id,quantity`
   );
   return rows || [];
+}
+
+// ── Daily Spin (direct Supabase — no Railway needed) ───────────────────────────
+const SPIN_REWARDS = [
+  { id: 'cash_5',   weight: 35, label: '5 $$',   type: 'shmips', value: 5 },
+  { id: 'cash_10',  weight: 15, label: '10 $$',  type: 'shmips', value: 10 },
+  { id: 'cash_15',  weight: 12, label: '15 $$',  type: 'shmips', value: 15 },
+  { id: 'cash_20',  weight: 8,  label: '20 $$',  type: 'shmips', value: 20 },
+  { id: 'cash_30',  weight: 4,  label: '30 $$',  type: 'shmips', value: 30 },
+  { id: 'cash_50',  weight: 1,  label: '50 $$',  type: 'shmips', value: 50 },
+  { id: 'multi_2x', weight: 12, label: '2x Pts (1h)', type: 'multi', multi: 2, duration: 60 },
+  { id: 'multi_3x', weight: 4,  label: '3x Pts (1h)', type: 'multi', multi: 3, duration: 60 },
+  { id: 'golden',   weight: 2,  label: 'Golden Plane', type: 'golden_plane' },
+  { id: 'upgrade',  weight: 7,  label: 'Random Upgrade', type: 'upgrade' },
+];
+const SPIN_UPGRADE_POOL = ['extra_life', 'extra_flare', 'rapid_fire', 'laser', 'ship_purple', 'ship_cyan', 'ship_pink'];
+const COOLDOWN_MS = 21 * 60 * 60 * 1000;
+
+function pickSpinReward() {
+  const roll = Math.random() * 100;
+  let c = 0;
+  for (const r of SPIN_REWARDS) {
+    c += r.weight;
+    if (roll < c) return r;
+  }
+  return SPIN_REWARDS[0];
+}
+
+export async function dbSpinStatus(telegramId) {
+  const rows = await supa(`users?telegram_id=eq.${telegramId}&select=last_spin_at`);
+  const user = rows[0];
+  if (!user?.last_spin_at) return { available: true, remainingMs: 0 };
+  const next = new Date(new Date(user.last_spin_at).getTime() + COOLDOWN_MS);
+  const now = Date.now();
+  return { available: now >= next, remainingMs: Math.max(0, next - now) };
+}
+
+export async function dbDoSpin(telegramId) {
+  const id = String(telegramId);
+  const rows = await supa(`users?telegram_id=eq.${id}&select=shmips,last_spin_at,multiplier_value,multiplier_end`);
+  const user = rows[0];
+  if (!user) throw new Error('User not found.');
+
+  const now = new Date();
+  if (user.last_spin_at) {
+    const next = new Date(new Date(user.last_spin_at).getTime() + COOLDOWN_MS);
+    if (now < next) throw new Error('Spin not available yet.');
+  }
+
+  const reward = pickSpinReward();
+  const updates = { last_spin_at: now.toISOString() };
+  let grantedUpgrade = null;
+
+  if (reward.type === 'shmips') {
+    updates.shmips = Math.round((Number(user.shmips) + reward.value) * 100) / 100;
+  } else if (reward.type === 'multi') {
+    updates.multiplier_value = reward.multi;
+    updates.multiplier_end = new Date(now.getTime() + reward.duration * 60 * 1000).toISOString();
+  } else if (reward.type === 'golden_plane') {
+    updates.has_golden_plane = true;
+  } else if (reward.type === 'upgrade') {
+    grantedUpgrade = SPIN_UPGRADE_POOL[Math.floor(Math.random() * SPIN_UPGRADE_POOL.length)];
+    const existing = await supa(`user_upgrades?telegram_id=eq.${id}&upgrade_id=eq.${grantedUpgrade}&select=quantity`);
+    if (existing.length > 0) {
+      await supa(`user_upgrades?telegram_id=eq.${id}&upgrade_id=eq.${grantedUpgrade}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity: existing[0].quantity + 1 }),
+      });
+    } else {
+      await supa('user_upgrades', {
+        method: 'POST',
+        body: JSON.stringify({ telegram_id: id, upgrade_id: grantedUpgrade, quantity: 1 }),
+      });
+    }
+  }
+
+  await supa(`users?telegram_id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+
+  const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
+  return {
+    reward: { id: reward.id, label: reward.label, type: reward.type, upgrade: grantedUpgrade },
+    user: updated[0],
+  };
 }

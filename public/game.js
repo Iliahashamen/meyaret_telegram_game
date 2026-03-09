@@ -8,6 +8,7 @@ import {
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem,
+  dbSpinStatus, dbDoSpin,
 } from './db.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
@@ -1140,7 +1141,8 @@ class Game {
       const applyVolumeUi = (mode) => {
         muteBtn.classList.toggle('low', mode === 'low');
         muteBtn.classList.toggle('muted', mode === 'mute');
-        muteBtn.textContent = mode.toUpperCase();
+        const icon = mode === 'high' ? '🔊' : mode === 'low' ? '♪' : '🔇';
+        muteBtn.textContent = `${icon} ${mode.toUpperCase()}`;
         muteBtn.title = `Volume: ${mode}`;
       };
       applyVolumeUi(SFX.getVolumeMode());
@@ -1686,7 +1688,7 @@ class Game {
     document.getElementById('go-shmips').textContent = `+${shmipsEarned.toFixed(2)} $$ EARNED`;
 
     const isNew = effectiveScore > (this.userData?.best_score || 0);
-    document.getElementById('go-title').textContent = isNew ? '✦ NEW HIGH SCORE ✦' : 'GAME OVER';
+    document.getElementById('go-title').textContent = isNew ? 'NEW HIGH SCORE' : 'GAME OVER';
     // Delayed shmip/fanfare sounds
     setTimeout(() => isNew ? SFX.highScore() : SFX.shmipEarn(), 700);
 
@@ -1726,9 +1728,19 @@ class Game {
     // Personal best list removed by request.
   }
 
-  _showTop5Popup() {
-    const txt = document.getElementById('lb-entries')?.textContent || 'NO SCORES YET';
-    alert(`TOP 5 PILOTS\n\n${txt.replaceAll(' · ', '\n')}`);
+  async _showTop5Popup() {
+    const modal = document.getElementById('top5-modal');
+    const entriesEl = document.getElementById('top5-entries');
+    try {
+      const rows = await dbGetLeaderboard();
+      entriesEl.innerHTML = rows.length
+        ? rows.map((e, i) => `${i + 1}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`).join('<br>')
+        : 'NO SCORES YET';
+    } catch {
+      entriesEl.textContent = 'NO SCORES YET';
+    }
+    modal.classList.remove('hidden');
+    document.getElementById('top5-close').onclick = () => modal.classList.add('hidden');
   }
 
   _openArsenal() {
@@ -1774,7 +1786,8 @@ class Game {
     const spinCanvas = document.getElementById('spin-canvas');
     drawSpinWheel(spinCanvas, 0);
 
-    const status = await apiFetch('/api/spin/status').catch(() => null);
+    let status = await apiFetch('/api/spin/status').catch(() => null);
+    if (!status && TG_USER?.id) status = await dbSpinStatus(TG_USER.id).catch(() => null);
     const btn    = document.getElementById('spin-btn');
     const timer  = document.getElementById('spin-countdown');
 
@@ -1844,29 +1857,41 @@ class Game {
       return;
     }
 
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    let data = null;
     try {
-      const data = await apiFetch('/api/spin', { method: 'POST' });
-      if (data.error) {
-        result.textContent = data.error.toUpperCase();
+      data = await apiFetch('/api/spin', { method: 'POST' });
+    } catch {
+      if (tid) {
+        try {
+          data = await dbDoSpin(tid);
+        } catch (e) {
+          result.textContent = (e.message || 'SPIN FAILED').toUpperCase();
+          result.classList.remove('hidden');
+          btn.disabled = false;
+          return;
+        }
+      } else {
+        result.textContent = 'OPEN VIA TELEGRAM TO SPIN';
         result.classList.remove('hidden');
         btn.disabled = false;
         return;
       }
+    }
+    if (data?.error) {
+      result.textContent = data.error.toUpperCase();
+      result.classList.remove('hidden');
+      btn.disabled = false;
+      return;
+    }
+    if (data?.reward) {
       result.textContent = `YOU GOT: ${data.reward.label}!`;
       result.classList.remove('hidden');
-
-      // Refresh user data from Supabase directly
-      const tid = TG_USER?.id || this.userData?.telegram_id;
       if (tid) {
         const me = await dbGetOrCreateUser(tid).catch(() => null);
         if (me) { this.userData = me.user; this._parseUpgrades(me.upgrades || []); }
       }
       this._loadMenu();
-    } catch (err) {
-      result.textContent = 'CONNECTION ERROR — TRY AGAIN';
-      result.classList.remove('hidden');
-      console.error('[spin]', err.message);
-      btn.disabled = false;
     }
   }
 
