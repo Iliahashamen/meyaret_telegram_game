@@ -27,21 +27,21 @@ async function supa(path, opts = {}) {
 }
 
 // Store catalog — no server needed
-// +10 colors, +6 upgrades, +2 planes
+// 3 boosts, 8 upgrades, 17 skins, 4 planes
 export const CATALOG = [
-  // Affordable per-run powerups
-  { id: 'extra_life',        name: 'Extra Life',      category: 'upgrade', cost: 10,   description: '+1 life for one run',        stackable: true  },
-  { id: 'extra_flare',       name: 'Extra Flare',     category: 'upgrade', cost: 5,    description: '+1 flare for one run',       stackable: true  },
-  { id: 'shield',            name: 'Shield Module',   category: 'upgrade', cost: 10,   description: 'Absorb one hit in a run',    stackable: false },
-  // Longer-term progression
-  { id: 'rapid_fire',        name: 'Rapid Fire',      category: 'upgrade', cost: 900,  description: '2x bullet fire rate',        stackable: false },
-  { id: 'laser',             name: 'Laser Cannon',    category: 'upgrade', cost: 1700, description: 'Replace bullets with laser',  stackable: false },
-  { id: 'power_boost',       name: 'Power Boost',     category: 'upgrade', cost: 1100, description: '+15% bullet damage',         stackable: false },
-  { id: 'magnet_field',      name: 'Magnet Field',    category: 'upgrade', cost: 650,  description: 'Slightly pull collectibles', stackable: false },
-  { id: 'double_shmips',    name: 'Double Shmips',   category: 'upgrade', cost: 2500, description: '2x $$ per 1000 pts',         stackable: false },
-  { id: 'extra_bullet',     name: 'Extra Bullet',    category: 'upgrade', cost: 750,  description: '+1 max bullets',             stackable: false },
-  { id: 'quick_reload',     name: 'Quick Reload',    category: 'upgrade', cost: 850,  description: 'Faster cooldown',           stackable: false },
-  { id: 'armor_plating',    name: 'Armor Plating',  category: 'upgrade', cost: 1400, description: '1 extra hit absorption',     stackable: false },
+  // Boosts (per-run)
+  { id: 'extra_life',        name: 'Extra Life',      category: 'boost',   cost: 10,   description: '+1 life for one run',               stackable: true  },
+  { id: 'extra_flare',       name: 'Extra Flare',     category: 'boost',   cost: 5,    description: '+1 flare for one run',              stackable: true  },
+  { id: 'shield',            name: 'Shield Module',   category: 'boost',   cost: 10,   description: 'Absorb one hit in a run',           stackable: false },
+  // Upgrades
+  { id: 'magnet_field',      name: 'Magnet Field',    category: 'upgrade', cost: 400,  description: 'Slightly pull collectibles',        stackable: false },
+  { id: 'extra_bullet',      name: 'Extra Bullet',    category: 'upgrade', cost: 500,  description: '+1 bullet on screen',               stackable: false },
+  { id: 'quick_reload',      name: 'Quick Reload',    category: 'upgrade', cost: 600,  description: 'Faster fire cooldown',              stackable: false },
+  { id: 'rapid_fire',        name: 'Rapid Fire',      category: 'upgrade', cost: 800,  description: '2x bullet fire rate',               stackable: false },
+  { id: 'armor_plating',     name: 'Armor Plating',   category: 'upgrade', cost: 1200, description: 'Absorb 1 extra hit per run',        stackable: false },
+  { id: 'laser',             name: 'Laser Cannon',    category: 'upgrade', cost: 1500, description: 'Replace bullets with laser',        stackable: false },
+  { id: 'double_shmips',     name: 'Double Shmips',   category: 'upgrade', cost: 2000, description: '2x $$ per 1000 pts',               stackable: false },
+  { id: 'player_rocket',     name: 'Rocket Launcher', category: 'upgrade', cost: 2000, description: 'Fire homing rockets (R key / button)', stackable: false },
   // Skins (17 total — 10 more)
   { id: 'ship_purple',       name: 'Purple Wing',      category: 'skin',  cost: 120,  description: 'Classic purple hull',      color: '#bf5fff' },
   { id: 'ship_cyan',         name: 'Cyan Blade',       category: 'skin',  cost: 120,  description: 'Electric cyan body',       color: '#00ffff' },
