@@ -987,9 +987,40 @@ class Game {
     };
 
     if (joyBase) {
-      joyBase.addEventListener('touchstart', e => { e.preventDefault(); applyJoy(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
-      joyBase.addEventListener('touchmove',  e => { e.preventDefault(); applyJoy(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
-      joyBase.addEventListener('touchend',   e => { e.preventDefault(); resetJoy(); },                                           { passive: false });
+      // Track the specific touch that owns the joystick so multi-touch works
+      let joyTouchId = null;
+
+      joyBase.addEventListener('touchstart', e => {
+        e.preventDefault();
+        if (joyTouchId !== null) return; // already tracking a touch
+        const t = e.changedTouches[0];
+        joyTouchId = t.identifier;
+        applyJoy(t.clientX, t.clientY);
+      }, { passive: false });
+
+      joyBase.addEventListener('touchmove', e => {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === joyTouchId) {
+            applyJoy(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+            break;
+          }
+        }
+      }, { passive: false });
+
+      const endJoy = e => {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === joyTouchId) {
+            joyTouchId = null;
+            resetJoy();
+            break;
+          }
+        }
+      };
+      joyBase.addEventListener('touchend',    endJoy, { passive: false });
+      joyBase.addEventListener('touchcancel', endJoy, { passive: false });
+
       // Mouse fallback for desktop testing
       let joyDown = false;
       joyBase.addEventListener('mousedown',  e => { joyDown = true;  applyJoy(e.clientX, e.clientY); });
@@ -1002,8 +1033,25 @@ class Game {
     const bindAction = (id, key) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.addEventListener('touchstart', e => { e.preventDefault(); this.keys[key] = true;  }, { passive: false });
-      el.addEventListener('touchend',   e => { e.preventDefault(); this.keys[key] = false; }, { passive: false });
+      let btnTouchId = null;
+      el.addEventListener('touchstart', e => {
+        e.preventDefault();
+        if (btnTouchId !== null) return;
+        btnTouchId = e.changedTouches[0].identifier;
+        this.keys[key] = true;
+      }, { passive: false });
+      const endBtn = e => {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === btnTouchId) {
+            btnTouchId = null;
+            this.keys[key] = false;
+            break;
+          }
+        }
+      };
+      el.addEventListener('touchend',    endBtn, { passive: false });
+      el.addEventListener('touchcancel', endBtn, { passive: false });
       el.addEventListener('mousedown',  ()  => { this.keys[key] = true;  });
       el.addEventListener('mouseup',    ()  => { this.keys[key] = false; });
     };

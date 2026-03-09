@@ -204,15 +204,6 @@ input[type="text"]:focus { outline: none; border-color: var(--green); box-shadow
   text-align: center;
   width: 100%;
 }
-.logo-sub {
-  font-size: 10px;
-  letter-spacing: 5px;
-  color: var(--purple);
-  text-shadow: var(--glow-p);
-  margin-bottom: 4px;
-  text-align: center;
-  width: 100%;
-}
 .logo-trust {
   font-size: 12px;
   letter-spacing: 3px;
