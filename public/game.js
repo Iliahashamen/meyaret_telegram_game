@@ -107,7 +107,7 @@ const CFG = {
   bulletSpeed:  6,
   bulletLife:   65,
   laserLife:    25,
-  rocketSpeed:  1.7,
+  rocketSpeed:  1.0,
   flareRadius:  85,
   asteroidSizes: { large: 42, medium: 21, small: 10 },
   asteroidScores: { large: 20, medium: 50, small: 100 },
@@ -170,6 +170,19 @@ function burst(particles, x, y, color, count = 12, speed = 3, life = 30) {
   for (let i = 0; i < count; i++) particles.push(new Particle(x, y, color, speed, life));
 }
 
+class FloatingText {
+  constructor(x, y, text, color = '#ffdd00') {
+    this.el = document.createElement('div');
+    this.el.className = 'float-text';
+    this.el.textContent = text;
+    this.el.style.color = color;
+    this.el.style.left = x + 'px';
+    this.el.style.top = y + 'px';
+    document.body.appendChild(this.el);
+    setTimeout(() => this.el.remove(), 1300);
+  }
+}
+
 // ── Ship ──────────────────────────────────────────────────────────────────────
 class Ship {
   constructor(x, y, upgrades = {}) {
@@ -201,6 +214,9 @@ class Ship {
     this.tempLaserUntil   = 0;
     this.tempRapidUntil   = 0;
     this.tempPowerBoostUntil = 0;
+    this.hasRocket = !!(upgrades.player_rocket || upgrades.plane_rocket);
+    this.rocketCooldown = 0;
+    this.rocketRate = 120;
   }
 
   update(keys, W, H) {
@@ -250,6 +266,7 @@ class Ship {
     this.x = wrap(this.x + this.vx, 0, W);
     this.y = wrap(this.y + this.vy, 0, H);
     if (this.fireCooldown > 0) this.fireCooldown--;
+    if (this.rocketCooldown > 0) this.rocketCooldown--;
   }
 
   draw(ctx) {
@@ -327,6 +344,14 @@ class Ship {
       bullets.push(new Bullet(nose.x, nose.y, this.angle, this.golden));
       SFX.shoot();
     }
+  }
+
+  fireRocket(bullets) {
+    if (!this.hasRocket || this.rocketCooldown > 0) return;
+    this.rocketCooldown = this.rocketRate;
+    const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
+    bullets.push(new PlayerRocket(nose.x, nose.y, this.angle));
+    SFX.rocketFire();
   }
 
   useFlare(rockets, particles) {
@@ -423,7 +448,7 @@ class Asteroid {
     this.size = size;
     this.radius = CFG.asteroidSizes[size];
     // Gentler difficulty ramp — level 3+ not as punishing
-    const speedMult = 0.4 + Math.min(level - 1, 10) * 0.05;
+    const speedMult = 0.35 + Math.min(level - 1, 15) * 0.035;
     const baseSpd = size === 'large' ? rng(0.20, 0.45) : size === 'medium' ? rng(0.40, 0.80) : rng(0.65, 1.2);
     const spd = baseSpd * speedMult;
     const ang = angle !== null ? angle : rng(0, TAU);
@@ -485,9 +510,9 @@ class RedFighter {
     this.x = x; this.y = y;
     this.vx = 0; this.vy = 0;
     this.angle = 0;
-    this.speed  = 1.6;
+    this.speed  = 1.2;
     this.shootTimer = 0;
-    this.shootRate  = 130;
+    this.shootRate  = 200;
     this.health = 3;
     this.radius = 14;
     this.bobTimer = 0;
@@ -709,9 +734,10 @@ class Rocket {
     this.vx = Math.cos(angle) * CFG.rocketSpeed;
     this.vy = Math.sin(angle) * CFG.rocketSpeed;
     this.angle = angle;
-    this.life = 120;
+    this.life = 300;
     this.radius = 5;
     this.tailTimer = 0;
+    this._expired = false;
   }
   update(W, H) {
     this.x = wrap(this.x + this.vx, 0, W);
@@ -726,13 +752,53 @@ class Rocket {
     glow(ctx, C.rocket, 14);
     ctx.strokeStyle = C.rocket;
     ctx.lineWidth = 2;
-    // Body
     ctx.beginPath();
     ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath();
     ctx.stroke();
-    // Tail flame
     ctx.strokeStyle = '#ff6600';
     glow(ctx, '#ff6600', 10);
+    ctx.beginPath();
+    ctx.moveTo(-2, 4); ctx.lineTo(0, 4 + rng(4, 8)); ctx.lineTo(2, 4);
+    ctx.stroke();
+    ctx.restore();
+    ctx.shadowBlur = 0;
+  }
+  get dead() {
+    if (this.life <= 0 && !this._expired) {
+      this._expired = true;
+      SFX.rocketExplode();
+    }
+    return this.life <= 0;
+  }
+}
+
+class PlayerRocket {
+  constructor(x, y, angle) {
+    this.x = x; this.y = y;
+    this.vx = Math.cos(angle) * 3;
+    this.vy = Math.sin(angle) * 3;
+    this.angle = angle;
+    this.life = 180;
+    this.radius = 5;
+    this.isPlayerRocket = true;
+  }
+  update(W, H) {
+    this.x = wrap(this.x + this.vx, 0, W);
+    this.y = wrap(this.y + this.vy, 0, H);
+    this.life--;
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle + Math.PI / 2);
+    glow(ctx, '#ff6600', 14);
+    ctx.strokeStyle = '#ff6600';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath();
+    ctx.stroke();
+    ctx.strokeStyle = '#ffee00';
+    glow(ctx, '#ffee00', 10);
     ctx.beginPath();
     ctx.moveTo(-2, 4); ctx.lineTo(0, 4 + rng(4, 8)); ctx.lineTo(2, 4);
     ctx.stroke();
@@ -979,6 +1045,7 @@ class Game {
     this.bullets     = [];
     this.enemyBullets = [];
     this.rockets     = [];
+    this.playerRockets = [];
     this.particles   = [];
     this.redFighters = [];
     this.yellowAliens = [];
@@ -996,7 +1063,7 @@ class Game {
     this.yellowAlienTimer = 0;
 
     // Keys
-    this.keys = { left: false, right: false, up: false, fire: false, flare: false, joyActive: false, joyAngle: null };
+    this.keys = { left: false, right: false, up: false, fire: false, flare: false, rocket: false, joyActive: false, joyAngle: null };
     this._lastFrameTs = 0;
     this._accum = 0;
 
@@ -1249,7 +1316,7 @@ class Game {
   _bindInputs() {
     // Keyboard
     const kmap = { ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
-                   ArrowUp:'up', KeyW:'up', Space:'fire', KeyF:'flare', ShiftLeft:'flare' };
+                   ArrowUp:'up', KeyW:'up', Space:'fire', KeyF:'flare', ShiftLeft:'flare', KeyR:'rocket' };
 
     window.addEventListener('keydown', e => {
       const k = kmap[e.code];
@@ -1374,6 +1441,7 @@ class Game {
     bindAction('ctrl-fire', 'fire');
     bindAction('ctrl-flare', 'flare');
     bindAction('ctrl-thrust', 'up');
+    bindAction('ctrl-rocket', 'rocket');
   }
 
   // ── Onboarding ─────────────────────────────────────────────────────────────
@@ -1456,6 +1524,7 @@ class Game {
     this.bullets      = [];
     this.enemyBullets = [];
     this.rockets      = [];
+    this.playerRockets = [];
     this.particles    = [];
     this.redFighters  = [];
     this.yellowAliens = [];
@@ -1473,6 +1542,7 @@ class Game {
     if (this.upgrades.laser)       ups.laser        = 1;
     if (this.upgrades.rapid_fire)  ups.rapid_fire   = 1;
     if (this.upgrades.shield)      ups.shield       = 1;
+    if (this.upgrades.player_rocket) ups.player_rocket = 1;
 
     // Plane upgrades
     if (this.upgrades.plane_stealth) { ups.plane_lives = 1; ups.plane_flares = 2; ups.plane_rapid = true; }
@@ -1507,7 +1577,7 @@ class Game {
 
   _spawnAsteroids(level) {
     // Level 1: 2 slow asteroids. Each level adds 1 more, capped at 10.
-    const count = Math.min(CFG.baseAsteroids + level - 1, 10);
+    const count = Math.min(CFG.baseAsteroids + Math.floor((level - 1) * 0.8), 12);
     for (let i = 0; i < count; i++) {
       let x, y;
       do {
@@ -1515,9 +1585,10 @@ class Game {
       } while (dist({ x, y }, { x: this.W / 2, y: this.H / 2 }) < 130);
       const roll = Math.random();
       const size =
-        level <= 2 ? (roll < 0.7 ? 'medium' : 'small')
-        : level <= 4 ? (roll < 0.3 ? 'large' : roll < 0.7 ? 'medium' : 'small')
-        : (roll < 0.45 ? 'large' : roll < 0.8 ? 'medium' : 'small');
+        level <= 2 ? (roll < 0.15 ? 'large' : roll < 0.55 ? 'medium' : 'small')
+        : level <= 5 ? (roll < 0.25 ? 'large' : roll < 0.65 ? 'medium' : 'small')
+        : level <= 10 ? (roll < 0.35 ? 'large' : roll < 0.7 ? 'medium' : 'small')
+        : (roll < 0.4 ? 'large' : roll < 0.75 ? 'medium' : 'small');
       this.asteroids.push(new Asteroid(x, y, size, null, level));
     }
   }
@@ -1564,6 +1635,10 @@ class Game {
       this.ship.useFlare(this.rockets, this.particles);
       this.keys.flare = false;
     }
+    if (this.keys.rocket) {
+      this.ship.fireRocket(this.playerRockets);
+      this.keys.rocket = false;
+    }
 
     // Thrust sound
     if (this.keys.up && !this._wasThrusting) { SFX.thrustStart(); this._wasThrusting = true;  }
@@ -1572,22 +1647,22 @@ class Game {
     this.ship.update(this.keys, this.W, this.H);
 
     // Spawn enemies
-    const redInterval    = Math.max(750 - this.level * 25, 300);
-    const yellowInterval = Math.max(1000 - this.level * 35, 400);
+    const redInterval    = Math.max(900 - this.level * 20, 350);
+    const yellowInterval = Math.max(1200 - this.level * 25, 450);
 
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && this.level >= 5) {  // red fighters from level 5
+    if (this.redFighterTimer > redInterval && this.level >= 6) {
       this.redFighterTimer = 0;
-      if (this.redFighters.length < 1 + Math.floor(this.level / 4)) {
+      if (this.redFighters.length < 1 + Math.floor(this.level / 5)) {
         const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
 
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > yellowInterval && this.level >= 8) {  // yellow aliens from level 8
+    if (this.yellowAlienTimer > yellowInterval && this.level >= 10) {
       this.yellowAlienTimer = 0;
-      if (this.yellowAliens.length < 1 + Math.floor(this.level / 6)) {
+      if (this.yellowAliens.length < 1 + Math.floor(this.level / 8)) {
         const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
@@ -1604,6 +1679,9 @@ class Game {
 
     this.rockets.forEach(r => r.update(this.W, this.H));
     this.rockets = this.rockets.filter(r => !r.dead);
+
+    this.playerRockets.forEach(r => r.update(this.W, this.H));
+    this.playerRockets = this.playerRockets.filter(r => !r.dead);
 
     this.particles.forEach(p => p.update());
     this.particles = this.particles.filter(p => !p.dead);
@@ -1653,23 +1731,31 @@ class Game {
     // Ship vs coin
     for (let ci = this.coins.length - 1; ci >= 0; ci--) {
       if (dist(ship, this.coins[ci]) < ship.radius + this.coins[ci].radius) {
+        const cx = this.coins[ci].x, cy = this.coins[ci].y;
         this.runShmipsBonus += 1;
-        SFX.shmipEarn();
-        burst(this.particles, this.coins[ci].x, this.coins[ci].y, '#ffdd00', 8, 2, 20);
+        SFX.coinPickup();
+        burst(this.particles, cx, cy, '#ffdd00', 8, 2, 20);
         this.coins.splice(ci, 1);
+        new FloatingText(cx, cy - 20, '+1 SHMIP', '#ffdd00');
       }
     }
 
     // Ship vs mystery ?
     for (let mi = this.mysteryPickups.length - 1; mi >= 0; mi--) {
       if (dist(ship, this.mysteryPickups[mi]) < ship.radius + this.mysteryPickups[mi].radius) {
+        const mx = this.mysteryPickups[mi].x, my = this.mysteryPickups[mi].y;
         const roll = Math.random();
-        if (roll < 0.34) ship.tempRapidUntil = 900;       // 15 sec rapid fire
-        else if (roll < 0.67) ship.tempLaserUntil = 1200; // 20 sec laser
-        else ship.tempPowerBoostUntil = 1200;             // 20 sec 2x damage
-        SFX.levelUp();
-        burst(this.particles, this.mysteryPickups[mi].x, this.mysteryPickups[mi].y, '#aa00ff', 12, 3, 25);
+        let label;
+        if (roll < 0.2) { ship.tempRapidUntil = 900; label = 'RAPID FIRE!'; }
+        else if (roll < 0.4) { ship.tempLaserUntil = 1200; label = 'LASER!'; }
+        else if (roll < 0.55) { ship.lives = Math.min(ship.lives + 1, ship.maxLives + 2); label = '+1 LIFE!'; }
+        else if (roll < 0.7) { ship.shieldUp = true; label = 'SHIELD!'; }
+        else if (roll < 0.85) { ship.flares = Math.min(ship.flares + 1, 9); label = '+1 FLARE!'; }
+        else { ship.tempPowerBoostUntil = 1200; label = '2X DAMAGE!'; }
+        SFX.mysteryPickup();
+        burst(this.particles, mx, my, '#aa00ff', 12, 3, 25);
         this.mysteryPickups.splice(mi, 1);
+        new FloatingText(mx, my - 20, label, '#ff00ff');
       }
     }
 
@@ -1718,6 +1804,51 @@ class Game {
             this._addScore(CFG.enemyYellowScore * dmg);
             this.yellowAliens.splice(ei, 1);
           }
+          break;
+        }
+      }
+    }
+
+    // Player rockets vs asteroids (one-shot kill)
+    for (let ri = this.playerRockets.length - 1; ri >= 0; ri--) {
+      const r = this.playerRockets[ri];
+      for (let ai = this.asteroids.length - 1; ai >= 0; ai--) {
+        if (dist(r, this.asteroids[ai]) < this.asteroids[ai].radius) {
+          burst(this.particles, this.asteroids[ai].x, this.asteroids[ai].y, C.asteroid, 15, 4, 30);
+          SFX.explodeLarge();
+          this._addScore(this.asteroids[ai].score * 2);
+          this.asteroids.splice(ai, 1);
+          this.playerRockets.splice(ri, 1);
+          break;
+        }
+      }
+    }
+
+    // Player rockets vs red fighters (one-shot kill)
+    for (let ri = this.playerRockets.length - 1; ri >= 0; ri--) {
+      const r = this.playerRockets[ri];
+      for (let ei = this.redFighters.length - 1; ei >= 0; ei--) {
+        if (dist(r, this.redFighters[ei]) < this.redFighters[ei].radius) {
+          burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 20, 5, 35);
+          SFX.enemyDie();
+          this._addScore(CFG.enemyRedScore * 2);
+          this.redFighters.splice(ei, 1);
+          this.playerRockets.splice(ri, 1);
+          break;
+        }
+      }
+    }
+
+    // Player rockets vs yellow aliens (one-shot kill)
+    for (let ri = this.playerRockets.length - 1; ri >= 0; ri--) {
+      const r = this.playerRockets[ri];
+      for (let ei = this.yellowAliens.length - 1; ei >= 0; ei--) {
+        if (dist(r, this.yellowAliens[ei]) < this.yellowAliens[ei].radius) {
+          burst(this.particles, this.yellowAliens[ei].x, this.yellowAliens[ei].y, C.enemyYellow, 20, 5, 35);
+          SFX.enemyDie();
+          this._addScore(CFG.enemyYellowScore * 2);
+          this.yellowAliens.splice(ei, 1);
+          this.playerRockets.splice(ri, 1);
           break;
         }
       }
@@ -1782,6 +1913,7 @@ class Game {
     this.bullets.forEach(b => b.draw(ctx));
     this.enemyBullets.forEach(b => b.draw(ctx));
     this.rockets.forEach(r => r.draw(ctx));
+    this.playerRockets.forEach(r => r.draw(ctx));
     this.redFighters.forEach(rf => rf.draw(ctx));
     this.yellowAliens.forEach(ya => ya.draw(ctx));
     if (this.ship?.alive) this.ship.draw(ctx);
@@ -1872,13 +2004,38 @@ class Game {
 
   _openArsenal() {
     this._showScreen('arsenal');
-    const hasTitan = !!this.upgrades.plane_titan;
-    const hasStealth = !!this.upgrades.plane_stealth;
+    const hasPlane = this.upgrades.plane_titan || this.upgrades.plane_stealth || this.upgrades.plane_phantom || this.upgrades.plane_scout;
+    const planeName = this.upgrades.plane_titan ? 'TITAN' : this.upgrades.plane_stealth ? 'STEALTH' : this.upgrades.plane_phantom ? 'PHANTOM' : this.upgrades.plane_scout ? 'SCOUT' : 'STARTER';
     const weapon = this.upgrades.laser ? 'LASER' : this.upgrades.rapid_fire ? 'RAPID FIRE' : 'BULLETS';
-    const ability = this.upgrades.shield ? 'SHIELD' : this.upgrades.extra_flare ? 'EXTRA FLARE' : 'NONE';
-    document.getElementById('ars-jet').textContent = hasTitan ? 'TITAN' : hasStealth ? 'STEALTH' : 'STARTER';
+    const ability = this.upgrades.player_rocket ? 'ROCKET' : this.upgrades.shield ? 'SHIELD' : this.upgrades.armor_plating ? 'ARMOR' : 'NONE';
+    const skinId = Object.keys(this.upgrades).find(k => k.startsWith('ship_'));
+    const skinItem = CATALOG.find(c => c.id === skinId);
+    document.getElementById('ars-jet').textContent = planeName;
     document.getElementById('ars-weapon').textContent = weapon;
     document.getElementById('ars-ability').textContent = ability;
+    const skinEl = document.getElementById('ars-skin');
+    if (skinEl) skinEl.textContent = skinItem ? skinItem.name.toUpperCase() : 'DEFAULT';
+
+    const area = document.getElementById('ars-equip-area');
+    if (area) {
+      area.innerHTML = '';
+      const ownedUpgrades = Object.keys(this.upgrades).filter(id => {
+        const item = CATALOG.find(c => c.id === id);
+        return item && (item.category === 'upgrade' || item.category === 'boost');
+      });
+      if (ownedUpgrades.length === 0) {
+        area.innerHTML = '<div style="font-size:8px;color:#6b3080;letter-spacing:1px;text-align:center;padding:12px;">NO UPGRADES YET — VISIT THE STORE</div>';
+      } else {
+        ownedUpgrades.forEach(id => {
+          const item = CATALOG.find(c => c.id === id);
+          const qty = this.upgrades[id];
+          const el = document.createElement('div');
+          el.className = 'ars-equip-item';
+          el.innerHTML = `<span class="ars-name">${item.name}${qty > 1 ? ' x' + qty : ''}</span><span class="ars-equip-btn equipped">EQUIPPED</span>`;
+          area.appendChild(el);
+        });
+      }
+    }
   }
 
   async _changeNickname() {
@@ -2040,7 +2197,7 @@ class Game {
       `BALANCE: ${(this.userData?.shmips || 0).toLocaleString()} $$`;
     this._catalog = CATALOG;
     // Restore last active tab (so re-opening store keeps your position)
-    const activeTab = this._lastStoreTab || 'upgrade';
+    const activeTab = this._lastStoreTab || 'boost';
     document.querySelectorAll('.tab-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.tab === activeTab);
     });
@@ -2053,12 +2210,13 @@ class Game {
     (this._catalog || [])
       .filter(item => item.category === category)
       .forEach(item => {
-        const owned = this.upgrades[item.id] > 0;
+        const owned = !item.stackable && this.upgrades[item.id] > 0;
+        const qty = this.upgrades[item.id] || 0;
         const el = document.createElement('div');
         el.className = 'store-item';
         el.innerHTML = `
           <div class="store-item-info">
-            <div class="store-item-name">${item.icon || ''} ${item.name}</div>
+            <div class="store-item-name">${item.icon || ''} ${item.name}${item.stackable && qty > 0 ? ' (x' + qty + ')' : ''}</div>
             <div class="store-item-desc">${item.description}</div>
           </div>
           <span class="store-item-cost">${item.cost} $$</span>
