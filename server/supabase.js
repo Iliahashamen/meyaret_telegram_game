@@ -10,8 +10,17 @@ const supabaseKey =
     ? process.env.SUPABASE_SERVICE_ROLE_KEY
     : process.env.SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing SUPABASE_URL or Supabase key in environment.');
+if (!supabaseUrl) {
+  throw new Error(
+    'Missing SUPABASE_URL. Add it in Railway → your service → Variables tab.\n' +
+    'Value: https://fbcjmniqwqiurssqdnka.supabase.co'
+  );
+}
+if (!supabaseKey) {
+  throw new Error(
+    'Missing SUPABASE_SERVICE_ROLE_KEY (and SUPABASE_ANON_KEY fallback). ' +
+    'Add both in Railway → your service → Variables tab.'
+  );
 }
 
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY ||
