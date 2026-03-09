@@ -10,7 +10,9 @@ const TG_USER = tg?.initDataUnsafe?.user || null;
 const INIT_DATA = tg?.initData || '';
 
 // ── API ───────────────────────────────────────────────────────────────────────
-const API_BASE = '';   // same origin
+// API_BASE: empty = same origin (Railway serves frontend+backend)
+// Set window.MEYARET_API in config.js when using GitHub Pages
+const API_BASE = (typeof window !== 'undefined' && window.MEYARET_API) || '';
 
 async function apiFetch(path, opts = {}) {
   const res = await fetch(API_BASE + path, {
