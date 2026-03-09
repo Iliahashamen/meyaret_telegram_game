@@ -19,14 +19,15 @@ const PORT = process.env.PORT || 3000;
 
 // ── Security & Middleware ──────────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
-// Open CORS — Mini App is accessed from Telegram's WebView which sends
-// Telegram-specific origins. Restrict by validating initData instead (auth.js).
+// CORS: allow GitHub Pages, Telegram WebView, and localhost.
+// Security is enforced by HMAC initData validation in auth.js, not origin.
 app.use(cors({
-  origin: true,   // reflect request origin — safe because auth uses HMAC initData
+  origin: (origin, cb) => cb(null, true),   // allow all origins
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'X-Telegram-Init-Data'],
-  credentials: true,
+  credentials: false,
 }));
+app.options('*', cors());
 app.use(express.json());
 app.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
 

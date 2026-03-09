@@ -25,17 +25,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject Railway API URL into config.js
-        run: |
-          RAILWAY="${{ secrets.RAILWAY_URL }}"
-          if [ -n "$RAILWAY" ]; then
-            # Replace the placeholder with the actual Railway URL
-            sed -i "s|__RAILWAY_URL__|${RAILWAY}|g" public/config.js
-            echo "✓ Injected RAILWAY_URL: $RAILWAY"
-          else
-            echo "⚠ RAILWAY_URL secret not set — game will use same-origin fallback"
-          fi
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
