@@ -212,26 +212,25 @@ export const SFX = {
     o.start(t); o.stop(t + 0.4);
   },
 
-  // ── Engine thrust (looping) — softer, less harsh ───────────────────────────
+  // ── Engine thrust (looping) — soft whoosh via filtered noise ────────────────
   thrustStart() {
     if (this.muted || _thrustOn) return;
     _thrustOn = true;
-    const c  = _getCtx();
+    const c = _getCtx();
     _thrustGain = _gain(0.0);
-    _thrustGain.gain.setTargetAtTime(0.055, c.currentTime, 0.08);
-    _thrustOsc  = _osc('sine', 62, _thrustGain);
-    const flt = _filter('lowpass', 140, _thrustGain);
-    const ns  = c.createBufferSource();
+    _thrustGain.gain.setTargetAtTime(0.04, c.currentTime, 0.12);
+    const flt = _filter('lowpass', 100, _thrustGain);
+    const ns = c.createBufferSource();
     const len = c.sampleRate * 2;
     const buf = c.createBuffer(1, len, c.sampleRate);
-    const d   = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.1;
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.08;
     ns.buffer = buf;
-    ns.loop   = true;
+    ns.loop = true;
     ns.connect(flt);
     flt.connect(_thrustGain);
-    _thrustOsc.start();
     ns.start();
+    _thrustOsc = null;
     _thrustGain._noiseNode = ns;
   },
 
@@ -241,11 +240,13 @@ export const SFX = {
     const t = _now();
     _thrustGain.gain.setTargetAtTime(0.0, t, 0.05);
     const stopAt = t + 0.3;
-    _thrustOsc.stop(stopAt);
     if (_thrustGain._noiseNode) {
       try { _thrustGain._noiseNode.stop(stopAt); } catch (_) {}
     }
-    _thrustOsc  = null;
+    if (_thrustOsc) {
+      try { _thrustOsc.stop(stopAt); } catch (_) {}
+    }
+    _thrustOsc = null;
     _thrustGain = null;
   },
 
@@ -360,6 +361,68 @@ export const SFX = {
     o.start(t); o.stop(t + 0.45);
   },
 
+  // ── Coin pickup — bright chime ──────────────────────────────────────────────
+  coinPickup() {
+    if (this.muted) return;
+    const t = _now();
+    [1568, 2093].forEach((freq, i) => {
+      const d = i * 0.06;
+      const g = _gain(0.15);
+      const o = _osc('sine', freq, g);
+      const s = t + d;
+      g.gain.setValueAtTime(0.15, s);
+      g.gain.exponentialRampToValueAtTime(0.001, s + 0.15);
+      o.start(s); o.stop(s + 0.15);
+    });
+  },
+
+  // ── Mystery pickup — ascending chord ──────────────────────────────────────
+  mysteryPickup() {
+    if (this.muted) return;
+    const t = _now();
+    [330, 415, 523, 659].forEach((freq, i) => {
+      const d = i * 0.08;
+      const g = _gain(0.12);
+      const o = _osc('triangle', freq, g);
+      const s = t + d;
+      g.gain.setValueAtTime(0.12, s);
+      g.gain.exponentialRampToValueAtTime(0.001, s + 0.3);
+      o.start(s); o.stop(s + 0.3);
+    });
+  },
+
+  // ── Player rocket launch ──────────────────────────────────────────────────
+  rocketFire() {
+    if (this.muted) return;
+    const t = _now();
+    const flt = _filter('bandpass', 600, _master);
+    flt.Q.value = 1.0;
+    const g = _gain(0.2, flt);
+    g.gain.setValueAtTime(0.2, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    const ns = _noise(0.35, g);
+    ns.start(t); ns.stop(t + 0.35);
+    const g2 = _gain(0.15);
+    const o = _osc('sawtooth', 200, g2);
+    g2.gain.setValueAtTime(0.15, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.frequency.setValueAtTime(200, t);
+    o.frequency.linearRampToValueAtTime(800, t + 0.25);
+    o.start(t); o.stop(t + 0.25);
+  },
+
+  // ── Rocket self-destruct explosion ────────────────────────────────────────
+  rocketExplode() {
+    if (this.muted) return;
+    const t = _now();
+    const flt = _filter('lowpass', 350, _master);
+    const g = _gain(0.25, flt);
+    g.gain.setValueAtTime(0.25, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    const ns = _noise(0.4, g);
+    ns.start(t); ns.stop(t + 0.4);
+  },
+
   // ── Spin wheel tick ───────────────────────────────────────────────────────
   spinTick() {
     if (this.muted) return;
@@ -430,45 +493,60 @@ export const SFX = {
     if (this.muted || _musicMode === 'menu') return;
     _stopMusicLoop();
     _musicMode = 'menu';
-    // Long, non-repetitive melody — 4-bar phrases with distinct sections
-    const phrase1 = [220, 277, 330, 277, 220, 196, 165, 220, 247, 277, 330];
-    const phrase2 = [165, 196, 247, 196, 165, 147, 165, 196, 220, 247];
-    const phrase3 = [277, 330, 370, 415, 370, 330, 277, 247, 220, 196];
-    const phrase4 = [220, 165, 196, 220, 277, 330, 277, 220, 196, 165, 147];
-    const phrase5 = [165, 220, 277, 330, 370, 330, 277, 247, 220];
-    const phrase6 = [196, 165, 220, 247, 277, 220, 196, 165];
-    const seq = [...phrase1, ...phrase2, ...phrase3, ...phrase4, ...phrase5, ...phrase6];
+    // Section A — melancholic minor, slow descent with suspensions
+    const a1 = [330, 311, 294, 277, 311, 330, 294, 262, 247, 277, 294, 330, 311, 277, 262];
+    const a2 = [247, 262, 294, 277, 247, 220, 208, 247, 262, 294, 277, 247, 220, 196, 220];
+    // Section B — brighter, ascending phrases with passing tones
+    const b1 = [220, 247, 262, 294, 330, 349, 330, 294, 311, 330, 370, 392, 370, 349, 330];
+    const b2 = [294, 311, 330, 370, 392, 415, 392, 370, 349, 330, 294, 277, 262, 247, 262];
+    // Section C — darker, lower register with tritone tension
+    const c1 = [196, 185, 208, 220, 233, 196, 185, 175, 196, 208, 220, 185, 175, 165, 175];
+    const c2 = [165, 185, 196, 220, 233, 247, 220, 196, 185, 175, 165, 156, 175, 185, 196];
+    const melody = [...a1, ...a2, ...b1, ...b2, ...c1, ...c2];
+    // Pad chord roots follow section changes
+    const padA = [165, 165, 165, 165, 165, 165, 165, 147, 147, 147, 147, 147, 147, 147, 147];
+    const padB = [175, 175, 175, 175, 175, 185, 185, 185, 185, 185, 196, 196, 196, 196, 196];
+    const padC = [147, 147, 147, 147, 156, 156, 156, 156, 139, 139, 139, 139, 131, 131, 131];
+    const pad = [...padA, ...padA, ...padB, ...padB, ...padC, ...padC];
+    // Bass follows root movement
+    const bassA = [82, 82, 82, 82, 82, 82, 82, 73, 73, 73, 73, 73, 73, 73, 73];
+    const bassB = [87, 87, 87, 87, 87, 92, 92, 92, 92, 92, 98, 98, 98, 98, 98];
+    const bassC = [73, 73, 73, 73, 78, 78, 78, 78, 69, 69, 69, 69, 65, 65, 65];
+    const bass = [...bassA, ...bassA, ...bassB, ...bassB, ...bassC, ...bassC];
     let i = 0;
     _musicTimer = setInterval(() => {
       if (this.muted || _musicMode !== 'menu') return;
       const t = _now();
-      const note = seq[i % seq.length];
-      _playTone(note, t, 0.3, 'triangle', 0.04);
-      _playTone(seq[(i + 5) % seq.length] * 0.5, t, 0.35, 'sine', 0.022);
+      const idx = i % melody.length;
+      _playTone(melody[idx], t, 0.35, 'triangle', 0.035);
+      _playTone(pad[idx], t, 0.4, 'sine', 0.018);
+      _playTone(bass[idx], t, 0.4, 'sine', 0.015);
       i++;
-    }, 420);
+    }, 450);
   },
 
   startGameMusic() {
     if (this.muted || _musicMode === 'game') return;
     _stopMusicLoop();
     _musicMode = 'game';
-    // Long game bass — 3 distinct progressions, varied rhythm
-    const progA = [110, 123, 98, 82, 110, 146, 123, 98, 82, 98];
-    const progB = [110, 98, 82, 73, 82, 98, 110, 123, 146, 123];
-    const progC = [98, 110, 123, 98, 82, 98, 110, 82, 73, 98];
-    const progD = [110, 146, 123, 98, 123, 110, 98, 82, 110, 146];
-    const progE = [123, 98, 82, 98, 110, 146, 110, 98, 82, 73];
-    const bass = [...progA, ...progB, ...progC, ...progD, ...progE];
+    // Aggressive — driving minor with chromatic tension
+    const aggr = [110, 117, 123, 110, 98, 104, 110, 123, 117, 110, 98, 92, 87, 98, 110, 123, 130, 123, 110, 98];
+    // Calm — sparse, sustained roots with breathing room
+    const calm = [82, 82, 87, 82, 78, 73, 78, 82, 87, 82, 78, 73, 69, 73, 78, 82, 87, 92, 87, 82];
+    // Building — ascending tension with minor seconds and tritones
+    const build = [98, 104, 110, 117, 123, 131, 139, 147, 131, 123, 117, 110, 123, 131, 139, 147, 156, 147, 139, 131];
+    // Release — resolution, descending back to root with relief
+    const rel = [147, 139, 131, 123, 117, 110, 104, 98, 92, 87, 82, 87, 92, 98, 104, 110, 98, 87, 82, 98];
+    const bass = [...aggr, ...calm, ...build, ...rel];
     let i = 0;
     _musicTimer = setInterval(() => {
       if (this.muted || _musicMode !== 'game') return;
       const t = _now();
       const root = bass[i % bass.length];
-      _playTone(root, t, 0.22, 'sine', 0.03);  // sine = softer
-      _playTone(root * 2, t + 0.04, 0.1, 'triangle', 0.018);
+      _playTone(root, t, 0.25, 'sawtooth', 0.025);
+      _playTone(root * 2, t + 0.04, 0.12, 'triangle', 0.015);
       i++;
-    }, 320);
+    }, 350);
   },
 
   stopMusic() {
