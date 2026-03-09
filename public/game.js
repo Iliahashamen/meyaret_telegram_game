@@ -13,8 +13,23 @@ import {
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); tg.disableVerticalSwipes?.(); }
-const TG_USER = tg?.initDataUnsafe?.user || null;
+// TG_USER is resolved lazily in _init() with a retry loop — do not read here
+let TG_USER = tg?.initDataUnsafe?.user || null;
 const INIT_DATA = tg?.initData || '';
+
+// Helper: wait up to 3s for Telegram to populate initDataUnsafe.user
+async function waitForTelegramUser() {
+  // Already available
+  if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+    return window.Telegram.WebApp.initDataUnsafe.user;
+  }
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 100));
+    const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (u?.id) return u;
+  }
+  return null;
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 // API_BASE: empty = same origin (Railway serves frontend+backend)
@@ -924,24 +939,39 @@ class Game {
 
     bar.style.width = '15%';
     label.textContent = 'CONNECTING...';
+    _setStatus('WAITING FOR TELEGRAM...', '#ffee00');
+
+    // Wait up to 3 seconds for Telegram to provide user data
+    const tgUser = await waitForTelegramUser();
+    if (tgUser) TG_USER = tgUser; // update module-level var
 
     const tid = TG_USER?.id;
-    _setStatus(tid ? `TG ID: ${tid}` : 'NO TELEGRAM USER', tid ? '#00ffcc' : '#ff4466');
+    const hasWebApp = !!window.Telegram?.WebApp;
+    const rawData   = window.Telegram?.WebApp?.initData || '';
+    _setStatus(
+      tid
+        ? `TG: ${tid}`
+        : hasWebApp
+          ? `TG FOUND, NO USER. DATA=${rawData ? 'YES' : 'EMPTY'}`
+          : 'NO TELEGRAM SDK',
+      tid ? '#00ffcc' : '#ff4466'
+    );
+    console.log('[init] tg present:', hasWebApp, '| initData:', rawData.slice(0, 60), '| user:', TG_USER);
 
     if (!tid) {
-      console.warn('[init] No Telegram user — offline mode');
+      console.warn('[init] No Telegram user — going offline');
       this._goOffline(bar, label);
       return;
     }
 
     label.textContent = 'LOADING PROFILE...';
     bar.style.width   = '40%';
-    _setStatus('CONNECTING TO SUPABASE...', '#ffee00');
+    _setStatus('CONNECTING TO DB...', '#ffee00');
 
     try {
       const data = await dbGetOrCreateUser(tid);
       bar.style.width = '85%';
-      _setStatus('SUPABASE: CONNECTED', '#00ffcc');
+      _setStatus(`DB OK — ${data.isNew ? 'NEW USER' : data.user.nickname}`, '#00ffcc');
 
       this.userData = data.user;
       this._parseUpgrades(data.upgrades || []);
@@ -982,8 +1012,8 @@ class Game {
 
     } catch (err) {
       console.error('[init] Supabase error:', err.message);
-      _setStatus(`DB ERROR: ${err.message}`, '#ff4466');
-      await this._sleep(1500); // show error briefly
+      _setStatus(`DB ERROR: ${err.message}`.slice(0, 60), '#ff4466');
+      await this._sleep(2500); // show error so user can read it
       this._goOffline(bar, label);
     }
   }
