@@ -25,8 +25,9 @@ CREATE TABLE IF NOT EXISTS scores (
   telegram_id   BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
   score         INTEGER NOT NULL DEFAULT 0,
   level         INTEGER NOT NULL DEFAULT 1,
-  shmips_earned INTEGER NOT NULL DEFAULT 0,
-  played_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  shmips_earned NUMERIC(10,2) NOT NULL DEFAULT 0,
+  played_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- USER_UPGRADES
@@ -49,22 +50,18 @@ ALTER TABLE users         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scores        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_upgrades ENABLE ROW LEVEL SECURITY;
 
--- Public read for leaderboard queries (service_role bypasses RLS)
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE tablename = 'scores' AND policyname = 'Public leaderboard read'
-  ) THEN
-    CREATE POLICY "Public leaderboard read" ON scores FOR SELECT USING (true);
-  END IF;
-END $$;
+-- ── Open RLS for anon key (game connects directly from browser) ───────────────
+-- Drop old restrictive policies first
+DROP POLICY IF EXISTS "Public leaderboard read" ON scores;
+DROP POLICY IF EXISTS "Public user read"         ON users;
+DROP POLICY IF EXISTS "Users can view their own data"   ON users;
+DROP POLICY IF EXISTS "Users can update their own data" ON users;
+DROP POLICY IF EXISTS "Service role can do everything"  ON users;
 
-DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE tablename = 'users' AND policyname = 'Public user read'
-  ) THEN
-    CREATE POLICY "Public user read" ON users FOR SELECT USING (true);
-  END IF;
-END $$;
+-- Allow the anon key (browser client) to read/write all game tables
+CREATE POLICY "anon_all_users"    ON users         FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_all_scores"   ON scores        FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_all_upgrades" ON user_upgrades FOR ALL TO anon USING (true) WITH CHECK (true);
 
 -- ── Leaderboard view (SECURITY INVOKER — no warnings) ────────────────────────
 DROP VIEW IF EXISTS leaderboard;

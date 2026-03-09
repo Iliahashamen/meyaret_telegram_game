@@ -3,6 +3,7 @@
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
 import { SFX } from './sounds.js';
+import { dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard, dbChangeNickname, dbGetMyScores } from './db.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -909,111 +910,77 @@ class Game {
     this.canvas.height = this.H;
   }
 
-  // ── Init: load user, then show menu or onboarding ──────────────────────────
+  // ── Init: connect directly to Supabase (no Railway dependency) ────────────
   async _init() {
     const bar   = document.getElementById('loading-bar');
     const label = document.getElementById('loading-label') || { textContent: '' };
-    bar.style.width = '10%';
+    bar.style.width = '15%';
+    label.textContent = 'CONNECTING...';
 
-    // ── Step 1: Wake up Railway (cold starts can take 30-60s) ──────────────────
-    const serverUp = await this._wakeUpServer(bar, label);
-    bar.style.width = '45%';
+    const tid = TG_USER?.id;
 
-    // ── Step 2: Fetch user profile ─────────────────────────────────────────────
-    if (serverUp) {
-      label.textContent = 'LOADING PROFILE...';
-      try {
-        const data = await apiFetch('/api/users/me', {}, 1);
-        bar.style.width = '85%';
-        this.userData = data.user;
-        this._parseUpgrades(data.upgrades || []);
+    if (!tid) {
+      // Running outside Telegram — use saved callsign or go to onboarding
+      console.warn('[init] No Telegram user — offline mode');
+      this._goOffline(bar, label);
+      return;
+    }
 
-        if (data.user.multiplier_end && new Date(data.user.multiplier_end) > new Date()) {
-          this.activeMultiplier = Number(data.user.multiplier_value);
-          this._showMultiplierBanner();
-        }
+    label.textContent = 'LOADING PROFILE...';
+    bar.style.width   = '40%';
 
-        bar.style.width = '100%';
-        label.textContent = 'READY';
-        await this._sleep(350);
-        document.getElementById('loading-screen').style.display = 'none';
+    try {
+      const data = await dbGetOrCreateUser(tid);
+      bar.style.width = '85%';
 
-        if (data.isNew) {
-          this._showScreen('onboarding');
-        } else {
-          this._loadMenu();
-          this._showScreen('menu');
-        }
-        this.state = 'menu';
-        return;
+      this.userData = data.user;
+      this._parseUpgrades(data.upgrades || []);
 
-      } catch (err) {
-        console.warn('[init] Auth failed even though server is up:', err.message);
-        // Fall through to offline mode
+      if (data.user.multiplier_end && new Date(data.user.multiplier_end) > new Date()) {
+        this.activeMultiplier = Number(data.user.multiplier_value);
+        this._showMultiplierBanner();
       }
-    }
 
-    // ── Offline fallback ───────────────────────────────────────────────────────
-    console.warn('[init] Going offline');
-    OFFLINE_MODE = true;
-    bar.style.width = '100%';
-    label.textContent = 'OFFLINE MODE';
-    const savedCallsign = localStorage.getItem('meyaret_callsign');
-    this.userData = { ...DEMO_USER, nickname: savedCallsign || null };
-    await this._sleep(400);
-    document.getElementById('loading-screen').style.display = 'none';
+      bar.style.width   = '100%';
+      label.textContent = 'READY';
+      await this._sleep(300);
+      document.getElementById('loading-screen').style.display = 'none';
 
-    if (!savedCallsign) {
-      this._showScreen('onboarding');
-    } else {
-      this._loadMenu();
-      this._showScreen('menu');
-      const banner = document.getElementById('multiplier-banner');
-      banner.textContent = 'OFFLINE MODE — SCORES NOT SAVED';
-      banner.style.borderColor = 'var(--pink)';
-      banner.style.color       = 'var(--pink)';
-      banner.classList.remove('hidden');
+      if (data.isNew) {
+        this._showScreen('onboarding');
+      } else {
+        this._loadMenu();
+        this._showScreen('menu');
+      }
+      this.state = 'menu';
+
+    } catch (err) {
+      console.error('[init] Supabase error:', err.message);
+      this._goOffline(bar, label);
     }
-    this.state = 'menu';
   }
 
-  // Ping /health repeatedly until Railway responds (handles cold starts)
-  async _wakeUpServer(bar, label) {
-    const MAX_ATTEMPTS  = 20;    // up to 100s wait
-    const PING_INTERVAL = 5000;
-    const PING_TIMEOUT  = 8000;
-
-    for (let i = 0; i < MAX_ATTEMPTS; i++) {
-      label.textContent = i === 0 ? 'CONNECTING...' : `STARTING SERVER... ${i * 5}s`;
-      bar.style.width   = `${10 + Math.min(i * 1.5, 25)}%`;
-
-      try {
-        const ctrl  = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), PING_TIMEOUT);
-        const res   = await fetch(API_BASE + '/health', { signal: ctrl.signal });
-        clearTimeout(timer);
-
-        const body = await res.json().catch(() => ({}));
-
-        if (body.missing && body.missing.length) {
-          // Server is up but Railway env vars are missing — tell the user exactly
-          console.error('[init] Railway missing env vars:', body.missing);
-          label.textContent = 'SERVER CONFIG ERROR';
-          // Still return true — server is reachable, routes will 503 gracefully
-          return true;
-        }
-
-        if (res.ok || res.status < 500) {
-          console.log(`[init] Server online after ${i * 5}s`);
-          label.textContent = 'ONLINE';
-          return true;
-        }
-      } catch (_) { /* still booting */ }
-
-      if (i < MAX_ATTEMPTS - 1) await this._sleep(PING_INTERVAL);
-    }
-    console.warn('[init] Server unreachable after max wait — going offline');
-    return false;
+  _goOffline(bar, label) {
+    OFFLINE_MODE = true;
+    bar.style.width   = '100%';
+    label.textContent = 'OFFLINE';
+    const saved = localStorage.getItem('meyaret_callsign');
+    this.userData = { ...DEMO_USER, nickname: saved || null };
+    this._sleep(350).then(() => {
+      document.getElementById('loading-screen').style.display = 'none';
+      if (!saved) {
+        this._showScreen('onboarding');
+      } else {
+        this._loadMenu();
+        this._showScreen('menu');
+        const b = document.getElementById('multiplier-banner');
+        b.textContent = 'OFFLINE — SCORES NOT SAVED';
+        b.style.borderColor = 'var(--magenta)';
+        b.style.color       = 'var(--magenta)';
+        b.classList.remove('hidden');
+      }
+      this.state = 'menu';
+    });
   }
 
   _parseUpgrades(list) {
@@ -1286,9 +1253,9 @@ class Game {
 
   async _loadLeaderboard() {
     try {
-      const data = await apiFetch('/api/scores/leaderboard');
-      const entries = (data.leaderboard || [])
-        .map((e, i) => `${i+1}.${e.nickname} ${e.best_score.toLocaleString()}`)
+      const rows = await dbGetLeaderboard();
+      const entries = rows
+        .map((e, i) => `${i+1}.${e.nickname} ${Number(e.best_score).toLocaleString()}`)
         .join('  ·  ');
       document.getElementById('lb-entries').textContent = entries || '—';
     } catch { /* non-critical */ }
@@ -1580,30 +1547,27 @@ class Game {
     // Delayed shmip/fanfare sounds
     setTimeout(() => isNew ? SFX.highScore() : SFX.shmipEarn(), 700);
 
-    if (!OFFLINE_MODE) {
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    if (tid && !OFFLINE_MODE) {
       try {
-        const result = await apiFetch('/api/scores', {
-          method: 'POST',
-          body: { score: rawScore, level: this.level },
-        });
-        if (result.totalShmips !== undefined) {
+        const result = await dbSaveScore(tid, rawScore, this.level);
+        if (result) {
           this.userData.shmips     = result.totalShmips;
           this.userData.best_score = result.newBestScore;
         }
-      } catch { /* save failed silently */ }
+      } catch (e) { console.warn('[gameOver] score save failed:', e.message); }
     } else {
-      // Demo mode: track locally
       this.userData.shmips     = (this.userData.shmips || 0) + shmipsEarned;
       this.userData.best_score = Math.max(this.userData.best_score || 0, effectiveScore);
     }
 
     try {
-      const lb = await apiFetch('/api/scores/leaderboard');
-      const lines = (lb.leaderboard || [])
-        .map((e, i) => `${i+1}. ${e.nickname}  ${e.best_score.toLocaleString()}`)
+      const rows  = await dbGetLeaderboard();
+      const lines = rows
+        .map((e, i) => `${i+1}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`)
         .join('\n');
       document.getElementById('go-leaderboard').innerHTML =
-        `<pre style="font-size:11px;color:#4a8a5a;letter-spacing:1px">${lines}</pre>`;
+        `<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">${lines}</pre>`;
     } catch { /* non-critical */ }
   }
 
@@ -1616,33 +1580,39 @@ class Game {
 
     this._showScreen('profile');
 
-    try {
-      const data = await apiFetch('/api/scores/me');
-      const list = document.getElementById('prof-scores-list');
-      list.innerHTML = '';
-      (data.scores || []).forEach((s, i) => {
-        const row = document.createElement('div');
-        row.className = 'score-row';
-        row.innerHTML = `<span>${i+1}. ${s.score.toLocaleString()} pts  Lvl ${s.level}</span><span>+${s.shmips_earned} ⬡</span>`;
-        list.appendChild(row);
-      });
-    } catch { /* non-critical */ }
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    if (tid) {
+      try {
+        const scores = await dbGetMyScores(tid);
+        const list   = document.getElementById('prof-scores-list');
+        list.innerHTML = '';
+        scores.forEach((s, i) => {
+          const row = document.createElement('div');
+          row.className = 'score-row';
+          row.innerHTML = `<span>${i+1}. ${Number(s.score).toLocaleString()}  LV${s.level}</span><span>+${Number(s.shmips_earned).toFixed(2)} ⬡</span>`;
+          list.appendChild(row);
+        });
+      } catch { /* non-critical */ }
+    }
   }
 
   async _changeNickname() {
-    const raw = document.getElementById('new-nick-input').value.trim().toUpperCase().replace(/[^A-Z0-9_]/g,'');
+    const raw   = document.getElementById('new-nick-input').value.trim().toUpperCase().replace(/[^A-Z0-9_]/g,'');
     const errEl = document.getElementById('new-nick-error');
     if (!raw || raw.length < 2) { errEl.textContent = 'Min 2 characters.'; return; }
 
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    if (!tid) { errEl.textContent = 'Not logged in.'; return; }
+
     try {
-      const data = await apiFetch('/api/users/me/nickname', { method: 'PATCH', body: { nickname: raw } });
-      if (data.error) { errEl.textContent = data.error; return; }
-      this.userData = data.user;
-      document.getElementById('prof-nick').textContent = data.user.nickname;
+      const updated = await dbChangeNickname(tid, raw);
+      this.userData = { ...this.userData, ...updated };
+      localStorage.setItem('meyaret_callsign', updated.nickname);
+      document.getElementById('prof-nick').textContent = updated.nickname;
       document.getElementById('change-nick-area').classList.add('hidden');
       errEl.textContent = '';
       this._loadMenu();
-    } catch { errEl.textContent = 'Error. Try again.'; }
+    } catch (err) { errEl.textContent = err.message || 'Error. Try again.'; }
   }
 
   // ── Daily Spin ─────────────────────────────────────────────────────────────
@@ -1735,10 +1705,12 @@ class Game {
       result.textContent = `YOU GOT: ${data.reward.label}!`;
       result.classList.remove('hidden');
 
-      // Refresh user data
-      const me = await apiFetch('/api/users/me');
-      this.userData = me.user;
-      this._parseUpgrades(me.upgrades || []);
+      // Refresh user data from Supabase directly
+      const tid = TG_USER?.id || this.userData?.telegram_id;
+      if (tid) {
+        const me = await dbGetOrCreateUser(tid).catch(() => null);
+        if (me) { this.userData = me.user; this._parseUpgrades(me.upgrades || []); }
+      }
       this._loadMenu();
     } catch (err) {
       result.textContent = 'CONNECTION ERROR — TRY AGAIN';
