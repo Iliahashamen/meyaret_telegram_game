@@ -1,20 +1,32 @@
 // ============================================================
-// MEYARET — Direct Supabase Client
-// Bypasses Railway for all core game data operations.
-// The anon key is intentionally embedded — it is a public
-// API key. Security is enforced by Supabase RLS policies.
+// MEYARET — Supabase REST client using plain fetch()
+// No CDN dependency — calls the REST API directly.
 // ============================================================
 
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-
-const SUPA_URL = 'https://fbcjmniqwqiurssqdnka.supabase.co';
+const SUPA_URL = 'https://fbcjmniqwqiurssqdnka.supabase.co/rest/v1';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiY2ptbmlxd3FpdXJzc2RxbmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNTI0MzksImV4cCI6MjA4ODYyODQzOX0.QDC0N8Zf1JgvmvDVa3h_CD4wPih6Ly2L4kEFK1Q48E';
 
-export const supa = createClient(SUPA_URL, SUPA_KEY, {
-  auth: { persistSession: false },
-});
+const HDR = {
+  'apikey':        SUPA_KEY,
+  'Authorization': `Bearer ${SUPA_KEY}`,
+  'Content-Type':  'application/json',
+};
 
-// Store catalog — mirrored from server/routes/store.js so no server needed
+// Core fetch helper — throws on HTTP error with Supabase error message
+async function supa(path, opts = {}) {
+  const url = `${SUPA_URL}/${path}`;
+  const res = await fetch(url, { ...opts, headers: { ...HDR, ...opts.headers } });
+  const text = await res.text();
+  let body;
+  try { body = JSON.parse(text); } catch { body = text; }
+  if (!res.ok) {
+    const msg = (typeof body === 'object' && (body.message || body.hint || body.error)) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return body;
+}
+
+// Store catalog — no server needed
 export const CATALOG = [
   { id: 'extra_life',        name: 'Extra Life',      category: 'upgrade', cost: 500,  description: '+1 life per game',          stackable: true  },
   { id: 'extra_flare',       name: 'Extra Flare',     category: 'upgrade', cost: 300,  description: '+1 flare per game',         stackable: true  },
@@ -32,218 +44,160 @@ export const CATALOG = [
   { id: 'plane_titan',   name: 'Titan Fortress', category: 'plane', cost: 5000, description: '6 lives · Shield · Laser',         lives: 6, flares: 2, shield: true, laser: true },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Get or create user
-// Returns { user, upgrades, isNew }
-// isNew = true  → nickname is still placeholder ('ACE') = show onboarding
-// isNew = false → user has a real callsign = go to menu
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Get or create user ────────────────────────────────────────────────────────
 export async function dbGetOrCreateUser(telegramId) {
   const id = String(telegramId);
 
-  const { data: user, error } = await supa
-    .from('users')
-    .select('*')
-    .eq('telegram_id', id)
-    .maybeSingle();
+  // Try to find existing user
+  const rows = await supa(`users?telegram_id=eq.${id}&select=*`);
 
-  if (error) throw error;
+  let user = rows[0] || null;
+  let upgrades = [];
 
-  if (user) {
-    const { data: upgrades } = await supa
-      .from('user_upgrades')
-      .select('upgrade_id, quantity')
-      .eq('telegram_id', id);
-    // isNew when nickname is still the default placeholder
-    const isNew = !user.nickname || user.nickname === 'ACE';
-    return { user, upgrades: upgrades || [], isNew };
+  if (!user) {
+    // Create new user
+    const created = await supa('users?select=*', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=representation' },
+      body: JSON.stringify({ telegram_id: id, nickname: 'ACE', shmips: 0 }),
+    });
+    user = created[0];
+  } else {
+    // Fetch upgrades
+    const ups = await supa(`user_upgrades?telegram_id=eq.${id}&select=upgrade_id,quantity`);
+    upgrades = ups || [];
   }
 
-  // First ever visit — insert with placeholder 'ACE' (satisfies NOT NULL constraint)
-  const { data: newUser, error: ce } = await supa
-    .from('users')
-    .insert({ telegram_id: id, nickname: 'ACE', shmips: 0 })
-    .select()
-    .single();
-
-  if (ce) throw ce;
-  return { user: newUser, upgrades: [], isNew: true };
+  const isNew = !user.nickname || user.nickname === 'ACE';
+  return { user, upgrades, isNew };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Check if a callsign is available
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Check callsign availability ───────────────────────────────────────────────
 export async function dbCheckCallsign(nickname) {
   const clean = nickname.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
-  if (clean === 'ACE') return { available: false, clean, reason: 'RESERVED' };
-  const { data } = await supa
-    .from('users')
-    .select('telegram_id')
-    .eq('nickname', clean)
-    .maybeSingle();
-  return { available: !data, clean };
+  if (!clean || clean === 'ACE') return { available: false, clean };
+  const rows = await supa(`users?nickname=eq.${encodeURIComponent(clean)}&select=telegram_id`);
+  return { available: rows.length === 0, clean };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Set callsign for the first time OR change it (unified function)
-// First time (current nickname is 'ACE') = FREE
-// Change (real callsign → new name) = costs 1,000 shmips
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Set or change callsign ────────────────────────────────────────────────────
+// Free when current nickname is 'ACE', costs 1000 shmips otherwise
 export async function dbSaveCallsign(telegramId, nickname) {
   const id    = String(telegramId);
   const clean = nickname.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 12);
   if (!clean || clean.length < 2) throw new Error('MIN 2 CHARACTERS.');
 
-  const { data: user, error: ue } = await supa
-    .from('users')
-    .select('shmips, nickname')
-    .eq('telegram_id', id)
-    .single();
-  if (ue || !user) throw new Error('NOT FOUND. OPEN VIA TELEGRAM.');
+  const rows = await supa(`users?telegram_id=eq.${id}&select=shmips,nickname`);
+  const user = rows[0];
+  if (!user) throw new Error('NOT FOUND. OPEN VIA TELEGRAM.');
 
   const isFirst = !user.nickname || user.nickname === 'ACE';
-
-  if (!isFirst && Number(user.shmips) < 1000) {
-    throw new Error('NEED 1,000 SHMIPS TO RENAME.');
-  }
+  if (!isFirst && Number(user.shmips) < 1000) throw new Error('NEED 1,000 SHMIPS TO RENAME.');
 
   const newShmips = isFirst
     ? Number(user.shmips)
     : Math.round((Number(user.shmips) - 1000) * 100) / 100;
 
-  const { data: updated, error } = await supa
-    .from('users')
-    .update({ nickname: clean, shmips: newShmips })
-    .eq('telegram_id', id)
-    .select()
-    .single();
+  const updated = await supa(`users?telegram_id=eq.${id}&select=*`, {
+    method: 'PATCH',
+    headers: { 'Prefer': 'return=representation' },
+    body: JSON.stringify({ nickname: clean, shmips: newShmips }),
+  });
 
-  if (error) {
-    if (error.code === '23505') throw new Error('CALLSIGN TAKEN. CHOOSE ANOTHER.');
-    throw error;
-  }
-  return updated;
+  return updated[0];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Buy store item directly via Supabase (no Railway needed)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Buy store item ────────────────────────────────────────────────────────────
 export async function dbBuyItem(telegramId, itemId) {
   const id   = String(telegramId);
   const item = CATALOG.find(c => c.id === itemId);
   if (!item) throw new Error('Item not found.');
 
-  const { data: user, error: ue } = await supa
-    .from('users')
-    .select('shmips')
-    .eq('telegram_id', id)
-    .single();
-  if (ue || !user) throw new Error('User not found.');
-
-  if (Number(user.shmips) < item.cost) {
-    throw new Error(`NOT ENOUGH SHMIPS. NEED ${item.cost}.`);
-  }
+  const rows = await supa(`users?telegram_id=eq.${id}&select=shmips`);
+  const user = rows[0];
+  if (!user) throw new Error('User not found.');
+  if (Number(user.shmips) < item.cost) throw new Error(`NOT ENOUGH SHMIPS. NEED ${item.cost}.`);
 
   if (!item.stackable) {
-    const { data: existing } = await supa
-      .from('user_upgrades')
-      .select('id')
-      .eq('telegram_id', id)
-      .eq('upgrade_id', itemId)
-      .maybeSingle();
-    if (existing) throw new Error('ALREADY OWNED.');
+    const owned = await supa(`user_upgrades?telegram_id=eq.${id}&upgrade_id=eq.${itemId}&select=id`);
+    if (owned.length > 0) throw new Error('ALREADY OWNED.');
   }
 
   const newBalance = Math.round((Number(user.shmips) - item.cost) * 100) / 100;
 
-  const { error: de } = await supa
-    .from('users')
-    .update({ shmips: newBalance })
-    .eq('telegram_id', id);
-  if (de) throw de;
+  await supa(`users?telegram_id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ shmips: newBalance }),
+  });
 
-  const { data: owned } = await supa
-    .from('user_upgrades')
-    .select('quantity')
-    .eq('telegram_id', id)
-    .eq('upgrade_id', itemId)
-    .maybeSingle();
-
-  if (owned) {
-    await supa
-      .from('user_upgrades')
-      .update({ quantity: owned.quantity + 1 })
-      .eq('telegram_id', id)
-      .eq('upgrade_id', itemId);
+  // Check if upgrade row exists (for stackable items)
+  const existing = await supa(`user_upgrades?telegram_id=eq.${id}&upgrade_id=eq.${itemId}&select=quantity`);
+  if (existing.length > 0) {
+    await supa(`user_upgrades?telegram_id=eq.${id}&upgrade_id=eq.${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quantity: existing[0].quantity + 1 }),
+    });
   } else {
-    await supa
-      .from('user_upgrades')
-      .insert({ telegram_id: id, upgrade_id: itemId, quantity: 1 });
+    await supa('user_upgrades', {
+      method: 'POST',
+      body: JSON.stringify({ telegram_id: id, upgrade_id: itemId, quantity: 1 }),
+    });
   }
 
   return { newBalance, item };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Save score at game over
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Save score ────────────────────────────────────────────────────────────────
 export async function dbSaveScore(telegramId, score, level) {
   const id = String(telegramId);
   const shmipsEarned = Math.round((score / 1000) * 100) / 100;
 
-  const { data: user, error } = await supa
-    .from('users')
-    .select('shmips, best_score, total_games')
-    .eq('telegram_id', id)
-    .single();
-
-  if (error || !user) throw error || new Error('User not found');
+  const rows = await supa(`users?telegram_id=eq.${id}&select=shmips,best_score,total_games`);
+  const user = rows[0];
+  if (!user) throw new Error('User not found');
 
   const newShmips = Math.round((Number(user.shmips) + shmipsEarned) * 100) / 100;
   const newBest   = Math.max(Number(user.best_score || 0), score);
   const newGames  = (user.total_games || 0) + 1;
 
-  await supa.from('users')
-    .update({ shmips: newShmips, best_score: newBest, total_games: newGames })
-    .eq('telegram_id', id);
+  await supa(`users?telegram_id=eq.${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ shmips: newShmips, best_score: newBest, total_games: newGames }),
+  });
 
-  await supa.from('scores')
-    .insert({ telegram_id: id, score, level, shmips_earned: shmipsEarned });
+  await supa('scores', {
+    method: 'POST',
+    body: JSON.stringify({ telegram_id: id, score, level, shmips_earned: shmipsEarned }),
+  });
 
   return { totalShmips: newShmips, newBestScore: newBest, shmipsEarned };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Leaderboard
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Leaderboard ───────────────────────────────────────────────────────────────
 export async function dbGetLeaderboard() {
-  const { data } = await supa
-    .from('leaderboard')
-    .select('nickname, best_score')
-    .limit(5);
-  return data || [];
+  try {
+    // Leaderboard view (only works if there are scores)
+    const rows = await supa('leaderboard?select=nickname,best_score&limit=5');
+    return rows || [];
+  } catch {
+    // Fallback: read directly from users table
+    const rows = await supa('users?select=nickname,best_score&order=best_score.desc&limit=5');
+    return (rows || []).filter(r => r.best_score > 0);
+  }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Personal best scores
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Personal scores ───────────────────────────────────────────────────────────
 export async function dbGetMyScores(telegramId) {
-  const { data } = await supa
-    .from('scores')
-    .select('score, level, created_at')
-    .eq('telegram_id', String(telegramId))
-    .order('score', { ascending: false })
-    .limit(5);
-  return data || [];
+  const rows = await supa(
+    `scores?telegram_id=eq.${telegramId}&select=score,level,created_at&order=score.desc&limit=5`
+  );
+  return rows || [];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// User upgrades
-// ─────────────────────────────────────────────────────────────────────────────
+// ── User upgrades ─────────────────────────────────────────────────────────────
 export async function dbGetUserUpgrades(telegramId) {
-  const { data } = await supa
-    .from('user_upgrades')
-    .select('upgrade_id, quantity')
-    .eq('telegram_id', String(telegramId));
-  return data || [];
+  const rows = await supa(
+    `user_upgrades?telegram_id=eq.${telegramId}&select=upgrade_id,quantity`
+  );
+  return rows || [];
 }
