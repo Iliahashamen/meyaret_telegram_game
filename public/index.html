@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#050510" />
+  <title>MEYARET</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="logo-text">MEYARET</div>
+    <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
+    <div class="loading-label">INITIALIZING SYSTEMS...</div>
+  </div>
+
+  <!-- Onboarding: Choose Call Sign -->
+  <div id="onboarding-screen" class="screen hidden">
+    <div class="screen-title">ENTER YOUR CALL SIGN</div>
+    <div class="screen-sub">One word · letters & numbers only</div>
+    <div class="example-tag">e.g. PHOENIX</div>
+    <input id="callsign-input" type="text" maxlength="12"
+           placeholder="PHOENIX" autocomplete="off" spellcheck="false" />
+    <button id="callsign-confirm" class="btn-primary">CONFIRM</button>
+    <div id="callsign-error" class="error-msg"></div>
+  </div>
+
+  <!-- Main Menu -->
+  <div id="menu-screen" class="screen hidden">
+    <!-- Profile badge (top right) -->
+    <button id="profile-btn" class="profile-badge">
+      <span id="menu-nickname">ACE</span>
+      <span id="menu-shmips" class="shmips-count">0 ⬡</span>
+    </button>
+
+    <!-- Live leaderboard top strip -->
+    <div id="leaderboard-strip">
+      <span class="lb-label">TOP 5</span>
+      <span id="lb-entries">—</span>
+    </div>
+
+    <div class="logo-menu">MEYARET</div>
+    <div class="logo-sub">SYNTHWAVE SPACE COMBAT</div>
+
+    <div class="menu-buttons">
+      <button id="btn-play"  class="btn-primary btn-big">▶  PLAY</button>
+      <button id="btn-spin"  class="btn-secondary btn-big">◎  DAILY SPIN</button>
+      <button id="btn-store" class="btn-secondary btn-big">◈  STORE</button>
+      <button id="btn-quit"  class="btn-ghost btn-big">✕  QUIT</button>
+    </div>
+
+    <div id="multiplier-banner" class="hidden"></div>
+  </div>
+
+  <!-- Profile Screen -->
+  <div id="profile-screen" class="screen hidden">
+    <button class="back-btn" data-back="menu">← BACK</button>
+    <div class="screen-title">PROFILE</div>
+    <div class="profile-card">
+      <div class="profile-nick" id="prof-nick">ACE</div>
+      <div class="profile-stats">
+        <div class="stat"><span class="stat-label">SHMIPS</span><span id="prof-shmips">0</span></div>
+        <div class="stat"><span class="stat-label">BEST SCORE</span><span id="prof-best">0</span></div>
+        <div class="stat"><span class="stat-label">GAMES PLAYED</span><span id="prof-games">0</span></div>
+      </div>
+      <div class="top-scores-label">PERSONAL BEST 5</div>
+      <div id="prof-scores-list"></div>
+    </div>
+    <button id="change-nick-btn" class="btn-secondary">CHANGE CALL SIGN (1,000 ⬡)</button>
+    <div id="change-nick-area" class="hidden">
+      <input id="new-nick-input" type="text" maxlength="12" placeholder="NEW CALL SIGN" />
+      <button id="new-nick-confirm" class="btn-primary">CONFIRM</button>
+      <div id="new-nick-error" class="error-msg"></div>
+    </div>
+  </div>
+
+  <!-- Daily Spin Screen -->
+  <div id="spin-screen" class="screen hidden">
+    <button class="back-btn" data-back="menu">← BACK</button>
+    <div class="screen-title">DAILY SPIN</div>
+    <div id="spin-wheel-wrap">
+      <canvas id="spin-canvas" width="300" height="300"></canvas>
+    </div>
+    <button id="spin-btn" class="btn-primary btn-big">SPIN!</button>
+    <div id="spin-countdown" class="spin-timer hidden"></div>
+    <div id="spin-result" class="spin-result hidden"></div>
+  </div>
+
+  <!-- Store Screen -->
+  <div id="store-screen" class="screen hidden">
+    <button class="back-btn" data-back="menu">← BACK</button>
+    <div class="screen-title">STORE</div>
+    <div id="store-balance" class="store-balance"></div>
+    <div class="store-tabs">
+      <button class="tab-btn active" data-tab="upgrade">UPGRADES</button>
+      <button class="tab-btn" data-tab="skin">SKINS</button>
+      <button class="tab-btn" data-tab="plane">PLANES</button>
+    </div>
+    <div id="store-items" class="store-grid"></div>
+    <div id="store-msg" class="store-msg hidden"></div>
+  </div>
+
+  <!-- Game Canvas (the actual game) -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Mobile Controls Overlay (shown during gameplay) -->
+  <div id="controls-overlay" class="hidden">
+    <div id="ctrl-left">
+      <button class="ctrl-btn" id="ctrl-rotl">◁</button>
+      <button class="ctrl-btn ctrl-thrust" id="ctrl-thrust">▲</button>
+      <button class="ctrl-btn" id="ctrl-rotr">▷</button>
+    </div>
+    <div id="ctrl-right">
+      <button class="ctrl-btn ctrl-flare" id="ctrl-flare">🔥</button>
+      <button class="ctrl-btn ctrl-fire" id="ctrl-fire">●</button>
+    </div>
+  </div>
+
+  <!-- Game Over Overlay -->
+  <div id="gameover-screen" class="screen hidden">
+    <div class="go-title" id="go-title">GAME OVER</div>
+    <div class="go-score" id="go-score"></div>
+    <div class="go-shmips" id="go-shmips"></div>
+    <div id="go-leaderboard"></div>
+    <button id="go-play-again" class="btn-primary btn-big">PLAY AGAIN</button>
+    <button id="go-menu" class="btn-secondary btn-big">MAIN MENU</button>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+import { Router } from 'express';
+import { supabase } from '../supabase.js';
+import { requireTelegramAuth } from '../middleware/auth.js';
+
+export const spinRouter = Router();
+
+// Spin reward table — weights must sum to 100
+const REWARDS = [
+  { id: 'shmips_15',    weight: 45, label: '15 Shmips',                    type: 'shmips',      value: 15   },
+  { id: 'shmips_20_2x', weight: 30, label: '20 Shmips + 2x Points (1hr)', type: 'shmips+multi', value: 20, multi: 2.0, duration: 60 },
+  { id: 'multi_3x',     weight: 12, label: '3x Points (1hr)',              type: 'multi',        multi: 3.0, duration: 60 },
+  { id: 'golden_plane', weight:  8, label: 'Golden Plane (1 game)',        type: 'golden_plane'  },
+  { id: 'random_upgrade',weight: 5, label: 'Random Upgrade',               type: 'upgrade'       },
+];
+
+// Random pool of permanent upgrades given via spin
+const UPGRADE_POOL = ['extra_life', 'extra_flare', 'rapid_fire', 'laser', 'ship_purple', 'ship_gold'];
+
+function pickReward() {
+  const roll = Math.random() * 100;
+  let cumulative = 0;
+  for (const r of REWARDS) {
+    cumulative += r.weight;
+    if (roll < cumulative) return r;
+  }
+  return REWARDS[0];
+}
+
+// POST /api/spin  — attempt a daily spin
+spinRouter.post('/', requireTelegramAuth, async (req, res) => {
+  const tid = req.telegramUserId;
+
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('shmips, last_spin_at, multiplier_value, multiplier_end')
+    .eq('telegram_id', tid)
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Check cooldown: 21 hours from last spin, earliest allowed at 07:00 local server time.
+  const now = new Date();
+  if (user.last_spin_at) {
+    const lastSpin      = new Date(user.last_spin_at);
+    const cooldownMs    = 21 * 60 * 60 * 1000;
+    const nextAvailable = new Date(lastSpin.getTime() + cooldownMs);
+    if (now < nextAvailable) {
+      return res.status(429).json({
+        error: 'Spin not available yet.',
+        nextAvailableAt: nextAvailable.toISOString(),
+        remainingMs: nextAvailable - now,
+      });
+    }
+  }
+
+  const reward = pickReward();
+  const updates = { last_spin_at: now.toISOString() };
+
+  // Apply reward effects
+  let grantedUpgrade = null;
+
+  if (reward.type === 'shmips') {
+    updates.shmips = user.shmips + reward.value;
+
+  } else if (reward.type === 'shmips+multi') {
+    updates.shmips          = user.shmips + reward.value;
+    updates.multiplier_value = reward.multi;
+    updates.multiplier_end   = new Date(now.getTime() + reward.duration * 60 * 1000).toISOString();
+
+  } else if (reward.type === 'multi') {
+    updates.multiplier_value = reward.multi;
+    updates.multiplier_end   = new Date(now.getTime() + reward.duration * 60 * 1000).toISOString();
+
+  } else if (reward.type === 'golden_plane') {
+    updates.has_golden_plane = true;
+
+  } else if (reward.type === 'upgrade') {
+    grantedUpgrade = UPGRADE_POOL[Math.floor(Math.random() * UPGRADE_POOL.length)];
+    // Upsert upgrade (increment quantity if already owned)
+    const { data: existing } = await supabase
+      .from('user_upgrades')
+      .select('quantity')
+      .eq('telegram_id', tid)
+      .eq('upgrade_id', grantedUpgrade)
+      .single();
+
+    if (existing) {
+      await supabase
+        .from('user_upgrades')
+        .update({ quantity: existing.quantity + 1 })
+        .eq('telegram_id', tid)
+        .eq('upgrade_id', grantedUpgrade);
+    } else {
+      await supabase.from('user_upgrades').insert({
+        telegram_id: tid,
+        upgrade_id:  grantedUpgrade,
+        quantity:    1,
+      });
+    }
+  }
+
+  await supabase.from('users').update(updates).eq('telegram_id', tid);
+
+  res.json({
+    reward: {
+      id:    reward.id,
+      label: reward.label,
+      type:  reward.type,
+      upgrade: grantedUpgrade,
+    },
+    nextAvailableAt: new Date(now.getTime() + 21 * 60 * 60 * 1000).toISOString(),
+  });
+});
+
+// GET /api/spin/status  — check if spin is available
+spinRouter.get('/status', requireTelegramAuth, async (req, res) => {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('last_spin_at')
+    .eq('telegram_id', req.telegramUserId)
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  const now = new Date();
+  if (!user.last_spin_at) {
+    return res.json({ available: true, remainingMs: 0 });
+  }
+
+  const nextAvailable = new Date(new Date(user.last_spin_at).getTime() + 21 * 60 * 60 * 1000);
+  const available     = now >= nextAvailable;
+
+  res.json({
+    available,
+    remainingMs:     available ? 0 : nextAvailable - now,
+    nextAvailableAt: nextAvailable.toISOString(),
+  });
+});
