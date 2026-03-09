@@ -80,12 +80,12 @@ const DEMO_USER = {
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
-  bg:           '#07000f',
-  ship:         '#00ffcc',
-  bullet:       '#00ffcc',
-  laser:        '#ff0077',
-  asteroid:     '#8800ff',
-  asteroidFill: '#0c0018',
+  bg:           '#020008',    // very dark, almost black with a hint of purple
+  ship:         '#ff0077',    // hot magenta — clearly not white
+  bullet:       '#ff0077',
+  laser:        '#00ffcc',
+  asteroid:     '#7700ee',
+  asteroidFill: '#08001a',
   enemyRed:     '#ff1144',
   enemyYellow:  '#ffee00',
   rocket:       '#ffee00',
@@ -99,9 +99,9 @@ const C = {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
-  rotSpeed:     0.030,
-  thrustPower:  0.11,
-  friction:     0.991,
+  rotSpeed:     0.042,        // joystick rotation (still used for keyboard)
+  thrustPower:  0.07,         // gentler acceleration
+  friction:     0.988,        // slightly more drag so ship slows down faster
   bulletSpeed:  6,
   bulletLife:   65,
   laserLife:    25,
@@ -114,7 +114,7 @@ const CFG = {
   maxBullets:   6,
   respawnMs:    2400,
   invincibleMs: 3000,
-  baseAsteroids: 4,
+  baseAsteroids: 2,           // level 1 starts with 2 asteroids
 };
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -205,16 +205,25 @@ class Ship {
       if (this.invTimer <= 0) this.invincible = false;
     }
 
-    if (keys.left)   this.angle -= CFG.rotSpeed;
-    if (keys.right)  this.angle += CFG.rotSpeed;
-    this.thrusting = keys.up;
-    if (keys.up) {
-      this.vx += Math.cos(this.angle) * CFG.thrustPower;
-      this.vy += Math.sin(this.angle) * CFG.thrustPower;
-      const spd = Math.hypot(this.vx, this.vy);
-      const max = this.golden ? 9 : 6;
-      if (spd > max) { this.vx = (this.vx / spd) * max; this.vy = (this.vy / spd) * max; }
+    if (keys.joyActive && keys.joyAngle !== null) {
+      // 360° joystick: snap ship to face joystick direction, thrust that way
+      this.angle    = keys.joyAngle - Math.PI / 2; // -90° because ship draws "up"
+      this.thrusting = true;
+      this.vx += Math.cos(keys.joyAngle) * CFG.thrustPower;
+      this.vy += Math.sin(keys.joyAngle) * CFG.thrustPower;
+    } else {
+      // Keyboard / no joystick
+      if (keys.left)  this.angle -= CFG.rotSpeed;
+      if (keys.right) this.angle += CFG.rotSpeed;
+      this.thrusting = keys.up;
+      if (keys.up) {
+        this.vx += Math.cos(this.angle) * CFG.thrustPower;
+        this.vy += Math.sin(this.angle) * CFG.thrustPower;
+      }
     }
+    const spd = Math.hypot(this.vx, this.vy);
+    const max = this.golden ? 6 : 3.8;
+    if (spd > max) { this.vx = (this.vx / spd) * max; this.vy = (this.vy / spd) * max; }
     this.vx *= CFG.friction; this.vy *= CFG.friction;
     this.x = wrap(this.x + this.vx, 0, W);
     this.y = wrap(this.y + this.vy, 0, H);
@@ -386,11 +395,14 @@ class Laser {
 const ASTEROID_SHAPES = 6;   // cached point offsets per size
 
 class Asteroid {
-  constructor(x, y, size = 'large', angle = null) {
+  constructor(x, y, size = 'large', angle = null, level = 1) {
     this.x = x; this.y = y;
     this.size = size;
     this.radius = CFG.asteroidSizes[size];
-    const spd = size === 'large' ? rng(0.25, 0.55) : size === 'medium' ? rng(0.45, 0.9) : rng(0.7, 1.4);
+    // Speed scales gently with level: level 1 = very slow, level 5+ = normal
+    const speedMult = 0.35 + Math.min(level - 1, 8) * 0.085;
+    const baseSpd = size === 'large' ? rng(0.20, 0.45) : size === 'medium' ? rng(0.40, 0.80) : rng(0.65, 1.2);
+    const spd = baseSpd * speedMult;
     const ang = angle !== null ? angle : rng(0, TAU);
     this.vx = Math.cos(ang) * spd;
     this.vy = Math.sin(ang) * spd;
@@ -676,11 +688,11 @@ const STARS_FG  = Array.from({ length: 7 }, (_, i) => ({
 function drawGrid(ctx, W, H, tick) {
   ctx.clearRect(0, 0, W, H);
 
-  // Very dark synthwave base
+  // Near-black deep space base
   const bg = ctx.createRadialGradient(W * 0.5, H * 0.4, 0, W * 0.5, H * 0.4, Math.max(W, H) * 0.9);
-  bg.addColorStop(0,   '#120025');
-  bg.addColorStop(0.5, '#09000f');
-  bg.addColorStop(1,   '#07000f');
+  bg.addColorStop(0,   '#08001a');
+  bg.addColorStop(0.5, '#040010');
+  bg.addColorStop(1,   '#020008');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
@@ -1150,6 +1162,7 @@ class Game {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        this._lastStoreTab = btn.dataset.tab;
         this._renderStoreTab(btn.dataset.tab);
       });
     });
@@ -1178,33 +1191,44 @@ class Game {
     const joyKnob = document.getElementById('vjoy-knob');
 
     const applyJoy = (clientX, clientY) => {
-      const rect  = joyBase.getBoundingClientRect();
-      const cx    = rect.left + rect.width  / 2;
-      const cy    = rect.top  + rect.height / 2;
-      const dx    = clientX - cx;
-      const dy    = clientY - cy;
-      const maxR  = rect.width / 2 - 6;
-      const d     = Math.min(Math.hypot(dx, dy), maxR);
-      const ang   = Math.atan2(dy, dx);
-      const kx    = Math.cos(ang) * d;
-      const ky    = Math.sin(ang) * d;
+      const rect = joyBase.getBoundingClientRect();
+      const cx   = rect.left + rect.width  / 2;
+      const cy   = rect.top  + rect.height / 2;
+      const dx   = clientX - cx;
+      const dy   = clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      const maxR = rect.width / 2 - 6;
+      const dead = maxR * 0.15;      // 15% deadzone
 
-      joyKnob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
+      const clampedD = Math.min(dist, maxR);
+      const ang      = Math.atan2(dy, dx);
+      joyKnob.style.transform =
+        `translate(calc(-50% + ${Math.cos(ang) * clampedD}px), calc(-50% + ${Math.sin(ang) * clampedD}px))`;
 
-      // Directional thresholds: 25% of radius for rotation, 20% for thrust
-      const rotDead = maxR * 0.22;
-      const thrDead = maxR * 0.18;
-      this.keys.left  = dx < -rotDead;
-      this.keys.right = dx >  rotDead;
-      // Thrust: upper half of joystick — negative dy = upward
-      this.keys.up    = dy < -thrDead;
+      if (dist < dead) {
+        // Inside deadzone — no movement
+        this.keys.joyAngle  = null;
+        this.keys.joyActive = false;
+        this.keys.up        = false;
+        this.keys.left      = false;
+        this.keys.right     = false;
+      } else {
+        // 360° directional boost: ship faces the joystick direction and thrusts
+        this.keys.joyAngle  = ang;          // angle in radians (Math.atan2)
+        this.keys.joyActive = true;
+        this.keys.up        = true;         // always thrust when joystick active
+        this.keys.left      = false;
+        this.keys.right     = false;
+      }
     };
 
     const resetJoy = () => {
       joyKnob.style.transform = 'translate(-50%, -50%)';
-      this.keys.left  = false;
-      this.keys.right = false;
-      this.keys.up    = false;
+      this.keys.joyAngle  = null;
+      this.keys.joyActive = false;
+      this.keys.left      = false;
+      this.keys.right     = false;
+      this.keys.up        = false;
     };
 
     if (joyBase) {
@@ -1401,13 +1425,14 @@ class Game {
   }
 
   _spawnAsteroids(level) {
-    const count = CFG.baseAsteroids + level - 1;
+    // Level 1: 2 slow asteroids. Each level adds 1 more, capped at 10.
+    const count = Math.min(CFG.baseAsteroids + level - 1, 10);
     for (let i = 0; i < count; i++) {
       let x, y;
       do {
         x = rng(0, this.W); y = rng(0, this.H);
-      } while (dist({ x, y }, { x: this.W / 2, y: this.H / 2 }) < 120);
-      this.asteroids.push(new Asteroid(x, y, 'large'));
+      } while (dist({ x, y }, { x: this.W / 2, y: this.H / 2 }) < 130);
+      this.asteroids.push(new Asteroid(x, y, 'large', null, level));
     }
   }
 
@@ -1457,18 +1482,18 @@ class Game {
     const yellowInterval = Math.max(900 - this.level * 40, 350);
 
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && this.level >= 2) {
+    if (this.redFighterTimer > redInterval && this.level >= 3) {  // red fighter from level 3
       this.redFighterTimer = 0;
-      if (this.redFighters.length < 2 + Math.floor(this.level / 3)) {
+      if (this.redFighters.length < 1 + Math.floor(this.level / 4)) {
         const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
 
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > yellowInterval && this.level >= 3) {
+    if (this.yellowAlienTimer > yellowInterval && this.level >= 5) {  // alien from level 5
       this.yellowAlienTimer = 0;
-      if (this.yellowAliens.length < 1 + Math.floor(this.level / 5)) {
+      if (this.yellowAliens.length < 1 + Math.floor(this.level / 6)) {
         const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
@@ -1817,9 +1842,13 @@ class Game {
     this._showScreen('store');
     document.getElementById('store-balance').textContent =
       `BALANCE: ${(this.userData?.shmips || 0).toLocaleString()} ⬡`;
-    // Use local catalog — no server needed
     this._catalog = CATALOG;
-    this._renderStoreTab('upgrade');
+    // Restore last active tab (so re-opening store keeps your position)
+    const activeTab = this._lastStoreTab || 'upgrade';
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === activeTab);
+    });
+    this._renderStoreTab(activeTab);
   }
 
   _renderStoreTab(category) {
