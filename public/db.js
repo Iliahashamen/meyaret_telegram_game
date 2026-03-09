@@ -3,7 +3,7 @@
 // No CDN dependency — calls the REST API directly.
 // ============================================================
 
-const SUPA_URL = 'https://fbcjmniqwqiurssqdnka.supabase.co/rest/v1';
+const SUPA_URL = 'https://fbcjmniqwqiurssdqnka.supabase.co/rest/v1';
 const SUPA_KEY = 'sb_publishable_yWYuHRBLU3m_-XUdDVJDBw_KsEm8Kpk';
 
 const HDR = {

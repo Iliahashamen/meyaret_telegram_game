@@ -12,7 +12,7 @@ if (!supabaseUrl) {
   console.error(
     '[supabase] MISSING SUPABASE_URL !\n' +
     '  Go to Railway → your service → Variables → add:\n' +
-    '  SUPABASE_URL = https://fbcjmniqwqiurssqdnka.supabase.co'
+    '  SUPABASE_URL = https://fbcjmniqwqiurssdqnka.supabase.co'
   );
 }
 if (!supabaseKey) {
