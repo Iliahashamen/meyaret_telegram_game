@@ -97,14 +97,15 @@
     <button class="back-btn" data-back="menu">← BACK</button>
     <div class="screen-title">ARSENAL</div>
     <div class="profile-card">
-      <div class="top-scores-label">JET CRAFT</div>
+      <div class="top-scores-label">YOUR JET</div>
       <div class="profile-stats">
         <div class="stat"><span class="stat-label">JET</span><span id="ars-jet">STARTER</span></div>
         <div class="stat"><span class="stat-label">WEAPON</span><span id="ars-weapon">BULLETS</span></div>
         <div class="stat"><span class="stat-label">ABILITY</span><span id="ars-ability">NONE</span></div>
+        <div class="stat"><span class="stat-label">SKIN</span><span id="ars-skin">DEFAULT</span></div>
       </div>
-      <div class="store-msg">All attachments are shared between all jets.</div>
     </div>
+    <div id="ars-equip-area" class="ars-equip-area"></div>
     <button id="arsenal-open-store" class="btn-primary">OPEN STORE</button>
   </div>
 
@@ -126,7 +127,8 @@
     <div class="screen-title">STORE</div>
     <div id="store-balance" class="store-balance"></div>
     <div class="store-tabs">
-      <button class="tab-btn active" data-tab="upgrade">UPGRADES</button>
+      <button class="tab-btn active" data-tab="boost">BOOSTS</button>
+      <button class="tab-btn" data-tab="upgrade">UPGRADES</button>
       <button class="tab-btn" data-tab="skin">SKINS</button>
       <button class="tab-btn" data-tab="plane">PLANES</button>
     </div>
@@ -149,6 +151,7 @@
     <!-- Right -->
     <div id="ctrl-right">
       <button class="ctrl-round ctrl-fire-btn" id="ctrl-fire">SHOOT</button>
+      <button class="ctrl-round ctrl-rocket-btn" id="ctrl-rocket">ROCKET</button>
       <button class="ctrl-round ctrl-thrust-btn" id="ctrl-thrust">THRUST</button>
     </div>
   </div>

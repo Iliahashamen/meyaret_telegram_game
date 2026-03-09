@@ -436,14 +436,17 @@ input[type="text"]:focus {
 
 .back-btn {
   position: fixed; top: 12px; left: 12px;
-  background: transparent; border: none;
+  background: rgba(7, 0, 15, 0.85);
+  border: var(--px) solid var(--border-m);
   color: var(--muted2); font-family: var(--font);
-  font-size: 8px; letter-spacing: 1px; cursor: pointer;
+  font-size: 10px; letter-spacing: 2px; cursor: pointer;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 18px;
+  padding: 8px 14px;
+  z-index: 100;
+  box-shadow: 2px 2px 0 #ff007722;
 }
 .back-btn:active { color: var(--cyan); }
 
@@ -749,3 +752,63 @@ input[type="text"]:focus {
 .store-grid::-webkit-scrollbar { width: 3px; }
 .store-grid::-webkit-scrollbar-track { background: transparent; }
 .store-grid::-webkit-scrollbar-thumb { background: var(--magenta); }
+
+/* ── FLOATING TEXT (pickup feedback) ─────────────────────── */
+.float-text {
+  position: fixed;
+  pointer-events: none;
+  font-family: var(--font);
+  font-size: 10px;
+  letter-spacing: 2px;
+  z-index: 30;
+  animation: floatUp 1.2s ease-out forwards;
+  text-shadow: 0 0 8px currentColor;
+}
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-50px); }
+}
+
+/* ── Arsenal equip area ──────────────────────────────────── */
+.ars-equip-area {
+  display: flex; flex-direction: column; gap: 6px;
+  width: min(340px, 90vw);
+  max-height: 30vh; overflow-y: auto;
+  margin: 10px 0;
+}
+.ars-equip-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--card);
+  border: var(--px) solid var(--border-c);
+  padding: 8px 12px;
+  gap: 8px;
+}
+.ars-equip-item .ars-name {
+  font-size: 9px; color: var(--cyan); letter-spacing: 1px;
+}
+.ars-equip-btn {
+  background: transparent;
+  border: var(--px) solid var(--cyan);
+  color: var(--cyan); font-family: var(--font);
+  font-size: 7px; letter-spacing: 1px;
+  padding: 5px 8px; cursor: pointer;
+  box-shadow: 2px 2px 0 #00ffcc33;
+}
+.ars-equip-btn.equipped {
+  border-color: var(--yellow);
+  color: var(--yellow);
+  box-shadow: 2px 2px 0 #ffee0033;
+}
+
+/* ── Rocket button ───────────────────────────────────────── */
+.ctrl-rocket-btn {
+  background: radial-gradient(circle, rgba(255,238,0,0.16) 0%, transparent 100%);
+  border: 2px solid var(--yellow);
+  color: var(--yellow);
+  box-shadow: 0 0 10px #ffee0055;
+  width: 54px; height: 54px;
+}
+.ctrl-rocket-btn:active {
+  background: rgba(255,238,0,0.28);
+  box-shadow: 0 0 24px #ffee00;
+}
