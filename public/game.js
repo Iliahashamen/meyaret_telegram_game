@@ -66,7 +66,7 @@ const CFG = {
   friction:     0.965,
   bulletSpeed:  6,
   bulletLife:   65,
-  laserLife:    25,
+  laserLife:    55,
   rocketSpeed:  1.0,
   flareRadius:  85,
   asteroidSizes: { large: 42, medium: 21, small: 10 },
@@ -605,7 +605,7 @@ class Laser {
   constructor(x, y, angle) {
     this.x = x; this.y = y;
     this.angle = angle;
-    this.len  = 40;
+    this.len  = 80;
     this.life = CFG.laserLife;
     this.vx = Math.cos(angle) * 14;
     this.vy = Math.sin(angle) * 14;
