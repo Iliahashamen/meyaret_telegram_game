@@ -50,16 +50,19 @@ export const CATALOG = [
   { id: 'collector',      name: 'COLLECTOR',       category: 'upgrade', cost: 1100, description: 'Shoot $ or ? to collect them from range' },
 
   // ── Skins (10 — color palette for any jet) ────────────────────────────────
-  { id: 'skin_breast_cancer', name: 'I SUPPORT BREAST CANCER', category: 'skin', cost: 1,   description: 'Pink hull — fight the fight',        color: '#ff69b4' },
-  { id: 'skin_shemesh',       name: 'SHEMESH',                  category: 'skin', cost: 180, description: 'Yellow-orange radiance',             color: '#ffcc00', accent: '#ff6600' },
-  { id: 'skin_bat_yam',       name: 'BAT YAM',                  category: 'skin', cost: 150, description: 'Ocean blue hull',                    color: '#3399ff' },
-  { id: 'skin_coffee',        name: 'COFFEE',                   category: 'skin', cost: 200, description: 'Brown & cream',                      color: '#8B5E3C', accent: '#eeeeff' },
-  { id: 'skin_anavim',        name: 'ANAVIM',                   category: 'skin', cost: 160, description: 'Deep grape purple',                  color: '#9b59b6' },
-  { id: 'skin_chupapi',       name: 'CHUPAPI',                  category: 'skin', cost: 240, description: 'Wild green mix',                     color: '#00ff88', accent: '#aaff00' },
-  { id: 'skin_goldie',        name: 'GOLDIE',                   category: 'skin', cost: 350, description: 'Full gold prestige hull',             color: '#ffd700' },
-  { id: 'skin_beast',         name: 'BEAST',                    category: 'skin', cost: 500, description: 'Animated rainbow hull',              color: 'rainbow' },
-  { id: 'skin_acid',          name: 'ACID',                     category: 'skin', cost: 600, description: 'Trippy psychedelic glow',            color: 'acid' },
-  { id: 'skin_pheonix',       name: 'THE PHEONIX',              category: 'skin', cost: 800, description: 'Purple + gold — rise from the ashes', color: '#9b59b6', accent: '#ffd700' },
+  { id: 'skin_breast_cancer', name: 'I SUPPORT BREAST CANCER', category: 'skin', cost: 1,   description: 'Pink hull — fight the fight',         color: '#ff69b4', accent: '#ffffff' },
+  { id: 'skin_shemesh',       name: 'SHEMESH',                  category: 'skin', cost: 180, description: 'Blazing sun — deep orange core',      color: '#ff8800', accent: '#ffee00' },
+  { id: 'skin_bat_yam',       name: 'BAT YAM',                  category: 'skin', cost: 150, description: 'Ocean blue with teal shimmer',        color: '#0077ff', accent: '#00ffee' },
+  { id: 'skin_coffee',        name: 'COFFEE',                   category: 'skin', cost: 200, description: 'Dark roast with cream highlights',     color: '#6b3a1f', accent: '#f5d9a8' },
+  { id: 'skin_anavim',        name: 'ANAVIM',                   category: 'skin', cost: 160, description: 'Deep grape with lavender glow',        color: '#7b2fff', accent: '#dd88ff' },
+  { id: 'skin_chupapi',       name: 'CHUPAPI',                  category: 'skin', cost: 240, description: 'Wild green with neon yellow',          color: '#00dd44', accent: '#ccff00' },
+  { id: 'skin_goldie',        name: 'GOLDIE',                   category: 'skin', cost: 350, description: 'Metallic gold with white chrome',      color: '#ffd700', accent: '#ffffff' },
+  { id: 'skin_beast',         name: 'BEAST',                    category: 'skin', cost: 500, description: 'Animated rainbow hull',               color: 'rainbow' },
+  { id: 'skin_acid',          name: 'ACID',                     category: 'skin', cost: 600, description: 'Trippy psychedelic glow',             color: 'acid' },
+  { id: 'skin_pheonix',       name: 'THE PHEONIX',              category: 'skin', cost: 800, description: 'Purple + gold — rise from the ashes',  color: '#9b59b6', accent: '#ffd700' },
+  { id: 'skin_karamba',       name: 'KARAMBA',                  category: 'skin', cost: 420, description: 'Hot coral meets electric orange',      color: '#ff2255', accent: '#ff9900' },
+  { id: 'skin_zoink',         name: 'ZOINK',                    category: 'skin', cost: 380, description: 'Glitchy electric cyan-green',          color: '#00eeff', accent: '#00ff88' },
+  { id: 'skin_silver_surfer', name: 'SILVER SURFER',            category: 'skin', cost: 450, description: 'Chrome metallic — pure silver',        color: '#c0c0c0', accent: '#f0f8ff' },
 
   // ── Jets (3 purchasable — Starter is always available for free) ───────────
   { id: 'plane_hamud',      name: 'F2 HAMUD',       category: 'plane', cost: 3000,
@@ -389,4 +392,13 @@ async function _grantUpgrade(id, upgradeId) {
       body: JSON.stringify({ telegram_id: id, upgrade_id: upgradeId, quantity: 1 }),
     });
   }
+}
+
+// ── Dev/Admin reset — wipes upgrades, gives 30k shmips, keeps scores ──────────
+async function dbDevReset(telegramId) {
+  await supa(`user_upgrades?telegram_id=eq.${telegramId}`, { method: 'DELETE' });
+  await supa(`users?telegram_id=eq.${telegramId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ shmips: 30000, last_spin_at: null }),
+  });
 }

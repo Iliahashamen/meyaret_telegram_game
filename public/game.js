@@ -69,7 +69,7 @@ const CFG = {
   laserLife:    55,
   rocketSpeed:  1.0,
   flareRadius:  85,
-  asteroidSizes: { large: 42, medium: 21, small: 10 },
+  asteroidSizes: { large: 38, medium: 19, small: 9 },
   asteroidScores: { large: 20, medium: 50, small: 100 },
   enemyRedScore:    200,
   enemyYellowScore: 1000,
@@ -213,6 +213,7 @@ class Ship {
     this.color = this.skinColor || jetDefaults[this.jetType] || '#eeeeff';
 
     this.golden = !!(upgrades.golden_plane);
+    this.radius = this.golden ? 18 : 14; // collision radius — must match draw size
     this.fireCooldown = 0;
     this.thrusting    = false;
     this.tempLaserUntil      = 0;
@@ -329,6 +330,7 @@ class Ship {
   }
 
   _drawStarter(ctx, col, sz) {
+    const ac = this.accent || col;
     ctx.strokeStyle = col;
     ctx.lineWidth   = this.golden ? 2.5 : 1.8;
     ctx.beginPath();
@@ -338,16 +340,20 @@ class Ship {
     ctx.lineTo(-sz * 0.55, sz * 0.6);
     ctx.closePath();
     ctx.stroke();
-    if (this.accent) {
-      ctx.strokeStyle = this.accent; ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-sz * 0.35, sz * 0.15); ctx.lineTo(sz * 0.35, sz * 0.15);
-      ctx.stroke();
-    }
+    // Accent crossbar + tip dot
+    glow(ctx, ac, 8);
+    ctx.strokeStyle = ac; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-sz * 0.38, sz * 0.15); ctx.lineTo(sz * 0.38, sz * 0.15);
+    ctx.stroke();
+    ctx.fillStyle = ac;
+    ctx.beginPath(); ctx.arc(0, -sz * 0.7, sz * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
     this._drawFlame(ctx, col, sz);
   }
 
   _drawHamud(ctx, col, sz) {
+    const ac = this.accent || col;
     // Body
     ctx.strokeStyle = col; ctx.lineWidth = 1.8;
     ctx.beginPath();
@@ -357,9 +363,9 @@ class Ship {
     ctx.lineTo(-sz * 0.45, sz * 0.3);
     ctx.closePath();
     ctx.stroke();
-    // Wings extending out
-    glow(ctx, col, 8);
-    ctx.lineWidth = 1.4;
+    // Wings — accent colored
+    glow(ctx, ac, 10);
+    ctx.strokeStyle = ac; ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.moveTo(-sz * 0.45, sz * 0.3);
     ctx.lineTo(-sz * 1.1, sz * 0.5);
@@ -370,16 +376,17 @@ class Ship {
     ctx.lineTo(sz * 1.1, sz * 0.5);
     ctx.lineTo(sz * 0.5, sz * 0.6);
     ctx.stroke();
-    if (this.accent) {
-      ctx.strokeStyle = this.accent; ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-sz * 0.35, 0); ctx.lineTo(sz * 0.35, 0);
-      ctx.stroke();
-    }
+    // Cockpit stripe in main color
+    ctx.strokeStyle = col; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-sz * 0.35, 0); ctx.lineTo(sz * 0.35, 0);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
     this._drawFlame(ctx, col, sz);
   }
 
   _drawWallaYofi(ctx, col, sz) {
+    const ac = this.accent || col;
     // Sleeker fuselage
     ctx.strokeStyle = col; ctx.lineWidth = 2;
     ctx.beginPath();
@@ -391,8 +398,9 @@ class Ship {
     ctx.lineTo(-sz * 0.35, sz * 0.1);
     ctx.closePath();
     ctx.stroke();
-    // Delta wings
-    ctx.lineWidth = 1.5;
+    // Delta wings — accent colored
+    glow(ctx, ac, 10);
+    ctx.strokeStyle = ac; ctx.lineWidth = 1.8;
     ctx.beginPath();
     ctx.moveTo(-sz * 0.35, sz * 0.1);
     ctx.lineTo(-sz * 1.2, sz * 0.45);
@@ -403,8 +411,9 @@ class Ship {
     ctx.lineTo(sz * 1.2, sz * 0.45);
     ctx.lineTo(sz * 0.5, sz * 0.6);
     ctx.stroke();
-    // Glowing cockpit (blue tint)
-    const glowColor = this.skinColor || '#00aaff';
+    ctx.shadowBlur = 0;
+    // Glowing cockpit
+    const glowColor = ac;
     ctx.fillStyle = `${glowColor}55`;
     glow(ctx, glowColor, 14);
     ctx.beginPath(); ctx.ellipse(0, -sz * 0.35, sz * 0.2, sz * 0.3, 0, 0, TAU); ctx.fill();
@@ -1696,16 +1705,19 @@ class Game {
 
     // ── Skin color ────────────────────────────────────────────────────────
     const skinColors = {
-      skin_breast_cancer: { color:'#ff69b4' },
-      skin_shemesh:       { color:'#ffcc00', accent:'#ff6600' },
-      skin_bat_yam:       { color:'#3399ff' },
-      skin_coffee:        { color:'#8B5E3C', accent:'#eeeeff' },
-      skin_anavim:        { color:'#9b59b6' },
-      skin_chupapi:       { color:'#00ff88', accent:'#aaff00' },
-      skin_goldie:        { color:'#ffd700' },
+      skin_breast_cancer: { color:'#ff69b4', accent:'#ffffff' },
+      skin_shemesh:       { color:'#ff8800', accent:'#ffee00' },
+      skin_bat_yam:       { color:'#0077ff', accent:'#00ffee' },
+      skin_coffee:        { color:'#6b3a1f', accent:'#f5d9a8' },
+      skin_anavim:        { color:'#7b2fff', accent:'#dd88ff' },
+      skin_chupapi:       { color:'#00dd44', accent:'#ccff00' },
+      skin_goldie:        { color:'#ffd700', accent:'#ffffff' },
       skin_beast:         { color:'rainbow' },
       skin_acid:          { color:'acid' },
       skin_pheonix:       { color:'#9b59b6', accent:'#ffd700' },
+      skin_karamba:       { color:'#ff2255', accent:'#ff9900' },
+      skin_zoink:         { color:'#00eeff', accent:'#00ff88' },
+      skin_silver_surfer: { color:'#c0c0c0', accent:'#f0f8ff' },
     };
 
     if (equippedSkin && this.upgrades[equippedSkin] && skinColors[equippedSkin]) {
@@ -2340,6 +2352,37 @@ class Game {
     document.getElementById('prof-shmips').textContent = (this.userData?.shmips||0).toLocaleString();
     document.getElementById('prof-best').textContent   = (this.userData?.best_score||0).toLocaleString();
     document.getElementById('prof-games').textContent  = (this.userData?.total_games||0).toLocaleString();
+
+    // Secret dev reset button — only visible for admin ID
+    const devArea = document.getElementById('dev-reset-area');
+    if (devArea) {
+      if (this.userData?.telegram_id === 1357754255) {
+        devArea.style.display = 'block';
+        const btn = document.getElementById('dev-reset-btn');
+        if (btn && !btn._bound) {
+          btn._bound = true;
+          btn.addEventListener('click', async () => {
+            btn.textContent = 'RESETTING...';
+            btn.disabled = true;
+            try {
+              await dbDevReset(this.userData.telegram_id);
+              localStorage.removeItem('meyaret_equip_jet');
+              localStorage.removeItem('meyaret_equip_skin');
+              this.upgrades = {};
+              this.userData.shmips = 30000;
+              document.getElementById('prof-shmips').textContent = '30,000';
+              btn.textContent = 'DONE! RELOAD TO APPLY';
+            } catch(e) {
+              btn.textContent = 'ERROR: ' + e.message;
+              btn.disabled = false;
+            }
+          });
+        }
+      } else {
+        devArea.style.display = 'none';
+      }
+    }
+
     this._showScreen('profile');
   }
 
