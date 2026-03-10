@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310f';
+import { SFX } from './sounds.js?v=20250310g';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -11,7 +11,7 @@ import {
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
   SPIN_WHEEL_SEGMENTS,
-} from './db.js?v=20250310f';
+} from './db.js?v=20250310g';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -1231,23 +1231,22 @@ function drawHUD(ctx, W, { score, timeS, lives, maxLives, flares, multiplier, mu
   ctx.fillStyle = C.hud; glow(ctx, C.hud, 5);
   ctx.fillText('LIVES', 14, 76);
 
-  // Draw up to 6 life triangles
-  const displayLives = Math.min(lives, 6);
-  const displayMax   = Math.min(maxLives, 6);
+  // Draw up to 5 life triangles, "+N" for extras
+  const MAX_TRI    = 5;
+  const displayMax = Math.min(maxLives, MAX_TRI);
   for (let i = 0; i < displayMax; i++) {
     const lx = 68 + i * 15, ly = 76;
-    ctx.fillStyle   = i < displayLives ? C.hud : '#0a0020';
-    ctx.shadowBlur  = i < displayLives ? 8 : 0;
+    ctx.fillStyle   = i < lives ? C.hud : '#0a0020';
+    ctx.shadowBlur  = i < lives ? 8 : 0;
     ctx.shadowColor = C.hud;
     ctx.beginPath();
     ctx.moveTo(lx+4, ly-7); ctx.lineTo(lx+9, ly); ctx.lineTo(lx, ly);
     ctx.closePath(); ctx.fill();
   }
-  // If lives > 6, show bonus count
-  if (lives > 6) {
+  if (lives > MAX_TRI) {
     ctx.font = `7px ${FONT}`; ctx.fillStyle = '#ffee00';
     glow(ctx, '#ffee00', 6);
-    ctx.fillText(`+${lives - 6}`, 68 + displayMax * 15 + 2, 76);
+    ctx.fillText(`+${lives - MAX_TRI}`, 68 + MAX_TRI * 15 + 2, 76);
   }
 
   ctx.shadowBlur = 0; ctx.font = `8px ${FONT}`;
@@ -1879,25 +1878,24 @@ class Game {
   }
 
   _maintainAsteroids() {
-    // Continuous asteroid spawning — gets denser and larger over time
-    const timeS = this.gameTime / 60; // elapsed seconds
+    // Continuous asteroid spawning — scattered across the playfield, not just edges
+    const timeS = this.gameTime / 60;
     const targetCount = Math.min(3 + Math.floor(timeS / 18), 16);
     const spawnInterval = Math.max(150 - Math.floor(timeS * 0.3), 55);
     this.asteroidSpawnTimer++;
     if (this.asteroidSpawnTimer >= spawnInterval && this.asteroids.length < targetCount) {
       this.asteroidSpawnTimer = 0;
-      const { x, y } = this._edgeSpawn();
-      if (!this.ship || dist({ x, y }, this.ship) > 170) {
-        const diffPct = Math.min(timeS / 240, 1); // ramps to full difficulty at 4 minutes
-        const roll = Math.random();
-        const large = diffPct * 0.42;
-        const med   = 0.18 + diffPct * 0.32;
-        const size  = timeS < 30 ? 'small'
-                    : roll < large ? 'large'
-                    : roll < large + med ? 'medium'
-                    : 'small';
-        this.asteroids.push(new Asteroid(x, y, size, null, 1));
-      }
+      // Spawn anywhere safe in the playfield (not just edges)
+      const pos = this._findSafeSpawnPoint(60, this.ship, 180);
+      const diffPct = Math.min(timeS / 240, 1);
+      const roll = Math.random();
+      const large = diffPct * 0.42;
+      const med   = 0.18 + diffPct * 0.32;
+      const size  = timeS < 30 ? 'small'
+                  : roll < large ? 'large'
+                  : roll < large + med ? 'medium'
+                  : 'small';
+      this.asteroids.push(new Asteroid(pos.x, pos.y, size, null, 1));
     }
   }
 
