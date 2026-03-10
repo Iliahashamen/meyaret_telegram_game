@@ -44,7 +44,7 @@ const DEMO_USER = {
 const C = {
   bg:           '#020008',
   ship:         '#eeeeff',   // default white
-  bullet:       '#00ffcc',
+  bullet:       '#ff2200',
   laser:        '#00ffcc',
   asteroid:     '#7700ee',
   asteroidFill: '#08001a',
@@ -1678,6 +1678,24 @@ class Game {
     // Thrust sound
     if (this.keys.up && !this._wasThrusting) { SFX.thrustStart(); this._wasThrusting = true; }
     if (!this.keys.up && this._wasThrusting)  { SFX.thrustStop();  this._wasThrusting = false; }
+    // Engine exhaust particles while thrusting
+    if (this.ship?.thrusting && this.ship.alive) {
+      const s = this.ship;
+      // Tail is behind the nose direction
+      const tailX = s.x - Math.cos(s.angle) * 13;
+      const tailY = s.y - Math.sin(s.angle) * 13;
+      const exhaustColors = ['#ff6600', '#ff9900', '#ffcc00', '#ffffff'];
+      for (let i = 0; i < 2; i++) {
+        const spread = (Math.random() - 0.5) * 0.7;
+        const spd    = 1.8 + Math.random() * 2.2;
+        const ang    = s.angle + Math.PI + spread;
+        const p = new Particle(tailX, tailY, exhaustColors[Math.floor(Math.random() * exhaustColors.length)], 0, 10 + Math.floor(Math.random() * 8));
+        p.vx = Math.cos(ang) * spd;
+        p.vy = Math.sin(ang) * spd;
+        p.radius = 1 + Math.random() * 1.5;
+        this.particles.push(p);
+      }
+    }
 
     this.ship.update(this.keys, this.W, this.H);
     if (this.ship.tempLaserUntil > 0) this.ship.tempLaserUntil--;

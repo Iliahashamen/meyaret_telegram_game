@@ -217,31 +217,60 @@ export const SFX = {
     if (this.muted || _thrustOn) return;
     _thrustOn = true;
     const c = _getCtx();
+    const t = c.currentTime;
+
     _thrustGain = _gain(0.0);
-    _thrustGain.gain.setTargetAtTime(0.04, c.currentTime, 0.12);
-    const flt = _filter('lowpass', 100, _thrustGain);
-    const ns = c.createBufferSource();
-    const len = c.sampleRate * 2;
+    _thrustGain.gain.setTargetAtTime(0.055, t, 0.18); // gentle fade-in
+
+    // Pink-ish noise buffer (less harsh than white noise)
+    const len = c.sampleRate * 4;
     const buf = c.createBuffer(1, len, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.08;
-    ns.buffer = buf;
-    ns.loop = true;
-    ns.connect(flt);
-    flt.connect(_thrustGain);
-    ns.start();
+    const d   = buf.getChannelData(0);
+    let b0=0,b1=0,b2=0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99886*b0 + w*0.0555179;
+      b1 = 0.99332*b1 + w*0.0750759;
+      b2 = 0.96900*b2 + w*0.1538520;
+      d[i] = (b0 + b1 + b2 + w*0.0556) * 0.11; // pink noise
+    }
+    const ns = c.createBufferSource();
+    ns.buffer = buf; ns.loop = true;
+
+    // Bandpass — gives the "whoosh" body around 300 Hz
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 320; bp.Q.value = 0.7;
+
+    // Low shelf for warmth
+    const ls = c.createBiquadFilter();
+    ls.type = 'lowshelf'; ls.frequency.value = 160; ls.gain.value = 6;
+
+    ns.connect(bp); bp.connect(ls); ls.connect(_thrustGain);
+
+    // Very slow LFO wobbles the bandpass freq so it never sounds static
+    const lfo = c.createOscillator();
+    lfo.type = 'sine'; lfo.frequency.value = 0.18;
+    const lfoG = c.createGain(); lfoG.gain.value = 55;
+    lfo.connect(lfoG); lfoG.connect(bp.frequency);
+    lfo.start(t);
+
+    ns.start(t);
     _thrustOsc = null;
     _thrustGain._noiseNode = ns;
+    _thrustGain._lfo = lfo;
   },
 
   thrustStop() {
     if (!_thrustOn || !_thrustGain) return;
     _thrustOn = false;
     const t = _now();
-    _thrustGain.gain.setTargetAtTime(0.0, t, 0.05);
-    const stopAt = t + 0.3;
+    _thrustGain.gain.setTargetAtTime(0.0, t, 0.09); // slightly slower fade-out
+    const stopAt = t + 0.5;
     if (_thrustGain._noiseNode) {
       try { _thrustGain._noiseNode.stop(stopAt); } catch (_) {}
+    }
+    if (_thrustGain._lfo) {
+      try { _thrustGain._lfo.stop(stopAt); } catch (_) {}
     }
     if (_thrustOsc) {
       try { _thrustOsc.stop(stopAt); } catch (_) {}
