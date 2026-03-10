@@ -442,7 +442,10 @@ class Ship {
 
   canFire() { return this.fireCooldown <= 0; }
   get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0; }
-  get effectiveFireRate() { return this.fireRate; }
+  get effectiveFireRate() {
+    if (this.tempRapidUntil > 0) return Math.max(Math.floor(this.fireRate / 3), 2);
+    return this.fireRate;
+  }
 
   fire(bullets) {
     if (!this.canFire()) return;
@@ -500,13 +503,20 @@ class Ship {
     _updateShieldHUD(this.shieldCharges);
   }
 
-  useFlare(rockets, particles) {
+  useFlare(rockets, particles, orangeRockets) {
     if (this.flares <= 0) return;
     this.flares--;
     SFX.flare();
     for (let i = rockets.length - 1; i >= 0; i--) {
       burst(particles, rockets[i].x, rockets[i].y, C.flare, 10, 4);
       rockets.splice(i, 1);
+    }
+    // Flare also deflects orange homing rockets — glitter animation
+    if (orangeRockets) {
+      for (let i = orangeRockets.length - 1; i >= 0; i--) {
+        orangeRockets[i].deflect(particles);
+        orangeRockets.splice(i, 1);
+      }
     }
   }
 
@@ -705,11 +715,17 @@ class YellowAlien {
   update(_bullets, W, H, _particles) {
     this.bobTimer++; this.lifeTimer++;
     this.x += this.vx; this.y += this.vy;
+    // Wrap horizontally (counts as a swoop)
     if (this.x < -20) { this.x = W + 20; this.swoops++; }
     if (this.x > W + 20) { this.x = -20; this.swoops++; }
-    this.y = wrap(this.y, 0, H);
-    if (this.x < 60 || this.x > W - 60) this.vx *= -1;
-    if (this.y < 60 || this.y > H - 60) this.vy *= -1;
+    // Bounce vertically — use Math.abs to avoid rapid re-trigger at edges
+    if (this.y < 40)      { this.y = 40;      this.vy =  Math.abs(this.vy); }
+    if (this.y > H - 40)  { this.y = H - 40;  this.vy = -Math.abs(this.vy); }
+    // Soft horizontal push away from near-edge zones (while still on screen)
+    if (this.x > 0 && this.x < W) {
+      if (this.x < 60)     this.vx =  Math.abs(this.vx);
+      if (this.x > W - 60) this.vx = -Math.abs(this.vx);
+    }
     this.dead = this.swoops >= 2 || this.lifeTimer > this.maxLife;
   }
   draw(ctx) {
@@ -844,6 +860,77 @@ class PlayerRocket {
     ctx.restore(); ctx.shadowBlur = 0;
   }
   get dead() { return this.life <= 0 || this._hit; }
+}
+
+// ── Orange Homing Rocket (enemy) ──────────────────────────────────────────────
+class OrangeHomingRocket {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.angle = 0;
+    this.vx = 0; this.vy = 0;
+    this.speed = 2.2;
+    this.lifeTimer = 0;
+    this.fuseTime = 180; // 3 seconds
+    this.radius = 9;
+    this.dead = false;
+    this._exploded = false;
+  }
+  update(ship, W, H, particles) {
+    this.lifeTimer++;
+    // Home toward player
+    const dx = ship.x - this.x;
+    const dy = ship.y - this.y;
+    const targetAngle = Math.atan2(dy, dx);
+    let da = targetAngle - this.angle;
+    while (da >  Math.PI) da -= TAU;
+    while (da < -Math.PI) da += TAU;
+    this.angle += da * 0.05;
+    this.vx = Math.cos(this.angle) * this.speed;
+    this.vy = Math.sin(this.angle) * this.speed;
+    this.x = wrap(this.x + this.vx, 0, W);
+    this.y = wrap(this.y + this.vy, 0, H);
+    // Fuse expired → explode
+    if (this.lifeTimer >= this.fuseTime) this._explode(particles);
+  }
+  _explode(particles) {
+    if (this._exploded) return;
+    this._exploded = true;
+    burst(particles, this.x, this.y, '#ff7700', 26, 5, 45);
+    SFX.rocketExplode();
+    this.dead = true;
+  }
+  // Called when killed by flare — glitter burst then die
+  deflect(particles) {
+    if (this._exploded) return;
+    this._exploded = true;
+    for (let i = 0; i < 20; i++) {
+      const ang = rng(0, TAU);
+      const spd = rng(1.5, 4.5);
+      particles.push(new Particle(this.x, this.y, Math.cos(ang)*spd, Math.sin(ang)*spd,
+        ['#ffee00','#ffcc00','#ffffaa','#ff8800'][Math.floor(Math.random()*4)], rng(2,4)));
+    }
+    this.dead = true;
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle + Math.PI / 2);
+    // Body
+    glow(ctx, '#ff7700', 20);
+    ctx.fillStyle = '#331100'; ctx.strokeStyle = '#ff7700'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, -11); ctx.lineTo(5, 6); ctx.lineTo(-5, 6); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // Fuse ring (grows red as fuse runs down)
+    const pct = this.lifeTimer / this.fuseTime;
+    ctx.beginPath(); ctx.arc(0, 0, 7 + pct * 7, 0, TAU);
+    ctx.strokeStyle = `rgba(255,${Math.floor(120 - pct*120)},0,${0.35 + pct * 0.55})`;
+    ctx.lineWidth = 1.5; ctx.stroke();
+    // Flame
+    glow(ctx, '#ff4400', 12);
+    ctx.strokeStyle = '#ff4400'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-3, 6); ctx.lineTo(0, 6 + rng(5, 11)); ctx.lineTo(3, 6); ctx.stroke();
+    ctx.restore(); ctx.shadowBlur = 0;
+  }
 }
 
 // ── Background ────────────────────────────────────────────────────────────────
@@ -1012,12 +1099,12 @@ class Game {
     this.ship = null;
     this.asteroids = []; this.bullets = []; this.enemyBullets = [];
     this.rockets = []; this.playerRockets = []; this.particles = [];
-    this.redFighters = []; this.yellowAliens = [];
+    this.redFighters = []; this.yellowAliens = []; this.orangeRockets = [];
     this.coins = []; this.mysteryPickups = [];
 
     this.score = 0; this.level = 1; this.tick = 0; this.paused = false;
     this.activeMultiplier = 1.0;
-    this.redFighterTimer = 0; this.yellowAlienTimer = 0;
+    this.redFighterTimer = 0; this.yellowAlienTimer = 0; this.orangeRocketTimer = 0;
     this.runShmipsBonus = 0; this.pickupSpawnTimer = 0;
 
     this.keys = { left:false, right:false, up:false, fire:false, flare:false, rocket:false, shield:false, joyActive:false, joyAngle:null };
@@ -1349,10 +1436,10 @@ class Game {
     this.score=0; this.level=1; this.tick=0;
     this.asteroids=[]; this.bullets=[]; this.enemyBullets=[];
     this.rockets=[]; this.playerRockets=[]; this.particles=[];
-    this.redFighters=[]; this.yellowAliens=[];
+    this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[];
     this.coins=[]; this.mysteryPickups=[];
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
-    this.redFighterTimer=0; this.yellowAlienTimer=0;
+    this.redFighterTimer=0; this.yellowAlienTimer=0; this.orangeRocketTimer=0;
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ups = {};
@@ -1466,7 +1553,7 @@ class Game {
 
     // Input
     if (this.keys.fire)  this.ship.fire(this.bullets);
-    if (this.keys.flare) { this.ship.useFlare(this.rockets, this.particles); this.keys.flare = false; }
+    if (this.keys.flare) { this.ship.useFlare(this.rockets, this.particles, this.orangeRockets); this.keys.flare = false; }
     if (this.keys.rocket){ this.ship.fireRocket(this.playerRockets); this.keys.rocket = false; }
     if (this.keys.shield){ this.ship.deployShield(); this.keys.shield = false; }
 
@@ -1512,6 +1599,16 @@ class Game {
         this.redFighters.push(new RedFighter(x, y));
       }
     }
+    // Orange homing rockets: start level 5, one at a time per wave
+    const orangeInterval = Math.max(900 - this.level * 18, 400);
+    this.orangeRocketTimer++;
+    if (this.orangeRocketTimer > orangeInterval && this.level >= 5) {
+      this.orangeRocketTimer = 0;
+      if (this.orangeRockets.length < 1 + Math.floor((this.level - 5) / 4)) {
+        const{x,y} = this._edgeSpawn();
+        this.orangeRockets.push(new OrangeHomingRocket(x, y));
+      }
+    }
 
     // Update entities
     this.asteroids.forEach(a => a.update(this.W, this.H));
@@ -1528,6 +1625,8 @@ class Game {
     this.redFighters.forEach(rf => rf.update(this.ship, this.enemyBullets, this.W, this.H, this.particles));
     this.yellowAliens.forEach(ya => ya.update(this.rockets, this.W, this.H, this.particles));
     this.yellowAliens = this.yellowAliens.filter(ya => !ya.dead);
+    this.orangeRockets.forEach(or => or.update(this.ship, this.W, this.H, this.particles));
+    this.orangeRockets = this.orangeRockets.filter(or => !or.dead);
     this.coins.forEach(c => c.update());
     this.coins = this.coins.filter(c => !c.dead);
     this.mysteryPickups.forEach(m => m.update());
@@ -1614,10 +1713,17 @@ class Game {
         const a = this.asteroids[ai];
         if (dist(b, a) < a.radius) {
           this.bullets.splice(bi,1); bHit=true;
-          const frags = a.split(this.particles);
-          this.asteroids.splice(ai, 1, ...frags);
-          const dmg = ship.tempPowerBoostUntil > 0 ? 2 : 1;
-          this._addScore(a.score * dmg);
+          if (ship.tempPowerBoostUntil > 0) {
+            // One-shot: obliterate completely, no fragments
+            burst(this.particles, a.x, a.y, C.asteroid, 22, 5, 40);
+            SFX.explodeLarge();
+            this._addScore(a.score * 3);
+            this.asteroids.splice(ai, 1);
+          } else {
+            const frags = a.split(this.particles);
+            this.asteroids.splice(ai, 1, ...frags);
+            this._addScore(a.score);
+          }
           break;
         }
       }
@@ -1627,10 +1733,11 @@ class Game {
       for (let ei = this.redFighters.length-1; ei >= 0; ei--) {
         if (dist(b, this.redFighters[ei]) < this.redFighters[ei].radius) {
           this.bullets.splice(bi,1);
+          const redOneShot = ship.tempPowerBoostUntil > 0;
+          if (redOneShot) this.redFighters[ei].health = 1; // force one-hit kill
           if (this.redFighters[ei].hit(this.particles)) {
             burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 20, 5, 35);
-            const dmg = ship.tempPowerBoostUntil > 0 ? 2 : 1;
-            this._addScore(CFG.enemyRedScore * dmg);
+            this._addScore(CFG.enemyRedScore * (redOneShot ? 3 : 1));
             this.redFighters.splice(ei, 1);
             // ACE: +1 life per jet kill
             if (ship.hasAce) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
@@ -1646,10 +1753,11 @@ class Game {
       for (let ei = this.yellowAliens.length-1; ei >= 0; ei--) {
         if (dist(b, this.yellowAliens[ei]) < this.yellowAliens[ei].radius) {
           this.bullets.splice(bi,1);
+          const alienOneShot = ship.tempPowerBoostUntil > 0;
+          if (alienOneShot) this.yellowAliens[ei].health = 1; // force one-hit kill
           if (this.yellowAliens[ei].hit(this.particles)) {
             burst(this.particles, this.yellowAliens[ei].x, this.yellowAliens[ei].y, C.enemyYellow, 20, 5, 35);
-            const dmg = ship.tempPowerBoostUntil > 0 ? 2 : 1;
-            this._addScore(CFG.enemyYellowScore * dmg);
+            this._addScore(CFG.enemyYellowScore * (alienOneShot ? 3 : 1));
             this.yellowAliens.splice(ei, 1);
             // ZEP ZEP ZEP: +1 rocket per alien kill
             if (ship.hasZepZep) { ship.rocketAmmo++; new FloatingText(ship.x, ship.y-30, '+1 ROCKET! (ZEP)', '#ffee00'); _updateShieldHUD(ship.shieldCharges); }
@@ -1757,6 +1865,61 @@ class Game {
         _updateShieldHUD(ship.shieldCharges);
       }
     }
+
+    // ── Orange homing rockets vs player bullets ──────────────────────────────
+    for (let bi = this.bullets.length-1; bi >= 0; bi--) {
+      const b = this.bullets[bi];
+      for (let oi = this.orangeRockets.length-1; oi >= 0; oi--) {
+        const or = this.orangeRockets[oi];
+        if (dist(b, or) < or.radius + b.radius) {
+          this.bullets.splice(bi, 1);
+          burst(this.particles, or.x, or.y, '#ff7700', 14, 3, 28);
+          SFX.rocketExplode();
+          this._addScore(120);
+          this.orangeRockets.splice(oi, 1);
+          break;
+        }
+      }
+    }
+
+    // ── Orange homing rockets vs player rockets ──────────────────────────────
+    for (let ri = this.playerRockets.length-1; ri >= 0; ri--) {
+      const r = this.playerRockets[ri];
+      for (let oi = this.orangeRockets.length-1; oi >= 0; oi--) {
+        if (dist(r, this.orangeRockets[oi]) < this.orangeRockets[oi].radius + r.radius) {
+          burst(this.particles, this.orangeRockets[oi].x, this.orangeRockets[oi].y, '#ff7700', 20, 4, 38);
+          SFX.rocketExplode();
+          this._addScore(200);
+          this.orangeRockets.splice(oi, 1);
+          r.destroy();
+          break;
+        }
+      }
+    }
+
+    // ── Orange homing rockets vs asteroids ───────────────────────────────────
+    for (let oi = this.orangeRockets.length-1; oi >= 0; oi--) {
+      const or = this.orangeRockets[oi];
+      for (let ai = this.asteroids.length-1; ai >= 0; ai--) {
+        if (dist(or, this.asteroids[ai]) < this.asteroids[ai].radius + or.radius) {
+          burst(this.particles, or.x, or.y, '#ff7700', 14, 3, 28);
+          SFX.rocketExplode();
+          this.orangeRockets.splice(oi, 1);
+          break;
+        }
+      }
+    }
+
+    // ── Orange homing rockets vs ship ────────────────────────────────────────
+    for (let oi = this.orangeRockets.length-1; oi >= 0; oi--) {
+      const or = this.orangeRockets[oi];
+      if (dist(or, ship) < or.radius + ship.radius + 12) {
+        or._explode(this.particles);
+        this.orangeRockets.splice(oi, 1);
+        if (ship.hit(this.particles)) { this._gameOver(); return; }
+        _updateShieldHUD(ship.shieldCharges);
+      }
+    }
   }
 
   _applyMysteryReward(mx, my) {
@@ -1791,6 +1954,7 @@ class Game {
     this.playerRockets.forEach(r=>r.draw(ctx));
     this.redFighters.forEach(rf=>rf.draw(ctx));
     this.yellowAliens.forEach(ya=>ya.draw(ctx));
+    this.orangeRockets.forEach(or=>or.draw(ctx));
     if (this.ship?.alive) this.ship.draw(ctx);
     drawHUD(ctx, W, {
       score:        this.score,
