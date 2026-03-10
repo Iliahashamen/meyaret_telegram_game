@@ -60,6 +60,7 @@
 
     <div id="multiplier-banner" class="hidden"></div>
     <button id="mute-btn" class="mute-btn" title="Volume">VOL HIGH</button>
+    <button id="btn-guide" class="guide-btn">GUIDE</button>
   </div>
 
   <!-- Top 5 Themed Modal -->
@@ -180,7 +181,23 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="sounds.js?v=20250310c"></script>
-  <script type="module" src="game.js?v=20250310c"></script>
+  <!-- Guide Screen -->
+  <div id="guide-screen" class="screen hidden">
+    <button class="back-btn" data-back="menu">BACK</button>
+    <div class="screen-title">MEYARET GUIDE</div>
+    <div id="guide-content" class="guide-content">
+      <section><h3>HOW TO PLAY</h3><p>Fly your jet, shoot asteroids and enemies, collect coins and mystery pickups. Survive levels to score higher. Use flares to deflect rockets, shield to block hits, and rockets for heavy damage.</p></section>
+      <section><h3>CONTROLS</h3><p>JOYSTICK: Move and aim your jet. FIRE: Shoot. FLARE: Deflect incoming rockets. ROCKET: Launch homing missile. SHIELD: Deploy protection (when you have charges).</p></section>
+      <section><h3>STORE — BOOSTS (per run)</h3><p>EXTRA LIFE: +1 life for one game. EXTRA FLARE: +1 flare. RUN SHIELD: +1 shield charge. RUN ROCKET: +1 rocket. Max 1 of each per game.</p></section>
+      <section><h3>STORE — UPGRADES (permanent)</h3><p>MAGEN: Start with a shield. PEW PEW 1.5 / 3: Faster fire. JEW METHOD: Magnet for coins. KURWA RAKETA: +2 rockets. ACE: +1 life per jet killed. ZEP ZEP ZEP: +1 rocket per alien. SHPLIT: Double bullets. TRIPPLE THREAT: Triple spread. LAZER PEW: Laser beams. SMART ROCKET: Homing rockets. COLLECTOR: Bullets collect $ and ?.</p></section>
+      <section><h3>JETS</h3><p>STARTER: 2 lives, 1 flare. HAMUDI: 3 lives, 2 flares, 2 rockets, wings. KILLAJET: 3 lives, 3 flares, 3 rockets, shield, x1.5 fire. VERY SCARY JET: 4 lives, 3 flares, 4 rockets, shield.</p></section>
+      <section><h3>? MYSTERY REWARDS</h3><p>RAPID FIRE, LASER, +1 LIFE, +1 SHIELD, +1 FLARE, +1 ROCKET, 2X DAMAGE, or FIREBALL (rare — nuke everything).</p></section>
+      <section><h3>GREEN STAR (rare)</h3><p>Glowing green star spawns every 3–5 min. Collect for: +2 shield, glowing green jet, purple lasers, x2 fire rate, 10 seconds.</p></section>
+      <section><h3>ENEMIES</h3><p>ASTEROIDS: Break into smaller pieces. RED JETS: Shoot and dive at you. YELLOW ALIENS: Swoop and vanish after 3 sec (1000 pts). ORANGE ROCKETS: Home in on you, deflect with flare or destroy.</p></section>
+    </div>
+  </div>
+
+  <script type="module" src="sounds.js?v=20250311"></script>
+  <script type="module" src="game.js?v=20250311"></script>
 </body>
 </html>

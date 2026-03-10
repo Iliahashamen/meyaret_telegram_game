@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310c';
+import { SFX } from './sounds.js?v=20250311';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -11,7 +11,7 @@ import {
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
   SPIN_WHEEL_SEGMENTS,
-} from './db.js?v=20250310c';
+} from './db.js?v=20250311';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -95,6 +95,12 @@ function wrap(val, lo, hi) {
 }
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function glow(ctx, color, blur = 12) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
+function inHudZone(x, y, W, H) {
+  if (x < 190 && y < 120) return true;
+  if (x > W - 140 && y < 100) return true;
+  if (y > H - 140) return true;
+  return false;
+}
 
 // Rainbow color helpers
 function rainbowColor(t, speed = 1) {
@@ -168,8 +174,9 @@ class Ship {
     this.maxFlares = baseFlares + Math.min(upgrades.extra_flare || 0, 1);
     this.flares    = this.maxFlares;
 
-    // Shield charges (MAGEN = permanent +1, extra_shield boost = +1 max 1/game)
-    this.shieldCharges = (upgrades.magen ? 1 : 0) + Math.min(upgrades.extra_shield || 0, 1);
+    // Shield: KILLAJET & VERY SCARY start with 1. MAGEN adds backup (+1).
+    const baseShield = (this.jetType === 'plane_walla_yofi' || this.jetType === 'plane_very_scary') ? 1 : 0;
+    this.shieldCharges = baseShield + (upgrades.magen ? 1 : 0) + Math.min(upgrades.extra_shield || 0, 1);
     this.shieldUp      = false; // must be deployed manually
 
     // Weapon modes — all stackable
@@ -221,6 +228,7 @@ class Ship {
     this.tempPinkBeamUntil   = 0;
     this.tempRapidUntil      = 0;
     this.tempPowerBoostUntil = 0;
+    this.tempGreenStarUntil  = 0;   // 10 sec: green glow, purple laser, x2 fire, +2 shield
     this.fireballReady       = false;
     this.spawnProtection     = 120; // 2 seconds at 60fps — immune to damage on spawn
     this.bobTimer = 0;
@@ -235,11 +243,13 @@ class Ship {
     }
 
     if (keys.joyActive && keys.joyAngle !== null) {
+      // Jet always faces exactly where joystick points — no drift
       this.angle = keys.joyAngle - Math.PI / 2;
-      this.thrusting = keys.up;
-      if (keys.up) {
-        const tx = Math.cos(keys.joyAngle) * CFG.thrustPower;
-        const ty = Math.sin(keys.joyAngle) * CFG.thrustPower;
+      this.thrusting = true; // always thrust while joystick is active
+      const tx = Math.cos(keys.joyAngle) * CFG.thrustPower;
+      const ty = Math.sin(keys.joyAngle) * CFG.thrustPower;
+      if (true) { // joystick always applies thrust
+        const tx2 = tx; const ty2 = ty;
         this.vx += tx; this.vy += ty;
         const spd = Math.hypot(this.vx, this.vy);
         if (spd > 0.3) {
@@ -273,6 +283,7 @@ class Ship {
   }
 
   _getColor() {
+    if (this.tempGreenStarUntil > 0) return '#00ff88';
     if (this.golden) return C.golden;
     if (this.skinId === 'skin_beast') return rainbowColor(this.bobTimer, 1);
     if (this.skinId === 'skin_acid')  return acidColor(this.bobTimer);
@@ -287,7 +298,7 @@ class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle + Math.PI / 2);
-    const glowStr = this.golden ? 20 : (this.skinId === 'skin_silver_surfer' ? 22 : 12);
+    const glowStr = this.tempGreenStarUntil > 0 ? 28 : (this.golden ? 20 : (this.skinId === 'skin_silver_surfer' ? 22 : 12));
     glow(ctx, col, glowStr);
 
     if (this.jetType === 'starter') {
@@ -519,10 +530,12 @@ class Ship {
   }
 
   canFire() { return this.fireCooldown <= 0; }
-  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0; }
+  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0 || this.tempGreenStarUntil > 0; }
   get isPinkBeam()    { return this.tempPinkBeamUntil > 0; }
+  get isGreenStarLaser() { return this.tempGreenStarUntil > 0; }
   get effectiveFireRate() {
     if (this.tempRapidUntil > 0) return Math.max(Math.floor(this.fireRate / 3), 2);
+    if (this.tempGreenStarUntil > 0) return Math.max(Math.floor(this.fireRate / 2), 2);
     return this.fireRate;
   }
 
@@ -542,24 +555,25 @@ class Ship {
 
     if (this.effectiveLaser) {
       const pink = this.isPinkBeam;
+      const purple = this.isGreenStarLaser;
+      const lMode = pink ? 'pink' : (purple ? 'purple' : null);
       if (this.hasTripple && this.hasShplit) {
-        // laser + triple + shplit: 6 pink/laser beams
         [-0.22, 0, 0.22].forEach(spread => {
           const perp = (this.angle + spread) + Math.PI / 2;
           const ox = Math.cos(perp) * 9, oy = Math.sin(perp) * 9;
-          bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle + spread, pink));
-          bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle + spread, pink));
+          bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle + spread, lMode));
+          bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle + spread, lMode));
         });
       } else if (this.hasTripple) {
         [-0.22, 0, 0.22].forEach(spread =>
-          bullets.push(new Laser(nose.x, nose.y, this.angle + spread, pink)));
+          bullets.push(new Laser(nose.x, nose.y, this.angle + spread, lMode)));
       } else if (this.hasShplit) {
         const perp = this.angle + Math.PI / 2;
         const ox = Math.cos(perp) * 10, oy = Math.sin(perp) * 10;
-        bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle, pink));
-        bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle, pink));
+        bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle, lMode));
+        bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle, lMode));
       } else {
-        bullets.push(new Laser(nose.x, nose.y, this.angle, pink));
+        bullets.push(new Laser(nose.x, nose.y, this.angle, lMode));
       }
       SFX.laser();
       return;
@@ -687,15 +701,18 @@ class Bullet {
 
 // ── Laser ─────────────────────────────────────────────────────────────────────
 class Laser {
-  constructor(x, y, angle, pink = false) {
+  constructor(x, y, angle, mode = null) {
+    // mode: 'pink' | 'purple' | null
     this.x = x; this.y = y;
     this.angle = angle;
-    this.pink  = pink;
-    this.len   = pink ? 220 : 80;
-    this.life  = pink ? Math.floor(CFG.laserLife * 1.8) : CFG.laserLife;
-    this.vx    = Math.cos(angle) * (pink ? 20 : 14);
-    this.vy    = Math.sin(angle) * (pink ? 20 : 14);
-    this.radius = pink ? 10 : 4;
+    this.pink  = mode === 'pink';
+    this.purple = mode === 'purple';
+    const strong = this.pink || this.purple;
+    this.len   = this.pink ? 220 : (this.purple ? 100 : 80);
+    this.life  = strong ? Math.floor(CFG.laserLife * 1.5) : CFG.laserLife;
+    this.vx    = Math.cos(angle) * (strong ? 18 : 14);
+    this.vy    = Math.sin(angle) * (strong ? 18 : 14);
+    this.radius = strong ? 8 : 4;
   }
   update(W, H) {
     this.x = wrap(this.x + this.vx, 0, W);
@@ -703,7 +720,7 @@ class Laser {
     this.life--;
   }
   draw(ctx) {
-    const col = this.pink ? '#ff00ee' : C.laser;
+    const col = this.pink ? '#ff00ee' : (this.purple ? '#aa44ff' : C.laser);
     const width = this.pink ? 10 : 3;
     glow(ctx, col, this.pink ? 40 : 16);
     ctx.strokeStyle = col; ctx.lineWidth = width;
@@ -711,10 +728,10 @@ class Laser {
     ctx.moveTo(this.x, this.y);
     ctx.lineTo(this.x - Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
     ctx.stroke();
-    if (this.pink) {
-      // outer bloom
-      glow(ctx, '#ff88ff', 20);
-      ctx.strokeStyle = '#ff88ff44'; ctx.lineWidth = 22;
+    if (this.pink || this.purple) {
+      const bloom = this.pink ? '#ff88ff' : '#aa88ff';
+      glow(ctx, bloom, 20);
+      ctx.strokeStyle = bloom + '44'; ctx.lineWidth = 22;
       ctx.beginPath();
       ctx.moveTo(this.x, this.y);
       ctx.lineTo(this.x - Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
@@ -959,6 +976,29 @@ class CoinPickup {
     ctx.fillStyle = '#332200'; ctx.font = 'bold 14px monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('$', this.x, this.y + 1);
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+  }
+  get dead() { return this.life <= 0; }
+}
+
+// ── Green Star (rare power-up: 3–5 min spawn, 10 sec super mode) ───────────────
+class GreenStarPickup {
+  constructor(x, y) { this.x = x; this.y = y; this.radius = 16; this.life = 180; }
+  update() { this.life--; }
+  draw(ctx) {
+    const pulse = Math.sin(Date.now() * 0.012) * 0.3 + 0.9;
+    ctx.globalAlpha = pulse;
+    glow(ctx, '#00ff88', 24);
+    ctx.fillStyle = '#00ff88';
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * TAU - Math.PI / 2;
+      const r = i % 2 === 0 ? this.radius : this.radius * 0.5;
+      const x = Math.cos(a) * r; const y = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2; ctx.stroke();
     ctx.globalAlpha = 1; ctx.shadowBlur = 0;
   }
   get dead() { return this.life <= 0; }
@@ -1325,12 +1365,14 @@ class Game {
     this.asteroids = []; this.bullets = []; this.enemyBullets = [];
     this.rockets = []; this.playerRockets = []; this.fireballs = []; this.particles = [];
     this.redFighters = []; this.yellowAliens = []; this.orangeRockets = [];
-    this.coins = []; this.mysteryPickups = [];
+    this.coins = []; this.mysteryPickups = []; this.greenStars = []; this.greenStars = [];
+    this.greenStarSpawnTimer = 0; this.greenStarSpawnNext = rngInt(10800, 18000);
 
     this.score = 0; this.level = 1; this.tick = 0; this.paused = false;
     this.activeMultiplier = 1.0;
     this.redFighterTimer = 0; this.yellowAlienTimer = 0; this.orangeRocketTimer = 0;
     this.runShmipsBonus = 0; this.pickupSpawnTimer = 0;
+    this.greenStarSpawnTimer = 0; this.greenStarSpawnNext = rngInt(10800, 18000);
 
     this.keys = { left:false, right:false, up:false, fire:false, flare:false, rocket:false, shield:false, joyActive:false, joyAngle:null };
     this._lastFrameTs = 0; this._accum = 0;
@@ -1444,7 +1486,7 @@ class Game {
 
   // ── Screen Management ──────────────────────────────────────────────────────
   _showScreen(name) {
-    ['onboarding','menu','profile','spin','store','arsenal','gameover'].forEach(s => {
+    ['onboarding','menu','profile','spin','store','arsenal','gameover','guide'].forEach(s => {
       const el = document.getElementById(`${s}-screen`);
       if (el) el.classList.add('hidden');
     });
@@ -1479,6 +1521,7 @@ class Game {
     document.getElementById('callsign-input').addEventListener('keydown', e => { if (e.key === 'Enter') this._submitCallsign(); });
 
     document.getElementById('btn-play').addEventListener('click',    () => this._startGame());
+    document.getElementById('btn-guide').addEventListener('click',   () => this._showScreen('guide'));
     document.getElementById('btn-spin').addEventListener('click',    () => this._openSpin());
     document.getElementById('btn-store').addEventListener('click',   () => this._openStore());
     document.getElementById('btn-arsenal').addEventListener('click', () => this._openArsenal());
@@ -1665,8 +1708,9 @@ class Game {
     this.asteroids=[]; this.bullets=[]; this.enemyBullets=[];
     this.rockets=[]; this.playerRockets=[]; this.fireballs=[]; this.particles=[];
     this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[];
-    this.coins=[]; this.mysteryPickups=[];
+    this.coins=[]; this.mysteryPickups=[]; this.greenStars=[];
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
+    this.greenStarSpawnTimer=0; this.greenStarSpawnNext=rngInt(10800, 18000);
     this.redFighterTimer=0; this.yellowAlienTimer=0; this.orangeRocketTimer=0;
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
@@ -1742,11 +1786,13 @@ class Game {
     this._showScreen('game');
   }
 
-  _spawnAsteroids(level) {
+  _spawnAsteroids(level, shipX, shipY) {
+    const cx = shipX ?? this.W/2; const cy = shipY ?? this.H/2;
+    const safeR = 160; // no objects on jet at spawn or level start
     const count = Math.min(CFG.baseAsteroids + Math.floor((level-1)*1.2), 18);
     for (let i = 0; i < count; i++) {
       let x, y;
-      do { x=rng(0,this.W); y=rng(0,this.H); } while (dist({x,y},{x:this.W/2,y:this.H/2})<130);
+      do { x=rng(0,this.W); y=rng(0,this.H); } while (dist({x,y},{x:cx,y:cy})<safeR);
       const roll=Math.random();
       const size = level<=2 ? (roll<0.15?'large':roll<0.55?'medium':'small')
                  : level<=5 ? (roll<0.25?'large':roll<0.65?'medium':'small')
@@ -1758,16 +1804,23 @@ class Game {
 
   _nextLevel() {
     this.level++;
-    // Clear all residue so the screen is clean at the start of each level
+    // Clear all residue so no objects on jet at level start
     this.particles     = [];
     this.bullets       = [];
     this.rockets       = [];
     this.orangeRockets = [];
     this.fireballs     = [];
     this.floatingTexts = [];
+    this.coins         = [];
+    this.mysteryPickups = [];
+    this.redFighters   = [];
+    this.yellowAliens  = [];
+    this.greenStars    = [];
+    this.pickupSpawnTimer = 0;
+    this.ship.spawnProtection = 120; // 2 sec invincibility on level start
     SFX.levelUp();
     SFX.startGameMusic(this.level);
-    this._spawnAsteroids(this.level);
+    this._spawnAsteroids(this.level, this.ship.x, this.ship.y);
   }
 
   // ── Main Loop ──────────────────────────────────────────────────────────────
@@ -1823,6 +1876,7 @@ class Game {
     if (this.ship.tempPinkBeamUntil > 0)   this.ship.tempPinkBeamUntil--;
     if (this.ship.tempRapidUntil > 0)      this.ship.tempRapidUntil--;
     if (this.ship.tempPowerBoostUntil > 0) this.ship.tempPowerBoostUntil--;
+    if (this.ship.tempGreenStarUntil > 0)  this.ship.tempGreenStarUntil--;
 
     // JEW METHOD: magnet — strong pull with non-linear falloff
     if (this.ship.hasMagnet) {
@@ -1899,14 +1953,30 @@ class Game {
     this.coins = this.coins.filter(c => !c.dead);
     this.mysteryPickups.forEach(m => m.update());
     this.mysteryPickups = this.mysteryPickups.filter(m => !m.dead);
+    this.greenStars.forEach(g => g.update());
+    this.greenStars = this.greenStars.filter(g => !g.dead);
 
     // Spawn pickups
     this.pickupSpawnTimer++;
     if (this.pickupSpawnTimer > 360 && this.coins.length === 0 && this.mysteryPickups.length === 0) {
       this.pickupSpawnTimer = 0;
-      const x = rng(60, this.W-60), y = rng(60, this.H-60);
-      if (Math.random() < 0.6) this.coins.push(new CoinPickup(x, y));
-      else this.mysteryPickups.push(new MysteryPickup(x, y));
+      let x, y; let tries = 0;
+      do { x = rng(80, this.W-80); y = rng(140, this.H-150); tries++; }
+      while (tries < 20 && inHudZone(x, y, this.W, this.H));
+      if (!inHudZone(x, y, this.W, this.H)) {
+        if (Math.random() < 0.6) this.coins.push(new CoinPickup(x, y));
+        else this.mysteryPickups.push(new MysteryPickup(x, y));
+      }
+    }
+    // Green star: once every 3–5 min
+    this.greenStarSpawnTimer++;
+    if (this.greenStars.length === 0 && this.greenStarSpawnTimer >= this.greenStarSpawnNext) {
+      this.greenStarSpawnTimer = 0;
+      this.greenStarSpawnNext = rngInt(10800, 18000);
+      let x, y; let tries = 0;
+      do { x = rng(100, this.W-100); y = rng(140, this.H-150); tries++; }
+      while (tries < 25 && inHudZone(x, y, this.W, this.H));
+      if (!inHudZone(x, y, this.W, this.H)) this.greenStars.push(new GreenStarPickup(x, y));
     }
 
     this._collisions();
@@ -1970,6 +2040,20 @@ class Game {
         const{x,y} = this.mysteryPickups[mi];
         this._applyMysteryReward(x, y);
         this.mysteryPickups.splice(mi, 1);
+      }
+    }
+
+    // ── Ship vs green star ───────────────────────────────────────────────────
+    for (let gi = this.greenStars.length-1; gi >= 0; gi--) {
+      if (dist(ship, this.greenStars[gi]) < ship.radius + this.greenStars[gi].radius) {
+        const{x,y} = this.greenStars[gi];
+        ship.shieldCharges += 2;
+        ship.tempGreenStarUntil = 600;
+        _updateShieldHUD(ship.shieldCharges);
+        burst(this.particles, x, y, '#00ff88', 20, 4, 40);
+        SFX.mysteryPickup();
+        new FloatingText(x, y-25, 'GREEN STAR!', '#00ff88');
+        this.greenStars.splice(gi, 1);
       }
     }
 
@@ -2206,14 +2290,12 @@ class Game {
   }
 
   _detonateFireball(fb) {
-    const AOE = 190;
-    // Massive visual burst
+    // Fireball wipes ALL enemies on screen — full-screen nuke
     burst(this.particles, fb.x, fb.y, '#ffffff',  10, 6, 60);
     burst(this.particles, fb.x, fb.y, '#ffff00',  16, 5, 50);
     burst(this.particles, fb.x, fb.y, '#ff6600',  20, 4, 40);
     burst(this.particles, fb.x, fb.y, '#ff0000',  12, 3, 30);
     SFX.explodeLarge(); SFX.rocketExplode();
-    // 16 shard bullets fly out in all directions
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * TAU;
       const b = new Bullet(fb.x, fb.y, a, false);
@@ -2222,39 +2304,22 @@ class Game {
       b._isShard = true;
       this.bullets.push(b);
     }
-    // AOE: obliterate asteroids
-    for (let ai = this.asteroids.length - 1; ai >= 0; ai--) {
-      if (dist(fb, this.asteroids[ai]) < AOE) {
-        burst(this.particles, this.asteroids[ai].x, this.asteroids[ai].y, C.asteroid, 10, 3, 25);
-        this._addScore(this.asteroids[ai].score * 3);
-        this.asteroids.splice(ai, 1);
-      }
-    }
-    // AOE: destroy enemies
-    for (let ei = this.redFighters.length - 1; ei >= 0; ei--) {
-      if (dist(fb, this.redFighters[ei]) < AOE) {
-        burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 16, 4, 35);
-        this._addScore(CFG.enemyRedScore * 3);
-        this.redFighters.splice(ei, 1);
-      }
-    }
-    for (let ei = this.yellowAliens.length - 1; ei >= 0; ei--) {
-      if (dist(fb, this.yellowAliens[ei]) < AOE) {
-        burst(this.particles, this.yellowAliens[ei].x, this.yellowAliens[ei].y, C.enemyYellow, 16, 4, 35);
-        this._addScore(CFG.enemyYellowScore * 3);
-        this.yellowAliens.splice(ei, 1);
-      }
-    }
-    for (let oi = this.orangeRockets.length - 1; oi >= 0; oi--) {
-      if (dist(fb, this.orangeRockets[oi]) < AOE) {
-        this._addScore(150);
-        this.orangeRockets.splice(oi, 1);
-      }
-    }
-    // AOE: enemy rockets caught in blast
-    for (let ri = this.rockets.length - 1; ri >= 0; ri--) {
-      if (dist(fb, this.rockets[ri]) < AOE) this.rockets.splice(ri, 1);
-    }
+    // Obliterate ALL asteroids
+    this.asteroids.forEach(a => { burst(this.particles, a.x, a.y, C.asteroid, 10, 3, 25); this._addScore(a.score * 3); });
+    this.asteroids = [];
+    // Destroy ALL red fighters
+    this.redFighters.forEach(e => { burst(this.particles, e.x, e.y, C.enemyRed, 16, 4, 35); this._addScore(CFG.enemyRedScore * 3); });
+    this.redFighters = [];
+    // Destroy ALL yellow aliens
+    this.yellowAliens.forEach(e => { burst(this.particles, e.x, e.y, C.enemyYellow, 16, 4, 35); this._addScore(CFG.enemyYellowScore * 3); });
+    this.yellowAliens = [];
+    // Wipe ALL orange homing rockets
+    this._addScore(150 * this.orangeRockets.length);
+    this.orangeRockets = [];
+    // Wipe ALL enemy rockets
+    this.rockets = [];
+    // Wipe ALL enemy bullets
+    this.enemyBullets = [];
     new FloatingText(fb.x, fb.y - 30, 'KABOOM!', '#ffff00');
   }
 
@@ -2271,11 +2336,11 @@ class Game {
     else if (roll < 0.56) { ship.shieldCharges++; _updateShieldHUD(ship.shieldCharges); label = '+1 SHIELD!'; }
     else if (roll < 0.68) { ship.flares = Math.min(ship.flares+1, 9);              label = '+1 FLARE!'; }
     else if (roll < 0.82) { ship.rocketAmmo++;                                     label = '+1 ROCKET!'; }
-    else if (roll < 0.94) { ship.tempPowerBoostUntil = 1200;                       label = '2X DAMAGE!'; }
-    else                  { ship.fireballReady = true;                             label = 'FIREBALL READY!'; }
+    else if (roll < 0.95) { ship.tempPowerBoostUntil = 1200;                       label = '2X DAMAGE!'; }
+    else                  { ship.fireballReady = true;                             label = 'FIREBALL READY!'; } // 5% fireball
     SFX.mysteryPickup();
     burst(this.particles, mx, my, '#aa00ff', 12, 3, 25);
-    new FloatingText(mx, my - 20, label, roll >= 0.94 ? '#ff6600' : '#ff00ff');
+    new FloatingText(mx, my - 20, label, roll >= 0.95 ? '#ff6600' : '#ff00ff');
   }
 
   _addScore(pts) { this.score += Math.floor(pts * this.activeMultiplier); }
@@ -2287,6 +2352,7 @@ class Game {
     this.particles.forEach(p=>p.draw(ctx));
     this.coins.forEach(c=>c.draw(ctx));
     this.mysteryPickups.forEach(m=>m.draw(ctx));
+    this.greenStars.forEach(g=>g.draw(ctx));
     this.asteroids.forEach(a=>a.draw(ctx));
     this.bullets.forEach(b=>b.draw(ctx));
     this.enemyBullets.forEach(b=>b.draw(ctx));
