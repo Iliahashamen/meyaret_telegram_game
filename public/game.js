@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310b';
+import { SFX } from './sounds.js?v=20250310c';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -11,7 +11,7 @@ import {
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
   SPIN_WHEEL_SEGMENTS,
-} from './db.js?v=20250310b';
+} from './db.js?v=20250310c';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -287,7 +287,8 @@ class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle + Math.PI / 2);
-    glow(ctx, col, this.golden ? 20 : 12);
+    const glowStr = this.golden ? 20 : (this.skinId === 'skin_silver_surfer' ? 22 : 12);
+    glow(ctx, col, glowStr);
 
     if (this.jetType === 'starter') {
       this._drawStarter(ctx, col, sz);
@@ -1720,7 +1721,7 @@ class Game {
       skin_pheonix:       { color:'#9b59b6', accent:'#ffd700' },
       skin_karamba:       { color:'#ff2255', accent:'#ff9900' },
       skin_zoink:         { color:'#00eeff', accent:'#00ff88' },
-      skin_silver_surfer: { color:'#c0c0c0', accent:'#f0f8ff' },
+      skin_silver_surfer: { color:'#8ab4d4', accent:'#ddeeff' },
     };
 
     if (equippedSkin && this.upgrades[equippedSkin] && skinColors[equippedSkin]) {

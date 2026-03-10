@@ -62,7 +62,7 @@ export const CATALOG = [
   { id: 'skin_pheonix',       name: 'THE PHEONIX',              category: 'skin', cost: 800, description: 'Purple + gold — rise from the ashes',  color: '#9b59b6', accent: '#ffd700' },
   { id: 'skin_karamba',       name: 'KARAMBA',                  category: 'skin', cost: 420, description: 'Hot coral meets electric orange',      color: '#ff2255', accent: '#ff9900' },
   { id: 'skin_zoink',         name: 'ZOINK',                    category: 'skin', cost: 380, description: 'Glitchy electric cyan-green',          color: '#00eeff', accent: '#00ff88' },
-  { id: 'skin_silver_surfer', name: 'SILVER SURFER',            category: 'skin', cost: 450, description: 'Chrome metallic — pure silver',        color: '#c0c0c0', accent: '#f0f8ff' },
+  { id: 'skin_silver_surfer', name: 'SILVER SURFER',            category: 'skin', cost: 450, description: 'Silver-blue chrome with icy glow',    color: '#8ab4d4', accent: '#ddeeff' },
 
   // ── Jets (3 purchasable — Starter is always available for free) ───────────
   { id: 'plane_hamud',      name: 'HAMUDI',         category: 'plane', cost: 3000,
