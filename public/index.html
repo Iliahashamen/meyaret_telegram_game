@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#050510" />
   <title>MEYARET</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -52,7 +52,10 @@
 
     <div class="menu-buttons">
       <button id="btn-play" class="btn-primary btn-big">PLAY</button>
-      <button id="btn-spin" class="btn-secondary btn-big">DAILY SPIN</button>
+      <div class="spin-menu-wrap">
+        <button id="btn-spin" class="btn-secondary btn-big">🎰 SHPIN</button>
+        <div id="menu-spin-timer" class="menu-spin-timer"></div>
+      </div>
       <button id="btn-store" class="btn-secondary btn-big">STORE</button>
       <button id="btn-arsenal" class="btn-secondary btn-big">ARSENAL</button>
       <button id="btn-quit" class="btn-ghost btn-big">QUIT</button>
@@ -62,7 +65,7 @@
     <button id="mute-btn" class="mute-btn" title="Volume">🔊 HIGH</button>
   </div>
 
-  <!-- Top 5 Themed Modal (replaces alert) -->
+  <!-- Top 5 Themed Modal -->
   <div id="top5-modal" class="top5-modal hidden">
     <div class="top5-backdrop"></div>
     <div class="top5-panel">
@@ -97,26 +100,26 @@
     <button class="back-btn" data-back="menu">← BACK</button>
     <div class="screen-title">ARSENAL</div>
     <div class="profile-card">
-      <div class="top-scores-label">YOUR JET</div>
-      <div class="profile-stats">
+      <div class="top-scores-label">LOADOUT</div>
+      <div class="profile-stats" style="gap:8px;flex-wrap:wrap;">
         <div class="stat"><span class="stat-label">JET</span><span id="ars-jet">STARTER</span></div>
-        <div class="stat"><span class="stat-label">WEAPON</span><span id="ars-weapon">BULLETS</span></div>
-        <div class="stat"><span class="stat-label">ABILITY</span><span id="ars-ability">NONE</span></div>
+        <div class="stat"><span class="stat-label">WEAPON</span><span id="ars-weapon">STANDARD</span></div>
         <div class="stat"><span class="stat-label">SKIN</span><span id="ars-skin">DEFAULT</span></div>
       </div>
+      <div style="font-size:7px;color:var(--muted2);margin-top:8px;letter-spacing:1px;line-height:2;" id="ars-ability"></div>
     </div>
     <div id="ars-equip-area" class="ars-equip-area"></div>
     <button id="arsenal-open-store" class="btn-primary">OPEN STORE</button>
   </div>
 
-  <!-- Daily Spin Screen -->
+  <!-- SHPIN Screen -->
   <div id="spin-screen" class="screen hidden">
     <button class="back-btn" data-back="menu">← BACK</button>
-    <div class="screen-title">DAILY SPIN</div>
+    <div class="screen-title">🎰 SHPIN</div>
     <div id="spin-wheel-wrap">
       <canvas id="spin-canvas" width="300" height="300"></canvas>
     </div>
-    <button id="spin-btn" class="btn-primary btn-big">SPIN!</button>
+    <button id="spin-btn" class="btn-primary btn-big">SHPIN!</button>
     <div id="spin-countdown" class="spin-timer hidden"></div>
     <div id="spin-result" class="spin-result hidden"></div>
   </div>
@@ -130,40 +133,47 @@
       <button class="tab-btn active" data-tab="boost">BOOSTS</button>
       <button class="tab-btn" data-tab="upgrade">UPGRADES</button>
       <button class="tab-btn" data-tab="skin">SKINS</button>
-      <button class="tab-btn" data-tab="plane">PLANES</button>
+      <button class="tab-btn" data-tab="plane">JETS</button>
     </div>
     <div id="store-items" class="store-grid"></div>
     <div id="store-msg" class="store-msg hidden"></div>
   </div>
 
-  <!-- Game Canvas (the actual game) -->
+  <!-- Game Canvas -->
   <canvas id="game-canvas"></canvas>
 
-  <!-- Mobile Controls Overlay (shown during gameplay) -->
+  <!-- Shield HUD (shown during gameplay) -->
+  <div id="shield-hud" class="shield-hud hidden">
+    <button id="ctrl-shield" class="shield-btn">
+      🛡 SHIELD ×<span id="shield-count">0</span>
+    </button>
+  </div>
+
+  <!-- Mobile Controls Overlay -->
   <div id="controls-overlay" class="hidden">
-    <!-- Left -->
+    <!-- Left: joystick + flare -->
     <div id="ctrl-left">
       <div id="vjoy-base">
         <div id="vjoy-knob"></div>
       </div>
       <button class="ctrl-round" id="ctrl-flare">FLARE</button>
     </div>
-    <!-- Right -->
+    <!-- Right: ROCKET / SHOOT / THRUST -->
     <div id="ctrl-right">
       <button class="ctrl-round ctrl-rocket-btn" id="ctrl-rocket">ROCKET</button>
-      <button class="ctrl-round ctrl-fire-btn" id="ctrl-fire">SHOOT</button>
+      <button class="ctrl-round ctrl-fire-btn"   id="ctrl-fire">SHOOT</button>
       <button class="ctrl-round ctrl-thrust-btn" id="ctrl-thrust">THRUST</button>
     </div>
   </div>
 
-  <!-- Game Over Overlay -->
+  <!-- Game Over -->
   <div id="gameover-screen" class="screen hidden">
     <div class="go-title" id="go-title">GAME OVER</div>
-    <div class="go-score" id="go-score"></div>
+    <div class="go-score"  id="go-score"></div>
     <div class="go-shmips" id="go-shmips"></div>
     <div id="go-leaderboard"></div>
     <button id="go-play-again" class="btn-primary btn-big">PLAY AGAIN</button>
-    <button id="go-menu" class="btn-secondary btn-big">MAIN MENU</button>
+    <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
   <script type="module" src="sounds.js"></script>

@@ -529,45 +529,95 @@ export const SFX = {
     }, 420);
   },
 
-  startGameMusic() {
-    if (this.muted || _musicMode === 'game') return;
+  // Level-based music — starts calm (lv1) and escalates to chaos (lv20)
+  startGameMusic(level = 1) {
+    if (this.muted) return;
+    const tier = level <= 4 ? 1 : level <= 8 ? 2 : level <= 12 ? 3 : level <= 16 ? 4 : 5;
+    const newMode = `game_${tier}`;
+    if (_musicMode === newMode) return;   // already playing this tier
     _stopMusicLoop();
-    _musicMode = 'game';
-    const aggr = [110,117,123,110,98,104,110,123,117,110,98,92,87,98,110,123,130,123,110,98];
-    const calm = [82,82,87,82,78,73,78,82,87,82,78,73,69,73,78,82,87,92,87,82];
-    const build = [98,104,110,117,123,131,139,147,131,123,117,110,123,131,139,147,156,147,139,131];
-    const rel = [147,139,131,123,117,110,104,98,92,87,82,87,92,98,104,110,98,87,82,98];
-    const funk = [110,110,123,98,110,82,98,110,123,146,110,98,82,110,123,98,82,73,98,110];
-    const bass = [...aggr, ...calm, ...build, ...rel, ...funk];
+    _musicMode = newMode;
+
+    // ── Note sequences per tier ─────────────────────────────────────────────
+    // Tier 1 (L1-4): Calm space drift, minimal
+    const T1_BASS = [82,82,87,82,78,73,78,82,87,82,78,73,69,73,78,82,87,92,87,82];
+    // Tier 2 (L5-8): Building — more movement
+    const T2_BASS = [98,98,104,110,98,87,98,104,110,117,104,98,87,98,110,123,117,110,98,87];
+    // Tier 3 (L9-12): Medium intensity — syncopated
+    const T3_BASS = [110,117,123,110,98,104,110,123,117,110,98,92,87,98,110,123,130,123,110,98];
+    // Tier 4 (L13-16): High intensity — funk groove
+    const T4_BASS = [110,110,123,98,110,82,98,110,123,146,110,98,82,110,123,98,82,73,98,110,117,131,147,131,117,110,98,87,98,110];
+    // Tier 5 (L17-20): Chaos — fast aggressive riff
+    const T5_BASS = [147,139,131,147,156,147,139,131,139,147,156,165,156,147,139,131,123,131,139,147,156,165,175,165,156,147,139,131,123,110];
+
+    const BASS_MAP = [null, T1_BASS, T2_BASS, T3_BASS, T4_BASS, T5_BASS];
+    const bass = BASS_MAP[tier];
+
+    // Tempo per tier (ms per note)
+    const TEMPO = [null, 340, 310, 285, 265, 240];
+    const tempo = TEMPO[tier];
+
     let i = 0;
     _musicTimer = setInterval(() => {
-      if (this.muted || _musicMode !== 'game') return;
+      if (this.muted || _musicMode !== newMode) return;
       const t = _now();
       const root = bass[i % bass.length];
-      _playTone(root, t, 0.22, 'sawtooth', 0.022);
-      _playTone(root * 2, t + 0.03, 0.1, 'triangle', 0.014);
-      // Funky kick drum on every beat
-      const kg = _gain(0.04);
-      const ko = _osc('sine', 90, kg);
-      kg.gain.setValueAtTime(0.04, t);
-      kg.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-      ko.frequency.setValueAtTime(90, t);
-      ko.frequency.exponentialRampToValueAtTime(30, t + 0.1);
-      ko.start(t); ko.stop(t + 0.1);
-      // Hi-hat on off-beats
-      if (i % 2 === 1) {
-        const hg = _gain(0.015);
+
+      // Bass note — sawtooth, gets louder with tier
+      const bassVol = 0.018 + tier * 0.006;
+      _playTone(root, t, 0.2, 'sawtooth', bassVol);
+
+      // Octave accent — triangle
+      if (tier >= 2) _playTone(root * 2, t + 0.02, 0.08, 'triangle', 0.010 + tier * 0.003);
+
+      // Kick drum — from tier 2
+      if (tier >= 2) {
+        const kg = _gain(0.02 + tier * 0.008);
+        const ko = _osc('sine', 80, kg);
+        kg.gain.setValueAtTime(0.02 + tier * 0.008, t);
+        kg.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        ko.frequency.setValueAtTime(80, t);
+        ko.frequency.exponentialRampToValueAtTime(25, t + 0.1);
+        ko.start(t); ko.stop(t + 0.12);
+      }
+
+      // Hi-hat — from tier 2, density increases
+      const hatEvery = tier >= 4 ? 1 : 2;
+      if (tier >= 2 && i % hatEvery === 1) {
+        const hg = _gain(0.008 + tier * 0.003);
         const hf = _filter('highpass', 7000, hg);
         const hn = _noise(0.03, hf);
         hf.connect(hg);
-        hn.start(t + 0.05); hn.stop(t + 0.08);
+        hn.start(t + 0.04); hn.stop(t + 0.07);
       }
-      // Synth arp accent every 3rd note
-      if (i % 3 === 0) {
-        _playTone(root * 3, t + 0.06, 0.06, 'square', 0.008);
+
+      // Open hi-hat / crash on bar downbeats — from tier 3
+      if (tier >= 3 && i % 8 === 0) {
+        const cg = _gain(0.012 + tier * 0.003);
+        const cf = _filter('highpass', 4000, cg);
+        const cn = _noise(0.25, cf);
+        cf.connect(cg);
+        cn.start(t); cn.stop(t + 0.25);
       }
+
+      // Synth arp accent — from tier 3
+      if (tier >= 3 && i % 3 === 0) {
+        _playTone(root * 3, t + 0.05, 0.05, 'square', 0.006 + tier * 0.002);
+      }
+
+      // Harmonic fill — from tier 4
+      if (tier >= 4 && i % 4 === 2) {
+        _playTone(root * 1.5, t + 0.04, 0.12, 'sine', 0.009);
+      }
+
+      // Distorted synth hits — tier 5 only
+      if (tier >= 5 && i % 2 === 0) {
+        _playTone(root * 4, t + 0.01, 0.04, 'square', 0.007);
+        _playTone(root * 0.5, t + 0.08, 0.04, 'sawtooth', 0.012);
+      }
+
       i++;
-    }, 300);
+    }, tempo);
   },
 
   stopMusic() {
