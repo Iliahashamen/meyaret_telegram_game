@@ -76,7 +76,7 @@ const CFG = {
   maxBullets:   6,
   respawnMs:    2400,
   invincibleMs: 3000,
-  baseAsteroids: 2,
+  baseAsteroids: 4,
   maxLivesBase: 6,   // hard cap from upgrades/jets
 };
 
@@ -681,11 +681,11 @@ class Laser {
     this.x = x; this.y = y;
     this.angle = angle;
     this.pink  = pink;
-    this.len   = pink ? 130 : 80;
-    this.life  = pink ? Math.floor(CFG.laserLife * 1.4) : CFG.laserLife;
-    this.vx    = Math.cos(angle) * (pink ? 18 : 14);
-    this.vy    = Math.sin(angle) * (pink ? 18 : 14);
-    this.radius = pink ? 6 : 4;
+    this.len   = pink ? 220 : 80;
+    this.life  = pink ? Math.floor(CFG.laserLife * 1.8) : CFG.laserLife;
+    this.vx    = Math.cos(angle) * (pink ? 20 : 14);
+    this.vy    = Math.sin(angle) * (pink ? 20 : 14);
+    this.radius = pink ? 10 : 4;
   }
   update(W, H) {
     this.x = wrap(this.x + this.vx, 0, W);
@@ -694,20 +694,27 @@ class Laser {
   }
   draw(ctx) {
     const col = this.pink ? '#ff00ee' : C.laser;
-    const width = this.pink ? 5 : 3;
-    glow(ctx, col, this.pink ? 24 : 16);
+    const width = this.pink ? 10 : 3;
+    glow(ctx, col, this.pink ? 40 : 16);
     ctx.strokeStyle = col; ctx.lineWidth = width;
     ctx.beginPath();
     ctx.moveTo(this.x, this.y);
     ctx.lineTo(this.x - Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
     ctx.stroke();
     if (this.pink) {
-      // inner white core
-      glow(ctx, '#ffffff', 6);
-      ctx.strokeStyle = '#ffffff88'; ctx.lineWidth = 2;
+      // outer bloom
+      glow(ctx, '#ff88ff', 20);
+      ctx.strokeStyle = '#ff88ff44'; ctx.lineWidth = 22;
       ctx.beginPath();
       ctx.moveTo(this.x, this.y);
-      ctx.lineTo(this.x - Math.cos(this.angle) * this.len * 0.6, this.y - Math.sin(this.angle) * this.len * 0.6);
+      ctx.lineTo(this.x - Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
+      ctx.stroke();
+      // inner white core
+      glow(ctx, '#ffffff', 10);
+      ctx.strokeStyle = '#ffffffcc'; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.x - Math.cos(this.angle) * this.len * 0.7, this.y - Math.sin(this.angle) * this.len * 0.7);
       ctx.stroke();
     }
     ctx.shadowBlur = 0;
@@ -1719,7 +1726,7 @@ class Game {
   }
 
   _spawnAsteroids(level) {
-    const count = Math.min(CFG.baseAsteroids + Math.floor((level-1)*0.8), 12);
+    const count = Math.min(CFG.baseAsteroids + Math.floor((level-1)*1.2), 18);
     for (let i = 0; i < count; i++) {
       let x, y;
       do { x=rng(0,this.W); y=rng(0,this.H); } while (dist({x,y},{x:this.W/2,y:this.H/2})<130);
