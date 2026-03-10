@@ -78,7 +78,7 @@ const CFG = {
   respawnMs:    2400,
   invincibleMs: 3000,
   baseAsteroids: 4,
-  maxLivesBase: 6,   // hard cap from upgrades/jets
+  maxLivesBase: 5,   // hard cap — 5 lives max
 };
 
 // ── Utility ───────────────────────────────────────────────────────────────────
@@ -536,7 +536,7 @@ class Ship {
 
   canFire() { return this.fireCooldown <= 0; }
   get isStarOverdrive() { return this.tempStarUntil > 0; }
-  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0 || this.isStarOverdrive; }
+  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0; }
   get isPinkBeam()    { return this.tempPinkBeamUntil > 0; }
   get effectiveFireRate() {
     if (this.isStarOverdrive) return Math.max(Math.floor(this.fireRate / 2), 2);
@@ -544,7 +544,7 @@ class Ship {
     return this.fireRate;
   }
 
-  fire(bullets, fireballs) {
+  fire(bullets, fireballs, megaRaketas) {
     if (!this.canFire()) return;
     // Fireball overrides everything — consume it on next shot
     if (this.fireballReady) {
@@ -557,6 +557,14 @@ class Ship {
     }
     this.fireCooldown = this.effectiveFireRate;
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
+    // Star overdrive: MEGA RAKETA — big rocket that splits into 7 mini homing rockets
+    // Override cooldown so rockets fire ~once per second regardless of fire upgrades
+    if (this.isStarOverdrive && megaRaketas) {
+      this.fireCooldown = Math.max(this.fireRate, 55);
+      megaRaketas.push(new MegaRaketa(nose.x, nose.y, this.angle));
+      SFX.rocketFire();
+      return;
+    }
 
     if (this.effectiveLaser) {
       const pink = this.isPinkBeam;
@@ -1067,24 +1075,36 @@ class Rocket {
 
 // ── Player Rocket ─────────────────────────────────────────────────────────────
 class PlayerRocket {
-  constructor(x, y, angle, smart = false) {
+  constructor(x, y, angle, smart = false, mini = false) {
     this.x = x; this.y = y;
     this.angle = angle;
-    this.speed = 3.2;
     this.smart = smart;
-    this.vx = Math.cos(angle) * this.speed;
-    this.vy = Math.sin(angle) * this.speed;
-    this.life = 420;
-    this.radius = 5;
-    // Normal: proximity fuse → blast on each detonation (max 2)
-    // Smart:  direct-hit pierce → no blast per kill, big final explosion on 5th kill
-    this.proximityR = smart ? 0   : 50;   // smart uses direct hit only
-    this.blastR     = smart ? 110 : 65;   // smart has huge final blast
+    this.mini  = mini;
     this.isPlayerRocket = true;
     this._dead = false;
     this._kills    = 0;
-    this._maxKills = smart ? 5 : 2;
     this._cooldown = 0;
+
+    if (mini) {
+      // Mini rockets from MegaRaketa split — fast, small, single proximity detonation
+      this.speed      = 4.2;
+      this.proximityR = 24;
+      this.blastR     = 32;
+      this._maxKills  = 1;
+      this.radius     = 3;
+      this.life       = 260;
+    } else {
+      this.speed = 3.2;
+      // Normal: proximity fuse → blast on each detonation (max 2)
+      // Smart:  direct-hit pierce → no blast per kill, big final explosion on 5th kill
+      this.proximityR = smart ? 0   : 50;
+      this.blastR     = smart ? 110 : 65;
+      this._maxKills  = smart ? 5 : 2;
+      this.radius     = 5;
+      this.life       = 420;
+    }
+    this.vx = Math.cos(angle) * this.speed;
+    this.vy = Math.sin(angle) * this.speed;
   }
 
   destroy() { this._dead = true; }
@@ -1153,25 +1173,77 @@ class PlayerRocket {
   }
 
   draw(ctx) {
-    const col  = this.smart ? '#0077ff' : '#ff6600';
-    const col2 = this.smart ? '#44aaff' : '#ff8800';
-    const col3 = this.smart ? '#aaddff' : '#ffee00';
     ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle + Math.PI / 2);
     const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 75);
-    ctx.shadowColor = col; ctx.shadowBlur = 32 * pulse;
-    ctx.strokeStyle = this.smart
-      ? `rgba(0,119,255,${0.38 * pulse})`
-      : `rgba(255,110,0,${0.35 * pulse})`;
-    ctx.lineWidth = 7;
-    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.stroke();
-    glow(ctx, col, 18); ctx.strokeStyle = col2; ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.stroke();
-    ctx.strokeStyle = col3; glow(ctx, col3, 12);
-    ctx.beginPath(); ctx.moveTo(-2, 4); ctx.lineTo(0, 4 + rng(4, 9)); ctx.lineTo(2, 4); ctx.stroke();
+    if (this.mini) {
+      // Tiny fast red dart
+      ctx.shadowColor = '#ff2200'; ctx.shadowBlur = 10 * pulse;
+      ctx.strokeStyle = '#ff3300'; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(0,-5); ctx.lineTo(2,3); ctx.lineTo(-2,3); ctx.closePath(); ctx.stroke();
+      ctx.strokeStyle = '#ffaa00';
+      ctx.beginPath(); ctx.moveTo(-1,3); ctx.lineTo(0, 3+rng(2,6)); ctx.lineTo(1,3); ctx.stroke();
+    } else {
+      const col  = this.smart ? '#0077ff' : '#ff6600';
+      const col2 = this.smart ? '#44aaff' : '#ff8800';
+      const col3 = this.smart ? '#aaddff' : '#ffee00';
+      ctx.shadowColor = col; ctx.shadowBlur = 32 * pulse;
+      ctx.strokeStyle = this.smart
+        ? `rgba(0,119,255,${0.38 * pulse})`
+        : `rgba(255,110,0,${0.35 * pulse})`;
+      ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.stroke();
+      glow(ctx, col, 18); ctx.strokeStyle = col2; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.stroke();
+      ctx.strokeStyle = col3; glow(ctx, col3, 12);
+      ctx.beginPath(); ctx.moveTo(-2, 4); ctx.lineTo(0, 4 + rng(4, 9)); ctx.lineTo(2, 4); ctx.stroke();
+    }
     ctx.restore(); ctx.shadowBlur = 0;
   }
 
   get dead() { return this.life <= 0 || this._dead; }
+}
+
+// ── MegaRaketa (star-overdrive special weapon) ────────────────────────────────
+// A big red rocket that flies straight for ~0.75 s then bursts into 7 mini homing rockets.
+class MegaRaketa {
+  constructor(x, y, angle) {
+    this.x = x; this.y = y;
+    this.angle = angle;
+    this.speed = 3.0;
+    this.vx = Math.cos(angle) * this.speed;
+    this.vy = Math.sin(angle) * this.speed;
+    this.radius = 10;
+    this.life   = 50; // frames until split (~0.83 s)
+    this.dead   = false;
+    this.isMegaRaketa = true;
+  }
+  update(W, H) {
+    this.x = wrap(this.x + this.vx, 0, W);
+    this.y = wrap(this.y + this.vy, 0, H);
+    this.life--;
+    if (this.life <= 0) this.dead = true; // game loop handles split on death
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle + Math.PI / 2);
+    const p = 0.7 + 0.3 * Math.sin(Date.now() / 45);
+    ctx.shadowColor = '#ff2200'; ctx.shadowBlur = 34 * p;
+    // outer glow shell
+    ctx.strokeStyle = `rgba(255,60,0,${0.45 * p})`; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(7,9); ctx.lineTo(-7,9); ctx.closePath(); ctx.stroke();
+    // body
+    ctx.strokeStyle = '#ff3300'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(7,9); ctx.lineTo(-7,9); ctx.closePath(); ctx.stroke();
+    // hot core
+    ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 12;
+    ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(7,9); ctx.lineTo(-7,9); ctx.closePath(); ctx.stroke();
+    // exhaust trail
+    ctx.strokeStyle = '#ff8800';
+    ctx.beginPath(); ctx.moveTo(-4,9); ctx.lineTo(0, 9 + rng(10,20)); ctx.lineTo(4,9); ctx.stroke();
+    ctx.restore(); ctx.shadowBlur = 0;
+  }
 }
 
 // ── Orange Homing Rocket (enemy) ──────────────────────────────────────────────
@@ -1859,7 +1931,7 @@ class Game {
     if (!this.multiplierEndMs) this.multiplierEndMs = 0;
     this.score=0; this.gameTime=0; this.tick=0;
     this.asteroids=[]; this.bullets=[]; this.enemyBullets=[];
-    this.rockets=[]; this.playerRockets=[]; this.fireballs=[]; this.particles=[];
+    this.rockets=[]; this.playerRockets=[]; this.megaRaketas=[]; this.fireballs=[]; this.particles=[];
     this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[];
     this.coins=[]; this.mysteryPickups=[]; this.greenStars=[];
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
@@ -1948,7 +2020,7 @@ class Game {
       const pos = this._findSafeSpawnPoint(40, this.ship, 200);
       this.asteroids.push(new Asteroid(pos.x, pos.y, 'small', null, 1));
     }
-    this._purgeObjectsNearShip(170);
+    this._purgeObjectsNearShip(240); // extra-generous clearance on game start
     if (this.runScoreMultiplier === 2) {
       setTimeout(() => new FloatingText(this.W/2, this.H/2 - 40, 'x2 SCORE ACTIVE!', '#ffee00'), 400);
     }
@@ -1979,7 +2051,14 @@ class Game {
       if (avoid && dist({ x, y }, avoid) < avoidR) continue;
       return { x, y };
     }
-    return { x: this.W / 2, y: this.H / 2 };
+    // Fallback: pick a corner well away from screen center (where ship spawns)
+    const fallbacks = [
+      { x: this.W * 0.1, y: this.H * 0.2 },
+      { x: this.W * 0.9, y: this.H * 0.2 },
+      { x: this.W * 0.1, y: this.H * 0.8 },
+      { x: this.W * 0.9, y: this.H * 0.8 },
+    ];
+    return fallbacks[rngInt(0, 3)];
   }
 
   _purgeObjectsNearShip(rad = 160) {
@@ -2045,7 +2124,7 @@ class Game {
     if (!this.ship?.alive) return;
 
     // Input
-    if (this.keys.fire)  this.ship.fire(this.bullets, this.fireballs);
+    if (this.keys.fire)  this.ship.fire(this.bullets, this.fireballs, this.megaRaketas);
     if (this.keys.flare) { this.ship.useFlare(this.rockets, this.particles, this.orangeRockets); this.keys.flare = false; }
     if (this.keys.rocket){ this.ship.fireRocket(this.playerRockets); this.keys.rocket = false; }
     if (this.keys.shield){ this.ship.deployShield(); this.keys.shield = false; }
@@ -2151,6 +2230,20 @@ class Game {
     const _rocketTargets = [...this.orangeRockets, ...this.redFighters, ...this.yellowAliens, ...this.asteroids];
     this.playerRockets.forEach(r => r.update(this.W, this.H, _rocketTargets, this.ship));
     this.playerRockets = this.playerRockets.filter(r => !r.dead);
+    // MegaRaketa: fly forward then split into 7 mini homing rockets
+    this.megaRaketas.forEach(mr => mr.update(this.W, this.H));
+    for (let mi = this.megaRaketas.length - 1; mi >= 0; mi--) {
+      if (this.megaRaketas[mi].dead) {
+        const mr = this.megaRaketas[mi];
+        burst(this.particles, mr.x, mr.y, '#ff4400', 18, 4, 28);
+        // Fan 7 mini rockets evenly around the forward direction
+        for (let j = 0; j < 7; j++) {
+          const ang = mr.angle + (j - 3) * 0.38 + (Math.random() - 0.5) * 0.1;
+          this.playerRockets.push(new PlayerRocket(mr.x, mr.y, ang, false, true));
+        }
+        this.megaRaketas.splice(mi, 1);
+      }
+    }
     this.fireballs.forEach(f => f.update(this.W, this.H));
     // Handle fireball detonations
     for (let fi = this.fireballs.length - 1; fi >= 0; fi--) {
@@ -2307,7 +2400,7 @@ class Game {
             this._addScore(CFG.enemyRedScore * (redOneShot ? 3 : 1));
             this.redFighters.splice(ei, 1);
             // ACE: +1 life per jet kill
-            if (ship.hasAce) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
+            if (ship.hasAce && ship.lives < 5) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
           }
           break;
         }
@@ -2362,7 +2455,7 @@ class Game {
         if (dist(r, this.redFighters[ei]) < r.blastR + this.redFighters[ei].radius) {
           burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 16, 4, 30);
           SFX.enemyDie(); this._addScore(CFG.enemyRedScore * 2);
-          if (ship.hasAce) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
+          if (ship.hasAce && ship.lives < 5) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
           this.redFighters.splice(ei, 1);
         }
       }
@@ -2415,7 +2508,7 @@ class Game {
           const rf = this.redFighters[ei];
           this.redFighters.splice(ei, 1);
           const fin = _smartKill(rf.x, rf.y, C.enemyRed, CFG.enemyRedScore * 2,
-            () => { if (ship.hasAce) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); } });
+            () => { if (ship.hasAce && ship.lives < 5) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); } });
           if (fin) { r.destroy(); break; }
           break;
         }
@@ -2510,7 +2603,7 @@ class Game {
           burst(this.particles, this.redFighters[fi].x, this.redFighters[fi].y, C.enemyRed, 20, 5, 35);
           SFX.enemyDie();
           this._addScore(CFG.enemyRedScore);
-          if (ship.hasAce) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
+          if (ship.hasAce && ship.lives < 5) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
           this.redFighters.splice(fi, 1);
           break;
         }
@@ -2657,7 +2750,7 @@ class Game {
       if (ship.hasLaser) { ship.tempPinkBeamUntil = 1200; label = 'SUPER LASER!'; }
       else               { ship.tempLaserUntil    = 1200; label = 'LASER!'; }
     }
-    else if (roll < 0.44) { ship.lives++;                                           label = '+1 LIFE!'; }
+    else if (roll < 0.44) { if (ship.lives < 5) { ship.lives++; label = '+1 LIFE!'; } else { label = 'FULL LIVES!'; } }
     else if (roll < 0.56) { ship.shieldCharges++; _updateShieldHUD(ship.shieldCharges); label = '+1 SHIELD!'; }
     else if (roll < 0.68) { ship.flares = Math.min(ship.flares+1, 9);              label = '+1 FLARE!'; }
     else if (roll < 0.82) { ship.rocketAmmo++;                                     label = '+1 ROCKET!'; }
@@ -2682,6 +2775,7 @@ class Game {
     this.bullets.forEach(b=>b.draw(ctx));
     this.enemyBullets.forEach(b=>b.draw(ctx));
     this.rockets.forEach(r=>r.draw(ctx));
+    this.megaRaketas.forEach(mr=>mr.draw(ctx));
     this.playerRockets.forEach(r=>r.draw(ctx));
     this.redFighters.forEach(rf=>rf.draw(ctx));
     this.yellowAliens.forEach(ya=>ya.draw(ctx));
