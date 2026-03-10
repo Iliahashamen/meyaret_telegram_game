@@ -79,29 +79,16 @@ async function setMenuButton() {
   }
 }
 
-// /start — welcome + play button
+// /start — play button only
 bot.command('start', async (ctx) => {
-  const name = ctx.from?.first_name || 'Pilot';
-  await ctx.reply(
-    `*MEYARET*\n\n` +
-    `Welcome, ${name}.\n\n` +
-    `80s Synthwave · Asteroid Combat · Shmips Economy\n\n` +
-    `Choose your Call Sign, survive the debris field, earn Shmips.\n` +
-    `Daily Spin resets every 21 hours.\n\n` +
-    `Tap the button below or the PLAY button in your chat bar.`,
-    {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'ENTER THE ARENA', web_app: { url: GAME_URL } }],
-          [
-            { text: 'Leaderboard', callback_data: 'leaderboard' },
-            { text: 'Help',        callback_data: 'help'        },
-          ],
-        ],
-      },
+  await ctx.reply('*MEYARET*', {
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: 'PLAY GAME', web_app: { url: GAME_URL } }],
+      ],
     },
-  );
+  });
 });
 
 bot.callbackQuery('leaderboard', async (ctx) => {
@@ -247,7 +234,7 @@ bot.callbackQuery('tools_back', async (ctx) => {
 async function buildGiftScreen(amount, note = '') {
   const { data: users, error } = await supabase
     .from('users')
-    .select('telegram_id, nickname, tele_name, shmips')
+    .select('telegram_id, nickname, shmips')
     .order('nickname');
   if (error) throw error;
   if (!users?.length) return null;
@@ -260,8 +247,7 @@ async function buildGiftScreen(amount, note = '') {
   for (let i = 0; i < shown.length; i += 2) {
     const row = [];
     for (const u of shown.slice(i, i + 2)) {
-      const label = u.tele_name ? `${u.tele_name} / ${u.nickname}` : u.nickname;
-      row.push({ text: `${label} (${Number(u.shmips).toFixed(0)}$$)`, callback_data: `g1_${amount}_${u.telegram_id}` });
+      row.push({ text: `${u.nickname} (${Number(u.shmips).toFixed(0)}$$)`, callback_data: `g1_${amount}_${u.telegram_id}` });
     }
     keyboard.push(row);
   }
@@ -270,10 +256,9 @@ async function buildGiftScreen(amount, note = '') {
     { text: 'CANCEL',        callback_data: 'gift_cancel' },
   ]);
 
-  const list = shown.map((u, i) => {
-    const tele = u.tele_name ? ` _(${u.tele_name})_` : '';
-    return `${i + 1}. *${u.nickname}*${tele} — ${Number(u.shmips).toFixed(0)} $$`;
-  }).join('\n');
+  const list = shown.map((u, i) =>
+    `${i + 1}. *${u.nickname}* — ${Number(u.shmips).toFixed(0)} $$`
+  ).join('\n');
 
   const extra = users.length > 50 ? `\n_(+ ${users.length - 50} more)_` : '';
   const footer = note ? `\n\n_${note}_` : '';
