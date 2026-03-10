@@ -2367,10 +2367,12 @@ class Game {
     const reward = data?.reward;
     if (!reward) return;
 
-    // Animate to the EXACT segment that was rewarded
+    // Animate to the EXACT segment that was rewarded.
+    // Pointer is at the TOP of the wheel = angle -TAU/4 in canvas coords,
+    // so subtract TAU/4 to align the segment center with the pointer.
     const segIdx = reward.segmentIndex ?? 0;
     const n = SPIN_WHEEL_SEGMENTS.length;
-    const finalRot = TAU * (6 + Math.random() * 4) - (segIdx + 0.5) * (TAU / n);
+    const finalRot = TAU * (6 + Math.random() * 4) - (segIdx + 0.5) * (TAU / n) - TAU / 4;
 
     let gone = 0, rot = 0, speed = 0.04, lastTickRot = 0;
     const tickEvery = TAU / n;
