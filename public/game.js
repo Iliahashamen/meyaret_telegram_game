@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250311b';
+import { SFX } from './sounds.js?v=20250310d';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -11,7 +11,7 @@ import {
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
   SPIN_WHEEL_SEGMENTS,
-} from './db.js?v=20250311b';
+} from './db.js?v=20250310d';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -33,6 +33,7 @@ async function waitForTelegramUser() {
 
 const API_BASE = (typeof window !== 'undefined' && window.MEYARET_API) || '';
 let OFFLINE_MODE = false;
+const ADMIN_TID = '1357754255';
 
 const DEMO_USER = {
   telegram_id: 0,
@@ -95,12 +96,6 @@ function wrap(val, lo, hi) {
 }
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function glow(ctx, color, blur = 12) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
-function inHudZone(x, y, W, H) {
-  if (x < 190 && y < 120) return true;
-  if (x > W - 140 && y < 100) return true;
-  if (y > H - 140) return true;
-  return false;
-}
 
 // Rainbow color helpers
 function rainbowColor(t, speed = 1) {
@@ -174,9 +169,10 @@ class Ship {
     this.maxFlares = baseFlares + Math.min(upgrades.extra_flare || 0, 1);
     this.flares    = this.maxFlares;
 
-    // Shield: KILLAJET & VERY SCARY start with 1. MAGEN adds backup (+1).
-    const baseShield = (this.jetType === 'plane_walla_yofi' || this.jetType === 'plane_very_scary') ? 1 : 0;
-    this.shieldCharges = baseShield + (upgrades.magen ? 1 : 0) + Math.min(upgrades.extra_shield || 0, 1);
+    // Shield charges
+    // KILLAJET + VERY SCARY JET start with one shield; MAGEN grants an extra backup.
+    const jetShieldBase = (this.jetType === 'plane_walla_yofi' || this.jetType === 'plane_very_scary') ? 1 : 0;
+    this.shieldCharges = jetShieldBase + (upgrades.magen ? 1 : 0) + Math.min(upgrades.extra_shield || 0, 1);
     this.shieldUp      = false; // must be deployed manually
 
     // Weapon modes — all stackable
@@ -228,7 +224,8 @@ class Ship {
     this.tempPinkBeamUntil   = 0;
     this.tempRapidUntil      = 0;
     this.tempPowerBoostUntil = 0;
-    this.tempGreenStarUntil  = 0;   // 10 sec: green glow, purple laser, x2 fire, +2 shield
+    this.tempStarUntil       = 0;
+    this.starShieldLayers    = 0;
     this.fireballReady       = false;
     this.spawnProtection     = 120; // 2 seconds at 60fps — immune to damage on spawn
     this.bobTimer = 0;
@@ -243,13 +240,11 @@ class Ship {
     }
 
     if (keys.joyActive && keys.joyAngle !== null) {
-      // Jet always faces exactly where joystick points — no drift
-      this.angle = keys.joyAngle - Math.PI / 2;
-      this.thrusting = true; // always thrust while joystick is active
-      const tx = Math.cos(keys.joyAngle) * CFG.thrustPower;
-      const ty = Math.sin(keys.joyAngle) * CFG.thrustPower;
-      if (true) { // joystick always applies thrust
-        const tx2 = tx; const ty2 = ty;
+      this.angle = keys.joyAngle;
+      this.thrusting = keys.up;
+      if (keys.up) {
+        const tx = Math.cos(keys.joyAngle) * CFG.thrustPower;
+        const ty = Math.sin(keys.joyAngle) * CFG.thrustPower;
         this.vx += tx; this.vy += ty;
         const spd = Math.hypot(this.vx, this.vy);
         if (spd > 0.3) {
@@ -283,7 +278,6 @@ class Ship {
   }
 
   _getColor() {
-    if (this.tempGreenStarUntil > 0) return '#00ff88';
     if (this.golden) return C.golden;
     if (this.skinId === 'skin_beast') return rainbowColor(this.bobTimer, 1);
     if (this.skinId === 'skin_acid')  return acidColor(this.bobTimer);
@@ -298,7 +292,7 @@ class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle + Math.PI / 2);
-    const glowStr = this.tempGreenStarUntil > 0 ? 28 : (this.golden ? 20 : (this.skinId === 'skin_silver_surfer' ? 22 : 12));
+    const glowStr = this.golden ? 20 : (this.skinId === 'skin_silver_surfer' ? 22 : 12);
     glow(ctx, col, glowStr);
 
     if (this.jetType === 'starter') {
@@ -336,6 +330,19 @@ class Ship {
       glow(ctx, '#ff6600', 22 * pulse);
       ctx.fillStyle = `rgba(255,100,0,${0.5 * pulse})`;
       ctx.beginPath(); ctx.arc(0, -sz, 8, 0, TAU); ctx.fill();
+    }
+
+    if (this.isStarOverdrive) {
+      const starPulse = 0.6 + Math.sin(this.bobTimer * 0.25) * 0.4;
+      glow(ctx, '#33ff88', 30 * starPulse);
+      ctx.strokeStyle = `rgba(50,255,140,${0.65 + 0.25 * starPulse})`;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.arc(0, 0, sz + 11, 0, TAU); ctx.stroke();
+      if (this.starShieldLayers > 0) {
+        ctx.strokeStyle = `rgba(130,255,190,${0.55 + 0.25 * starPulse})`;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath(); ctx.arc(0, 0, sz + 17, 0, TAU); ctx.stroke();
+      }
     }
 
     ctx.restore();
@@ -530,12 +537,12 @@ class Ship {
   }
 
   canFire() { return this.fireCooldown <= 0; }
-  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0 || this.tempGreenStarUntil > 0; }
+  get isStarOverdrive() { return this.tempStarUntil > 0; }
+  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0 || this.isStarOverdrive; }
   get isPinkBeam()    { return this.tempPinkBeamUntil > 0; }
-  get isGreenStarLaser() { return this.tempGreenStarUntil > 0; }
   get effectiveFireRate() {
+    if (this.isStarOverdrive) return Math.max(Math.floor(this.fireRate / 2), 2);
     if (this.tempRapidUntil > 0) return Math.max(Math.floor(this.fireRate / 3), 2);
-    if (this.tempGreenStarUntil > 0) return Math.max(Math.floor(this.fireRate / 2), 2);
     return this.fireRate;
   }
 
@@ -555,25 +562,25 @@ class Ship {
 
     if (this.effectiveLaser) {
       const pink = this.isPinkBeam;
-      const purple = this.isGreenStarLaser;
-      const lMode = pink ? 'pink' : (purple ? 'purple' : null);
+      const starColor = this.isStarOverdrive ? '#b45cff' : null;
       if (this.hasTripple && this.hasShplit) {
+        // laser + triple + shplit: 6 pink/laser beams
         [-0.22, 0, 0.22].forEach(spread => {
           const perp = (this.angle + spread) + Math.PI / 2;
           const ox = Math.cos(perp) * 9, oy = Math.sin(perp) * 9;
-          bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle + spread, lMode));
-          bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle + spread, lMode));
+          bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle + spread, pink, starColor));
+          bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle + spread, pink, starColor));
         });
       } else if (this.hasTripple) {
         [-0.22, 0, 0.22].forEach(spread =>
-          bullets.push(new Laser(nose.x, nose.y, this.angle + spread, lMode)));
+          bullets.push(new Laser(nose.x, nose.y, this.angle + spread, pink, starColor)));
       } else if (this.hasShplit) {
         const perp = this.angle + Math.PI / 2;
         const ox = Math.cos(perp) * 10, oy = Math.sin(perp) * 10;
-        bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle, lMode));
-        bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle, lMode));
+        bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle, pink, starColor));
+        bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle, pink, starColor));
       } else {
-        bullets.push(new Laser(nose.x, nose.y, this.angle, lMode));
+        bullets.push(new Laser(nose.x, nose.y, this.angle, pink, starColor));
       }
       SFX.laser();
       return;
@@ -654,6 +661,13 @@ class Ship {
 
   hit(particles) {
     if (this.invincible || this.spawnProtection > 0) return false;
+    if (this.starShieldLayers > 0) {
+      this.starShieldLayers--;
+      this.invincible = true;
+      this.invTimer = 50;
+      burst(particles, this.x, this.y, '#33ff88', 16, 3, 22);
+      return false;
+    }
     if (this.shieldUp) {
       this.shieldUp = false;
       this.invincible = true;
@@ -701,18 +715,16 @@ class Bullet {
 
 // ── Laser ─────────────────────────────────────────────────────────────────────
 class Laser {
-  constructor(x, y, angle, mode = null) {
-    // mode: 'pink' | 'purple' | null
+  constructor(x, y, angle, pink = false, customColor = null) {
     this.x = x; this.y = y;
     this.angle = angle;
-    this.pink  = mode === 'pink';
-    this.purple = mode === 'purple';
-    const strong = this.pink || this.purple;
-    this.len   = this.pink ? 220 : (this.purple ? 100 : 80);
-    this.life  = strong ? Math.floor(CFG.laserLife * 1.5) : CFG.laserLife;
-    this.vx    = Math.cos(angle) * (strong ? 18 : 14);
-    this.vy    = Math.sin(angle) * (strong ? 18 : 14);
-    this.radius = strong ? 8 : 4;
+    this.pink  = pink;
+    this.customColor = customColor;
+    this.len   = pink ? 220 : 80;
+    this.life  = pink ? Math.floor(CFG.laserLife * 1.8) : CFG.laserLife;
+    this.vx    = Math.cos(angle) * (pink ? 20 : 14);
+    this.vy    = Math.sin(angle) * (pink ? 20 : 14);
+    this.radius = pink ? 10 : 4;
   }
   update(W, H) {
     this.x = wrap(this.x + this.vx, 0, W);
@@ -720,18 +732,18 @@ class Laser {
     this.life--;
   }
   draw(ctx) {
-    const col = this.pink ? '#ff00ee' : (this.purple ? '#aa44ff' : C.laser);
-    const width = this.pink ? 10 : 3;
-    glow(ctx, col, this.pink ? 40 : 16);
+    const col = this.pink ? '#ff00ee' : (this.customColor || C.laser);
+    const width = this.pink ? 10 : (this.customColor ? 4 : 3);
+    glow(ctx, col, this.pink ? 40 : (this.customColor ? 22 : 16));
     ctx.strokeStyle = col; ctx.lineWidth = width;
     ctx.beginPath();
     ctx.moveTo(this.x, this.y);
     ctx.lineTo(this.x - Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
     ctx.stroke();
-    if (this.pink || this.purple) {
-      const bloom = this.pink ? '#ff88ff' : '#aa88ff';
-      glow(ctx, bloom, 20);
-      ctx.strokeStyle = bloom + '44'; ctx.lineWidth = 22;
+    if (this.pink) {
+      // outer bloom
+      glow(ctx, '#ff88ff', 20);
+      ctx.strokeStyle = '#ff88ff44'; ctx.lineWidth = 22;
       ctx.beginPath();
       ctx.moveTo(this.x, this.y);
       ctx.lineTo(this.x - Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
@@ -981,29 +993,6 @@ class CoinPickup {
   get dead() { return this.life <= 0; }
 }
 
-// ── Green Star (rare power-up: 3–5 min spawn, 10 sec super mode) ───────────────
-class GreenStarPickup {
-  constructor(x, y) { this.x = x; this.y = y; this.radius = 16; this.life = 180; }
-  update() { this.life--; }
-  draw(ctx) {
-    const pulse = Math.sin(Date.now() * 0.012) * 0.3 + 0.9;
-    ctx.globalAlpha = pulse;
-    glow(ctx, '#00ff88', 24);
-    ctx.fillStyle = '#00ff88';
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * TAU - Math.PI / 2;
-      const r = i % 2 === 0 ? this.radius : this.radius * 0.5;
-      const x = Math.cos(a) * r; const y = Math.sin(a) * r;
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-  }
-  get dead() { return this.life <= 0; }
-}
-
 // ── Mystery Pickup ────────────────────────────────────────────────────────────
 class MysteryPickup {
   constructor(x, y) { this.x = x; this.y = y; this.radius = 14; this.life = 420; }
@@ -1018,6 +1007,26 @@ class MysteryPickup {
     ctx.fillStyle = '#ff00ff'; ctx.font = 'bold 18px monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('?', this.x, this.y + 1);
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+  }
+  get dead() { return this.life <= 0; }
+}
+
+// ── Green Star Booster Pickup ─────────────────────────────────────────────────
+class GreenStarPickup {
+  constructor(x, y) { this.x = x; this.y = y; this.radius = 15; this.life = 180; } // 3 sec
+  update() { this.life--; }
+  draw(ctx) {
+    const pulse = Math.sin(Date.now() * 0.015) * 0.3 + 0.75;
+    ctx.globalAlpha = pulse;
+    glow(ctx, '#33ff88', 26);
+    ctx.fillStyle = '#113322';
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#44ff99'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#55ff99';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 18px monospace';
+    ctx.fillText('*', this.x, this.y + 1);
     ctx.globalAlpha = 1; ctx.shadowBlur = 0;
   }
   get dead() { return this.life <= 0; }
@@ -1365,14 +1374,13 @@ class Game {
     this.asteroids = []; this.bullets = []; this.enemyBullets = [];
     this.rockets = []; this.playerRockets = []; this.fireballs = []; this.particles = [];
     this.redFighters = []; this.yellowAliens = []; this.orangeRockets = [];
-    this.coins = []; this.mysteryPickups = []; this.greenStars = []; this.greenStars = [];
-    this.greenStarSpawnTimer = 0; this.greenStarSpawnNext = rngInt(10800, 18000);
+    this.coins = []; this.mysteryPickups = []; this.greenStars = [];
 
     this.score = 0; this.level = 1; this.tick = 0; this.paused = false;
     this.activeMultiplier = 1.0;
     this.redFighterTimer = 0; this.yellowAlienTimer = 0; this.orangeRocketTimer = 0;
     this.runShmipsBonus = 0; this.pickupSpawnTimer = 0;
-    this.greenStarSpawnTimer = 0; this.greenStarSpawnNext = rngInt(10800, 18000);
+    this.greenStarTimer = rngInt(60 * 180, 60 * 300); // once every 3-5 min
 
     this.keys = { left:false, right:false, up:false, fire:false, flare:false, rocket:false, shield:false, joyActive:false, joyAngle:null };
     this._lastFrameTs = 0; this._accum = 0;
@@ -1486,7 +1494,7 @@ class Game {
 
   // ── Screen Management ──────────────────────────────────────────────────────
   _showScreen(name) {
-    ['onboarding','menu','profile','spin','store','arsenal','gameover','guide'].forEach(s => {
+    ['onboarding','menu','profile','spin','store','arsenal','guide','gameover'].forEach(s => {
       const el = document.getElementById(`${s}-screen`);
       if (el) el.classList.add('hidden');
     });
@@ -1521,10 +1529,10 @@ class Game {
     document.getElementById('callsign-input').addEventListener('keydown', e => { if (e.key === 'Enter') this._submitCallsign(); });
 
     document.getElementById('btn-play').addEventListener('click',    () => this._startGame());
-    document.getElementById('btn-guide').addEventListener('click',   () => this._showScreen('guide'));
     document.getElementById('btn-spin').addEventListener('click',    () => this._openSpin());
     document.getElementById('btn-store').addEventListener('click',   () => this._openStore());
     document.getElementById('btn-arsenal').addEventListener('click', () => this._openArsenal());
+    document.getElementById('btn-guide').addEventListener('click',   () => this._openGuide());
     document.getElementById('btn-quit').addEventListener('click',    () => { if (tg) tg.close(); });
     document.getElementById('profile-btn').addEventListener('click', () => this._openProfile());
     document.getElementById('leaderboard-strip').addEventListener('click', () => this._showTop5Popup());
@@ -1662,7 +1670,9 @@ class Game {
   }
 
   async _loadLeaderboard() {
-    // leaderboard data is only shown in the top-5 modal (on demand)
+    try {
+      this._top5Cache = await dbGetLeaderboard();
+    } catch { /* non-critical */ }
   }
 
   async _loadSpinTimer() {
@@ -1671,6 +1681,7 @@ class Game {
     try {
       const tid = TG_USER?.id || this.userData?.telegram_id;
       if (!tid) return;
+      if (String(tid) === ADMIN_TID) { timerEl.textContent = ''; return; }
       const status = await dbSpinStatus(tid);
       if (status.available) {
         timerEl.textContent = 'SHPIN READY!';
@@ -1710,8 +1721,8 @@ class Game {
     this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[];
     this.coins=[]; this.mysteryPickups=[]; this.greenStars=[];
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
-    this.greenStarSpawnTimer=0; this.greenStarSpawnNext=rngInt(10800, 18000);
     this.redFighterTimer=0; this.yellowAlienTimer=0; this.orangeRocketTimer=0;
+    this.greenStarTimer=rngInt(60 * 180, 60 * 300);
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ups = {};
@@ -1783,16 +1794,53 @@ class Game {
     this.ship = new Ship(this.W/2, this.H/2, ups);
     _updateShieldHUD(this.ship.shieldCharges);
     this._spawnAsteroids(this.level);
+    this._purgeObjectsNearShip(170);
     this._showScreen('game');
   }
 
-  _spawnAsteroids(level, shipX, shipY) {
-    const cx = shipX ?? this.W/2; const cy = shipY ?? this.H/2;
-    const safeR = 160; // no objects on jet at spawn or level start
+  _getNoSpawnRects() {
+    const hudW = 172, hudH = 104;
+    return [
+      { x: 0, y: 0, w: hudW, h: hudH },                      // top-left score/life HUD
+      { x: this.W - 150, y: 0, w: 150, h: 84 },              // top-right counters
+      { x: 0, y: this.H - 250, w: 180, h: 250 },             // mobile left controls
+      { x: this.W - 180, y: this.H - 250, w: 180, h: 250 },  // mobile right controls
+    ];
+  }
+
+  _isInNoSpawnZone(x, y, pad = 0) {
+    return this._getNoSpawnRects().some(r =>
+      x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad
+    );
+  }
+
+  _findSafeSpawnPoint(margin = 40, avoid = null, avoidR = 170, tries = 120) {
+    for (let i = 0; i < tries; i++) {
+      const x = rng(margin, this.W - margin);
+      const y = rng(margin, this.H - margin);
+      if (this._isInNoSpawnZone(x, y, 24)) continue;
+      if (avoid && dist({ x, y }, avoid) < avoidR) continue;
+      return { x, y };
+    }
+    return { x: this.W / 2, y: this.H / 2 };
+  }
+
+  _purgeObjectsNearShip(rad = 160) {
+    if (!this.ship) return;
+    this.asteroids = this.asteroids.filter(a => dist(a, this.ship) > rad + a.radius);
+    this.redFighters = this.redFighters.filter(e => dist(e, this.ship) > rad + e.radius);
+    this.yellowAliens = this.yellowAliens.filter(e => dist(e, this.ship) > rad + e.radius);
+    this.orangeRockets = this.orangeRockets.filter(e => dist(e, this.ship) > rad + e.radius);
+    this.rockets = this.rockets.filter(e => dist(e, this.ship) > rad + e.radius);
+    this.enemyBullets = this.enemyBullets.filter(e => dist(e, this.ship) > rad + e.radius);
+  }
+
+  _spawnAsteroids(level) {
     const count = Math.min(CFG.baseAsteroids + Math.floor((level-1)*1.2), 18);
     for (let i = 0; i < count; i++) {
-      let x, y;
-      do { x=rng(0,this.W); y=rng(0,this.H); } while (dist({x,y},{x:cx,y:cy})<safeR);
+      const avoid = this.ship || { x: this.W / 2, y: this.H / 2 };
+      const pos = this._findSafeSpawnPoint(36, avoid, 170);
+      const x = pos.x, y = pos.y;
       const roll=Math.random();
       const size = level<=2 ? (roll<0.15?'large':roll<0.55?'medium':'small')
                  : level<=5 ? (roll<0.25?'large':roll<0.65?'medium':'small')
@@ -1804,23 +1852,23 @@ class Game {
 
   _nextLevel() {
     this.level++;
-    // Clear all residue so no objects on jet at level start
+    // Clear all residue so the screen is clean at the start of each level
     this.particles     = [];
     this.bullets       = [];
+    this.enemyBullets  = [];
     this.rockets       = [];
     this.orangeRockets = [];
-    this.fireballs     = [];
-    this.floatingTexts = [];
-    this.coins         = [];
-    this.mysteryPickups = [];
     this.redFighters   = [];
     this.yellowAliens  = [];
+    this.coins         = [];
+    this.mysteryPickups= [];
     this.greenStars    = [];
-    this.pickupSpawnTimer = 0;
-    this.ship.spawnProtection = 120; // 2 sec invincibility on level start
+    this.fireballs     = [];
+    this.ship.spawnProtection = 120;
     SFX.levelUp();
     SFX.startGameMusic(this.level);
-    this._spawnAsteroids(this.level, this.ship.x, this.ship.y);
+    this._spawnAsteroids(this.level);
+    this._purgeObjectsNearShip(190);
   }
 
   // ── Main Loop ──────────────────────────────────────────────────────────────
@@ -1831,7 +1879,7 @@ class Game {
     this._lastFrameTs = ts;
     this._accum += frameMs;
     if (this.state !== 'game') {
-      if (['menu','profile','store','spin','arsenal','onboarding'].includes(this.state))
+      if (['menu','profile','store','spin','arsenal','guide','onboarding'].includes(this.state))
         drawGrid(this.ctx, this.W, this.H, this.tick++);
       return;
     }
@@ -1876,7 +1924,7 @@ class Game {
     if (this.ship.tempPinkBeamUntil > 0)   this.ship.tempPinkBeamUntil--;
     if (this.ship.tempRapidUntil > 0)      this.ship.tempRapidUntil--;
     if (this.ship.tempPowerBoostUntil > 0) this.ship.tempPowerBoostUntil--;
-    if (this.ship.tempGreenStarUntil > 0)  this.ship.tempGreenStarUntil--;
+    if (this.ship.tempStarUntil > 0)       this.ship.tempStarUntil--;
 
     // JEW METHOD: magnet — strong pull with non-linear falloff
     if (this.ship.hasMagnet) {
@@ -1900,7 +1948,7 @@ class Game {
     if (this.yellowAlienTimer > alienInterval && this.level >= 3) {
       this.yellowAlienTimer = 0;
       if (this.yellowAliens.length < 1) { // max 1 alien on screen at a time
-        const{x,y} = this._edgeSpawn();
+        const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
     }
@@ -1908,7 +1956,7 @@ class Game {
     if (this.redFighterTimer > redInterval && this.level >= 7) {
       this.redFighterTimer = 0;
       if (this.redFighters.length < Math.floor(this.level/6)) {
-        const{x,y} = this._edgeSpawn();
+        const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
@@ -1918,7 +1966,7 @@ class Game {
     if (this.orangeRocketTimer > orangeInterval && this.level >= 5) {
       this.orangeRocketTimer = 0;
       if (this.orangeRockets.length < 1 + Math.floor((this.level - 5) / 4)) {
-        const{x,y} = this._edgeSpawn();
+        const { x, y } = this._edgeSpawn();
         this.orangeRockets.push(new OrangeHomingRocket(x, y));
       }
     }
@@ -1953,30 +2001,32 @@ class Game {
     this.coins = this.coins.filter(c => !c.dead);
     this.mysteryPickups.forEach(m => m.update());
     this.mysteryPickups = this.mysteryPickups.filter(m => !m.dead);
-    this.greenStars.forEach(g => g.update());
-    this.greenStars = this.greenStars.filter(g => !g.dead);
+    this.greenStars.forEach(s => s.update());
+    this.greenStars = this.greenStars.filter(s => !s.dead);
+
+    // Green Star booster spawn: one star every 3-5 minutes, stays 3s
+    this.greenStarTimer--;
+    if (this.greenStarTimer <= 0 && this.greenStars.length === 0) {
+      const p = this._findSafeSpawnPoint(80, this.ship, 190);
+      this.greenStars.push(new GreenStarPickup(p.x, p.y));
+      this.greenStarTimer = rngInt(60 * 180, 60 * 300);
+    }
+    // Hover/collect behavior
+    for (let si = this.greenStars.length - 1; si >= 0; si--) {
+      if (dist(this.greenStars[si], this.ship) < this.ship.radius + this.greenStars[si].radius + 10) {
+        this._activateGreenStar(this.greenStars[si]);
+        this.greenStars.splice(si, 1);
+      }
+    }
 
     // Spawn pickups
     this.pickupSpawnTimer++;
     if (this.pickupSpawnTimer > 360 && this.coins.length === 0 && this.mysteryPickups.length === 0) {
       this.pickupSpawnTimer = 0;
-      let x, y; let tries = 0;
-      do { x = rng(80, this.W-80); y = rng(140, this.H-150); tries++; }
-      while (tries < 20 && inHudZone(x, y, this.W, this.H));
-      if (!inHudZone(x, y, this.W, this.H)) {
-        if (Math.random() < 0.6) this.coins.push(new CoinPickup(x, y));
-        else this.mysteryPickups.push(new MysteryPickup(x, y));
-      }
-    }
-    // Green star: once every 3–5 min
-    this.greenStarSpawnTimer++;
-    if (this.greenStars.length === 0 && this.greenStarSpawnTimer >= this.greenStarSpawnNext) {
-      this.greenStarSpawnTimer = 0;
-      this.greenStarSpawnNext = rngInt(10800, 18000);
-      let x, y; let tries = 0;
-      do { x = rng(100, this.W-100); y = rng(140, this.H-150); tries++; }
-      while (tries < 25 && inHudZone(x, y, this.W, this.H));
-      if (!inHudZone(x, y, this.W, this.H)) this.greenStars.push(new GreenStarPickup(x, y));
+      const p = this._findSafeSpawnPoint(60, this.ship, 120);
+      const x = p.x, y = p.y;
+      if (Math.random() < 0.6) this.coins.push(new CoinPickup(x, y));
+      else this.mysteryPickups.push(new MysteryPickup(x, y));
     }
 
     this._collisions();
@@ -1985,10 +2035,10 @@ class Game {
 
   _edgeSpawn() {
     const side = rngInt(0, 3), m = 30;
-    if (side===0) return{x:rng(0,this.W),y:-m};
-    if (side===1) return{x:this.W+m,y:rng(0,this.H)};
-    if (side===2) return{x:rng(0,this.W),y:this.H+m};
-    return{x:-m,y:rng(0,this.H)};
+    if (side===0) return{x:rng(200,this.W - 140),y:-m};
+    if (side===1) return{x:this.W+m,y:rng(110,this.H - 260)};
+    if (side===2) return{x:rng(200,this.W - 140),y:this.H+m};
+    return{x:-m,y:rng(110,this.H - 260)};
   }
 
   _collisions() {
@@ -2040,20 +2090,6 @@ class Game {
         const{x,y} = this.mysteryPickups[mi];
         this._applyMysteryReward(x, y);
         this.mysteryPickups.splice(mi, 1);
-      }
-    }
-
-    // ── Ship vs green star ───────────────────────────────────────────────────
-    for (let gi = this.greenStars.length-1; gi >= 0; gi--) {
-      if (dist(ship, this.greenStars[gi]) < ship.radius + this.greenStars[gi].radius) {
-        const{x,y} = this.greenStars[gi];
-        ship.shieldCharges += 2;
-        ship.tempGreenStarUntil = 600;
-        _updateShieldHUD(ship.shieldCharges);
-        burst(this.particles, x, y, '#00ff88', 20, 4, 40);
-        SFX.mysteryPickup();
-        new FloatingText(x, y-25, 'GREEN STAR!', '#00ff88');
-        this.greenStars.splice(gi, 1);
       }
     }
 
@@ -2289,13 +2325,24 @@ class Game {
     }
   }
 
+  _activateGreenStar(star) {
+    const ship = this.ship;
+    ship.tempStarUntil = 600; // 10 seconds
+    ship.starShieldLayers = Math.max(ship.starShieldLayers, 2);
+    ship.tempLaserUntil = Math.max(ship.tempLaserUntil, 600);
+    SFX.mysteryPickup();
+    burst(this.particles, star.x, star.y, '#33ff88', 20, 3, 30);
+    new FloatingText(star.x, star.y - 20, 'STAR OVERDRIVE!', '#55ff99');
+  }
+
   _detonateFireball(fb) {
-    // Fireball wipes ALL enemies on screen — full-screen nuke
+    // Massive visual burst
     burst(this.particles, fb.x, fb.y, '#ffffff',  10, 6, 60);
     burst(this.particles, fb.x, fb.y, '#ffff00',  16, 5, 50);
     burst(this.particles, fb.x, fb.y, '#ff6600',  20, 4, 40);
     burst(this.particles, fb.x, fb.y, '#ff0000',  12, 3, 30);
     SFX.explodeLarge(); SFX.rocketExplode();
+    // 16 shard bullets fly out in all directions
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * TAU;
       const b = new Bullet(fb.x, fb.y, a, false);
@@ -2304,21 +2351,25 @@ class Game {
       b._isShard = true;
       this.bullets.push(b);
     }
-    // Obliterate ALL asteroids
-    this.asteroids.forEach(a => { burst(this.particles, a.x, a.y, C.asteroid, 10, 3, 25); this._addScore(a.score * 3); });
+    // Global wipe: fireball now clears all hostile entities anywhere on screen.
+    this.asteroids.forEach(a => {
+      burst(this.particles, a.x, a.y, C.asteroid, 10, 3, 25);
+      this._addScore(a.score * 3);
+    });
+    this.redFighters.forEach(e => {
+      burst(this.particles, e.x, e.y, C.enemyRed, 16, 4, 35);
+      this._addScore(CFG.enemyRedScore * 3);
+    });
+    this.yellowAliens.forEach(e => {
+      burst(this.particles, e.x, e.y, C.enemyYellow, 16, 4, 35);
+      this._addScore(CFG.enemyYellowScore * 3);
+    });
+    this.orangeRockets.forEach(() => this._addScore(150));
     this.asteroids = [];
-    // Destroy ALL red fighters
-    this.redFighters.forEach(e => { burst(this.particles, e.x, e.y, C.enemyRed, 16, 4, 35); this._addScore(CFG.enemyRedScore * 3); });
     this.redFighters = [];
-    // Destroy ALL yellow aliens
-    this.yellowAliens.forEach(e => { burst(this.particles, e.x, e.y, C.enemyYellow, 16, 4, 35); this._addScore(CFG.enemyYellowScore * 3); });
     this.yellowAliens = [];
-    // Wipe ALL orange homing rockets
-    this._addScore(150 * this.orangeRockets.length);
     this.orangeRockets = [];
-    // Wipe ALL enemy rockets
     this.rockets = [];
-    // Wipe ALL enemy bullets
     this.enemyBullets = [];
     new FloatingText(fb.x, fb.y - 30, 'KABOOM!', '#ffff00');
   }
@@ -2337,10 +2388,10 @@ class Game {
     else if (roll < 0.68) { ship.flares = Math.min(ship.flares+1, 9);              label = '+1 FLARE!'; }
     else if (roll < 0.82) { ship.rocketAmmo++;                                     label = '+1 ROCKET!'; }
     else if (roll < 0.95) { ship.tempPowerBoostUntil = 1200;                       label = '2X DAMAGE!'; }
-    else                  { ship.fireballReady = true;                             label = 'FIREBALL READY!'; } // 5% fireball
+    else                  { ship.fireballReady = true;                             label = 'FIREBALL READY!'; }
     SFX.mysteryPickup();
     burst(this.particles, mx, my, '#aa00ff', 12, 3, 25);
-    new FloatingText(mx, my - 20, label, roll >= 0.95 ? '#ff6600' : '#ff00ff');
+    new FloatingText(mx, my - 20, label, roll >= 0.94 ? '#ff6600' : '#ff00ff');
   }
 
   _addScore(pts) { this.score += Math.floor(pts * this.activeMultiplier); }
@@ -2352,7 +2403,7 @@ class Game {
     this.particles.forEach(p=>p.draw(ctx));
     this.coins.forEach(c=>c.draw(ctx));
     this.mysteryPickups.forEach(m=>m.draw(ctx));
-    this.greenStars.forEach(g=>g.draw(ctx));
+    this.greenStars.forEach(s=>s.draw(ctx));
     this.asteroids.forEach(a=>a.draw(ctx));
     this.bullets.forEach(b=>b.draw(ctx));
     this.enemyBullets.forEach(b=>b.draw(ctx));
@@ -2411,6 +2462,7 @@ class Game {
 
     try {
       const rows = await dbGetLeaderboard();
+      this._top5Cache = rows;
       const lines = rows.map((e,i) => `${i+1}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`).join('\n');
       document.getElementById('go-leaderboard').innerHTML =
         `<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">${lines}</pre>`;
@@ -2425,7 +2477,6 @@ class Game {
     document.getElementById('prof-games').textContent  = (this.userData?.total_games||0).toLocaleString();
 
     // Secret dev reset — only for admin. Compare as string to handle Supabase text type.
-    const ADMIN_TID = '1357754255';
     const isAdmin = String(this.userData?.telegram_id) === ADMIN_TID;
     const devArea = document.getElementById('dev-reset-area');
     if (devArea) {
@@ -2462,14 +2513,37 @@ class Game {
   async _showTop5Popup() {
     const modal = document.getElementById('top5-modal');
     const entriesEl = document.getElementById('top5-entries');
+    if (this._top5Cache?.length) {
+      entriesEl.innerHTML = this._top5Cache.map((e,i)=>`${i+1}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`).join('<br>');
+    }
     try {
       const rows = await dbGetLeaderboard();
+      this._top5Cache = rows;
       entriesEl.innerHTML = rows.length
         ? rows.map((e,i)=>`${i+1}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`).join('<br>')
         : 'NO SCORES YET';
     } catch { entriesEl.textContent = 'NO SCORES YET'; }
     modal.classList.remove('hidden');
     document.getElementById('top5-close').onclick = () => modal.classList.add('hidden');
+  }
+
+  // ── Guide ───────────────────────────────────────────────────────────────────
+  _openGuide() {
+    const body = document.getElementById('guide-body');
+    if (body) {
+      body.innerHTML = `
+        <div><b>GAME FLOW</b><br>Play levels, survive, destroy asteroids and enemies, earn score and shmips.</div><br>
+        <div><b>IN-GAME BUTTONS</b><br>THRUST moves forward, SHOOT fires weapon, ROCKET launches rocket, FLARE destroys incoming rockets, SHIELD deploys one shield charge.</div><br>
+        <div><b>BOOSTS (STORE, ONE RUN)</b><br>Extra Life, Extra Flare, Run Shield, Run Rocket. Each can be bought once per round.</div><br>
+        <div><b>UPGRADES (PERMANENT)</b><br>MAGEN, PEW PEW 1.5, PEW PEW 3, JEW METHOD, KURWA RAKETA, ACE, ZEP ZEP ZEP, SHPLIT, TRIPPLE THREAT, LAZER PEW, SMART ROCKET, COLLECTOR.</div><br>
+        <div><b>JETS</b><br>STARTER JET: basic.<br>HAMUDI: more flares + rockets.<br>KILLAJET: faster fire + starts with shield.<br>VERY SCARY JET: strongest loadout + starts with shield.</div><br>
+        <div><b>MYSTERY ? REWARDS</b><br>Rapid fire, laser/super laser, life, shield, flare, rocket, one-shot damage boost, rare fireball.</div><br>
+        <div><b>NEW GREEN STAR</b><br>Very rare 3-second star pickup. Grants 10 seconds overdrive: strong green glow, 2-layer protection, purple lasers, and 2x fire rate.</div><br>
+        <div><b>ENEMIES</b><br>Asteroids split by size. Red fighters shoot and collide. Yellow aliens pass through objects, vanish quickly, and give high score. Orange homing rockets chase and explode.</div><br>
+        <div><b>SHPIN</b><br>Spin for shmips, boosts, skins, and upgrades. Dev account can also roll 1-hour x2/x3 multiplier rewards.</div>
+      `;
+    }
+    this._showScreen('guide');
   }
 
   // ── Arsenal ────────────────────────────────────────────────────────────────
@@ -2485,7 +2559,7 @@ class Game {
     // Jet info panel
     const jetNames = { starter:'STARTER JET', plane_hamud:'HAMUDI', plane_walla_yofi:'KILLAJET', plane_very_scary:'VERY SCARY JET' };
     const jetStats = {
-      starter:          '3 LIVES · 1 FLARE',
+      starter:          '2 LIVES · 1 FLARE',
       plane_hamud:      '3 LIVES · 2 FLARES · 2 ROCKETS',
       plane_walla_yofi: '3 LIVES · 3 FLARES · 3 ROCKETS · SHIELD · ×1.5 FIRE',
       plane_very_scary: '4 LIVES · 3 FLARES · 4 ROCKETS · SHIELD',
@@ -2625,8 +2699,9 @@ class Game {
     }
 
     let status = null;
+    const isAdmin = String(tid) === ADMIN_TID;
     try { status = await dbSpinStatus(tid); } catch { /* non-critical */ }
-    if (status?.available) {
+    if (isAdmin || status?.available) {
       btn.disabled = false; btn.style.opacity = '1'; timer.classList.add('hidden');
     } else if (status) {
       btn.disabled = true; btn.style.opacity = '0.4';
@@ -2693,10 +2768,17 @@ class Game {
     } catch { /* non-critical */ }
     this._loadMenu();
 
-    btn.disabled = true; btn.style.opacity = '0.4';
-    const timerEl = document.getElementById('spin-countdown');
-    timerEl.classList.remove('hidden');
-    this._startSpinCountdown(9 * 60 * 60 * 1000, timerEl);
+    const isAdmin = String(tid) === ADMIN_TID;
+    if (!isAdmin) {
+      btn.disabled = true; btn.style.opacity = '0.4';
+      const timerEl = document.getElementById('spin-countdown');
+      timerEl.classList.remove('hidden');
+      this._startSpinCountdown(9 * 60 * 60 * 1000, timerEl);
+    } else {
+      btn.disabled = false; btn.style.opacity = '1';
+      const timerEl = document.getElementById('spin-countdown');
+      timerEl.classList.add('hidden');
+    }
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────

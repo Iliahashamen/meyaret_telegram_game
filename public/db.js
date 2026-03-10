@@ -15,7 +15,7 @@ const HDR = {
 // Core fetch helper — throws on HTTP error with Supabase error message
 async function supa(path, opts = {}) {
   const url = `${SUPA_URL}/${path}`;
-  const res = await fetch(url, { cache: 'no-store', ...opts, headers: { ...HDR, ...opts.headers } });
+  const res = await fetch(url, { ...opts, headers: { ...HDR, ...opts.headers } });
   const text = await res.text();
   let body;
   try { body = JSON.parse(text); } catch { body = text; }
@@ -73,44 +73,48 @@ export const CATALOG = [
     description: '4 lives · 3 flares · 4 rockets · Shield', lives: 4, flares: 3, rockets: 4, shield: true },
 ];
 
-const ADMIN_TID = '1357754255';
-
-// ── Spin Wheel — 13 segments (12 normal + 1 admin multiplier) ─────────────────
+// ── Spin Wheel — 12 segments matching 5×5$$, 3×10$$, 1×25$$, BOOST, SKIN, MAGNTO ──
 export const SPIN_WHEEL_SEGMENTS = [
-  { label: '5 $$',   color: '#00ffcc', rewardGroup: 'cash_5'  },
-  { label: '10 $$',  color: '#ffcc00', rewardGroup: 'cash_10' },
-  { label: '5 $$',   color: '#00ddaa', rewardGroup: 'cash_5'  },
-  { label: '5 $$',   color: '#00ffcc', rewardGroup: 'cash_5'  },
-  { label: 'BOOST',  color: '#ff0077', rewardGroup: 'boost'   },
-  { label: '10 $$',  color: '#ffd700', rewardGroup: 'cash_10' },
-  { label: '5 $$',   color: '#00ddaa', rewardGroup: 'cash_5'  },
-  { label: 'SKIN',   color: '#8800ff', rewardGroup: 'skin'    },
-  { label: '5 $$',   color: '#00ffcc', rewardGroup: 'cash_5'  },
-  { label: '10 $$',  color: '#ffcc00', rewardGroup: 'cash_10' },
-  { label: '25 $$',  color: '#ff8800', rewardGroup: 'cash_25' },
-  { label: 'MAGNTO', color: '#00aaff', rewardGroup: 'magneto' },
-  { label: '2X $$',  color: '#00ff44', rewardGroup: 'x2_money'},
+  { label: '5 $$',  color: '#00ffcc', rewardGroup: 'cash_5'  },
+  { label: '10 $$', color: '#ffcc00', rewardGroup: 'cash_10' },
+  { label: '5 $$',  color: '#00ddaa', rewardGroup: 'cash_5'  },
+  { label: '5 $$',  color: '#00ffcc', rewardGroup: 'cash_5'  },
+  { label: 'BOOST', color: '#ff0077', rewardGroup: 'boost'   },
+  { label: '10 $$', color: '#ffd700', rewardGroup: 'cash_10' },
+  { label: '5 $$',  color: '#00ddaa', rewardGroup: 'cash_5'  },
+  { label: 'SKIN',  color: '#8800ff', rewardGroup: 'skin'    },
+  { label: '5 $$',  color: '#00ffcc', rewardGroup: 'cash_5'  },
+  { label: '10 $$', color: '#ffcc00', rewardGroup: 'cash_10' },
+  { label: '25 $$', color: '#ff8800', rewardGroup: 'cash_25' },
+  { label: 'MAGNTO',color: '#00aaff', rewardGroup: 'magneto' },
 ];
 
 const SPIN_REWARDS = [
-  { id: 'cash_5',   weight: 42, label: '5 $$',       type: 'shmips',       value: 5   },
-  { id: 'cash_10',  weight: 25, label: '10 $$',      type: 'shmips',       value: 10  },
-  { id: 'cash_25',  weight: 8,  label: '25 $$',      type: 'shmips',       value: 25  },
-  { id: 'boost',    weight: 10, label: 'BOOST',      type: 'boost_grant'               },
-  { id: 'skin',     weight: 8,  label: 'SKIN',       type: 'skin_grant'                },
-  { id: 'magneto',  weight: 7,  label: 'MAGNTO',     type: 'upgrade_grant', upgradeId: 'jew_method' },
-  { id: 'x2_money', weight: 0,  label: '2X $$ 1HR',  type: 'multiplier',   multiplier: 2 },
+  { id: 'cash_5',  weight: 42, label: '5 $$',  type: 'shmips',       value: 5  },
+  { id: 'cash_10', weight: 25, label: '10 $$', type: 'shmips',       value: 10 },
+  { id: 'cash_25', weight: 8,  label: '25 $$', type: 'shmips',       value: 25 },
+  { id: 'boost',   weight: 10, label: 'BOOST', type: 'boost_grant'              },
+  { id: 'skin',    weight: 8,  label: 'SKIN',  type: 'skin_grant'               },
+  { id: 'magneto', weight: 7,  label: 'MAGNTO',type: 'upgrade_grant', upgradeId: 'jew_method' },
 ];
 const COOLDOWN_MS = 9 * 60 * 60 * 1000;  // 9 hours
+const ADMIN_TID = '1357754255';
 
-function pickSpinReward() {
-  const total = SPIN_REWARDS.reduce((a, r) => a + r.weight, 0);
+function pickSpinReward(isAdmin = false) {
+  const pool = [...SPIN_REWARDS];
+  if (isAdmin) {
+    pool.push(
+      { id: 'dev_x2_1h', weight: 7, label: 'X2 SHMIPS 1H', type: 'multiplier', value: 2, hours: 1 },
+      { id: 'dev_x3_1h', weight: 3, label: 'X3 SHMIPS 1H', type: 'multiplier', value: 3, hours: 1 }
+    );
+  }
+  const total = pool.reduce((a, r) => a + r.weight, 0);
   let roll = Math.random() * total;
-  for (const r of SPIN_REWARDS) {
+  for (const r of pool) {
     roll -= r.weight;
     if (roll < 0) return r;
   }
-  return SPIN_REWARDS[0];
+  return pool[0];
 }
 
 // ── Get or create user ────────────────────────────────────────────────────────
@@ -270,13 +274,8 @@ export async function dbSaveScore(telegramId, score, level) {
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
 export async function dbGetLeaderboard() {
-  try {
-    const rows = await supa('leaderboard?select=nickname,best_score&limit=5');
-    return rows || [];
-  } catch {
-    const rows = await supa('users?select=nickname,best_score&order=best_score.desc&limit=5');
-    return (rows || []).filter(r => r.best_score > 0);
-  }
+  const rows = await supa('users?select=nickname,best_score&best_score=gt.0&order=best_score.desc&limit=5');
+  return rows || [];
 }
 
 // ── Personal scores ───────────────────────────────────────────────────────────
@@ -325,24 +324,13 @@ export async function dbDoSpin(telegramId) {
     }
   }
 
-  const reward = pickSpinReward();
-  const updates = { last_spin_at: now.toISOString() };
-  if (isAdmin) updates.last_spin_at = null;
+  const reward = pickSpinReward(isAdmin);
+  const updates = isAdmin ? {} : { last_spin_at: now.toISOString() };
   let grantedLabel = reward.label;
   let grantedUpgrade = null;
 
   if (reward.type === 'shmips') {
-    let amt = reward.value;
-    let mult = 1;
-    if (isAdmin) {
-      mult = Math.random() < 0.5 ? 2 : 3;
-      amt *= mult;
-      const oneHr = new Date(now.getTime() + 60 * 60 * 1000);
-      updates.multiplier_value = mult;
-      updates.multiplier_end = oneHr.toISOString();
-      grantedLabel = `$${amt} + ${mult}X POINTS 1HR!`;
-    }
-    updates.shmips = Math.round((Number(user.shmips) + amt) * 100) / 100;
+    updates.shmips = Math.round((Number(user.shmips) + reward.value) * 100) / 100;
 
   } else if (reward.type === 'boost_grant') {
     const boostPool = ['extra_life', 'extra_flare', 'extra_shield', 'extra_rocket'];
@@ -368,6 +356,11 @@ export async function dbDoSpin(telegramId) {
     const upItem = CATALOG.find(c => c.id === grantedUpgrade);
     grantedLabel = upItem?.name || grantedUpgrade;
     await _grantUpgrade(id, grantedUpgrade);
+  } else if (reward.type === 'multiplier') {
+    const end = new Date(now.getTime() + (reward.hours || 1) * 60 * 60 * 1000);
+    updates.multiplier_value = reward.value;
+    updates.multiplier_end = end.toISOString();
+    grantedLabel = `${reward.value}X SHMIPS FOR 1 HOUR`;
   }
 
   await supa(`users?telegram_id=eq.${id}`, {

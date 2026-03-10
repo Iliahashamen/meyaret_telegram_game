@@ -60,7 +60,7 @@
 
     <div id="multiplier-banner" class="hidden"></div>
     <button id="mute-btn" class="mute-btn" title="Volume">VOL HIGH</button>
-    <button id="btn-guide" class="guide-btn">GUIDE</button>
+    <button id="btn-guide" class="guide-btn" title="Guide">GUIDE</button>
   </div>
 
   <!-- Top 5 Themed Modal -->
@@ -70,69 +70,6 @@
       <div class="top5-title">TOP 5 PILOTS</div>
       <div id="top5-entries" class="top5-entries"></div>
       <button id="top5-close" class="btn-primary">OK</button>
-    </div>
-  </div>
-
-  <!-- Guide Screen -->
-  <div id="guide-screen" class="screen hidden">
-    <button class="back-btn" data-back="menu">BACK</button>
-    <div class="screen-title">GUIDE</div>
-    <div class="guide-body">
-
-      <div class="guide-section">CONTROLS</div>
-      <div class="guide-entry"><span class="ge-name">JOYSTICK</span><span class="ge-desc">Move and steer your jet. The nose always faces where you push.</span></div>
-      <div class="guide-entry"><span class="ge-name">FIRE</span><span class="ge-desc">Shoot bullets at enemies and asteroids. Hold to rapid-fire.</span></div>
-      <div class="guide-entry"><span class="ge-name">FLARE</span><span class="ge-desc">Launch a flare. Destroys incoming red rockets and orange homing missiles.</span></div>
-      <div class="guide-entry"><span class="ge-name">ROCKET</span><span class="ge-desc">Fire a player rocket. High damage, limited ammo.</span></div>
-      <div class="guide-entry"><span class="ge-name">SHIELD</span><span class="ge-desc">Deploy a shield. Blocks one hit. Must be activated manually.</span></div>
-
-      <div class="guide-section">ENEMIES</div>
-      <div class="guide-entry"><span class="ge-name">ASTEROID</span><span class="ge-desc">Core hazard. Comes in small, medium, and large sizes. Destroy all to advance to the next level.</span></div>
-      <div class="guide-entry"><span class="ge-name">RED FIGHTER</span><span class="ge-desc">Enemy jet. Shoots at you, can crash into rocks. Appears at level 7+. Limited to 3 shots per pass.</span></div>
-      <div class="guide-entry"><span class="ge-name">YELLOW ALIEN</span><span class="ge-desc">Fast swooper. Passes through objects. Does NOT harm you directly but distract. Disappears after 3 sec. Worth 1000 pts. Rare.</span></div>
-      <div class="guide-entry"><span class="ge-name">ORANGE ROCKET</span><span class="ge-desc">Homing missile. Chases you for 4 sec then explodes. Destroy with a flare or let it hit a rock.</span></div>
-
-      <div class="guide-section">PICKUPS</div>
-      <div class="guide-entry"><span class="ge-name">COIN $$</span><span class="ge-desc">Collect for +1 Shmip. Shmips are the in-game currency for the store.</span></div>
-      <div class="guide-entry"><span class="ge-name">? MYSTERY</span><span class="ge-desc">Random power-up. Can grant: Rapid Fire, Laser, +1 Life, +1 Shield, +1 Flare, +1 Rocket, 2X Damage, Fireball, or Super Laser.</span></div>
-      <div class="guide-entry"><span class="ge-name">GREEN STAR</span><span class="ge-desc">Very rare. Grants 10 sec POWER MODE: green glow, purple laser, x2 fire rate, double shield layer.</span></div>
-
-      <div class="guide-section">MYSTERY ? REWARDS</div>
-      <div class="guide-entry"><span class="ge-name">RAPID FIRE</span><span class="ge-desc">Fire rate x3 for a limited time.</span></div>
-      <div class="guide-entry"><span class="ge-name">LASER</span><span class="ge-desc">Replace bullets with a laser beam temporarily.</span></div>
-      <div class="guide-entry"><span class="ge-name">SUPER LASER</span><span class="ge-desc">If you already have LAZER PEW upgrade — turns into a giant pink beam.</span></div>
-      <div class="guide-entry"><span class="ge-name">2X DAMAGE</span><span class="ge-desc">One-shot everything for a limited time.</span></div>
-      <div class="guide-entry"><span class="ge-name">FIREBALL</span><span class="ge-desc">5% chance. Press FIRE to launch a mega ball — wipes ALL enemies and asteroids on screen.</span></div>
-
-      <div class="guide-section">JETS</div>
-      <div class="guide-entry"><span class="ge-name">STARTER JET</span><span class="ge-desc">2 lives, 1 flare, no rockets. Your default ship.</span></div>
-      <div class="guide-entry"><span class="ge-name">HAMUDI</span><span class="ge-desc">3 lives, 2 flares, 2 rockets. More firepower.</span></div>
-      <div class="guide-entry"><span class="ge-name">KILLAJET</span><span class="ge-desc">3 lives, 3 flares, 3 rockets, 1 SHIELD, x1.5 fire rate. Starts with a shield.</span></div>
-      <div class="guide-entry"><span class="ge-name">VERY SCARY JET</span><span class="ge-desc">4 lives, 3 flares, 4 rockets, 1 SHIELD. The ultimate jet.</span></div>
-
-      <div class="guide-section">UPGRADES (PERMANENT)</div>
-      <div class="guide-entry"><span class="ge-name">MAGEN</span><span class="ge-desc">Always start every run with a shield charge.</span></div>
-      <div class="guide-entry"><span class="ge-name">PEW PEW 1.5</span><span class="ge-desc">Fire rate x1.5. Stacks with PEW PEW 3.</span></div>
-      <div class="guide-entry"><span class="ge-name">PEW PEW 3</span><span class="ge-desc">Fire rate x3. Combine with PEW PEW 1.5 for x4.5.</span></div>
-      <div class="guide-entry"><span class="ge-name">JEW METHOD</span><span class="ge-desc">Strong magnet. Pulls coins and mystery pickups toward you.</span></div>
-      <div class="guide-entry"><span class="ge-name">KURWA RAKETA</span><span class="ge-desc">+2 rockets permanently every run.</span></div>
-      <div class="guide-entry"><span class="ge-name">ACE</span><span class="ge-desc">Gain +1 life each time you destroy an enemy jet.</span></div>
-      <div class="guide-entry"><span class="ge-name">ZEP ZEP ZEP</span><span class="ge-desc">Gain +1 rocket each time you destroy a yellow alien.</span></div>
-      <div class="guide-entry"><span class="ge-name">SHPLIT</span><span class="ge-desc">Shoots 2 parallel bullet streams.</span></div>
-      <div class="guide-entry"><span class="ge-name">TRIPPLE THREAT</span><span class="ge-desc">Shoots in 3 spread directions. Combine with SHPLIT for 6 bullets.</span></div>
-      <div class="guide-entry"><span class="ge-name">LAZER PEW</span><span class="ge-desc">Replace bullets with lasers. Combine with SHPLIT/TRIPPLE for multi-laser.</span></div>
-      <div class="guide-entry"><span class="ge-name">SMART ROCKET</span><span class="ge-desc">Your rockets track and home into targets.</span></div>
-      <div class="guide-entry"><span class="ge-name">COLLECTOR</span><span class="ge-desc">Shoot coins and mystery pickups to collect them from a distance.</span></div>
-
-      <div class="guide-section">STORE BOOSTS (PER RUN)</div>
-      <div class="guide-entry"><span class="ge-name">EXTRA LIFE</span><span class="ge-desc">+1 life for this run only. One purchase per game.</span></div>
-      <div class="guide-entry"><span class="ge-name">EXTRA FLARE</span><span class="ge-desc">+1 flare for this run only. One purchase per game.</span></div>
-      <div class="guide-entry"><span class="ge-name">RUN SHIELD</span><span class="ge-desc">+1 shield charge for this run only. One purchase per game.</span></div>
-      <div class="guide-entry"><span class="ge-name">RUN ROCKET</span><span class="ge-desc">+1 rocket for this run only. One purchase per game.</span></div>
-
-      <div class="guide-section">SHPIN</div>
-      <div class="guide-entry"><span class="ge-name">SHPIN</span><span class="ge-desc">CS:GO-style case opening. Available every 9 hours. Win Shmips, skins, boosts, or the magnet upgrade.</span></div>
-
     </div>
   </div>
 
@@ -207,6 +144,13 @@
     <div id="store-msg" class="store-msg hidden"></div>
   </div>
 
+  <!-- Guide Screen -->
+  <div id="guide-screen" class="screen hidden">
+    <button class="back-btn" data-back="menu">BACK</button>
+    <div class="screen-title">GUIDE</div>
+    <div id="guide-body" class="guide-body"></div>
+  </div>
+
   <!-- Game Canvas -->
   <canvas id="game-canvas"></canvas>
 
@@ -244,23 +188,7 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <!-- Guide Screen -->
-  <div id="guide-screen" class="screen hidden">
-    <button class="back-btn" data-back="menu">BACK</button>
-    <div class="screen-title">MEYARET GUIDE</div>
-    <div id="guide-content" class="guide-content">
-      <section><h3>HOW TO PLAY</h3><p>Fly your jet, shoot asteroids and enemies, collect coins and mystery pickups. Survive levels to score higher. Use flares to deflect rockets, shield to block hits, and rockets for heavy damage.</p></section>
-      <section><h3>CONTROLS</h3><p>JOYSTICK: Move and aim your jet. FIRE: Shoot. FLARE: Deflect incoming rockets. ROCKET: Launch homing missile. SHIELD: Deploy protection (when you have charges).</p></section>
-      <section><h3>STORE — BOOSTS (per run)</h3><p>EXTRA LIFE: +1 life for one game. EXTRA FLARE: +1 flare. RUN SHIELD: +1 shield charge. RUN ROCKET: +1 rocket. Max 1 of each per game.</p></section>
-      <section><h3>STORE — UPGRADES (permanent)</h3><p>MAGEN: Start with a shield. PEW PEW 1.5 / 3: Faster fire. JEW METHOD: Magnet for coins. KURWA RAKETA: +2 rockets. ACE: +1 life per jet killed. ZEP ZEP ZEP: +1 rocket per alien. SHPLIT: Double bullets. TRIPPLE THREAT: Triple spread. LAZER PEW: Laser beams. SMART ROCKET: Homing rockets. COLLECTOR: Bullets collect $ and ?.</p></section>
-      <section><h3>JETS</h3><p>STARTER: 2 lives, 1 flare. HAMUDI: 3 lives, 2 flares, 2 rockets, wings. KILLAJET: 3 lives, 3 flares, 3 rockets, shield, x1.5 fire. VERY SCARY JET: 4 lives, 3 flares, 4 rockets, shield.</p></section>
-      <section><h3>? MYSTERY REWARDS</h3><p>RAPID FIRE, LASER, +1 LIFE, +1 SHIELD, +1 FLARE, +1 ROCKET, 2X DAMAGE, or FIREBALL (rare — nuke everything).</p></section>
-      <section><h3>GREEN STAR (rare)</h3><p>Glowing green star spawns every 3–5 min. Collect for: +2 shield, glowing green jet, purple lasers, x2 fire rate, 10 seconds.</p></section>
-      <section><h3>ENEMIES</h3><p>ASTEROIDS: Break into smaller pieces. RED JETS: Shoot and dive at you. YELLOW ALIENS: Swoop and vanish after 3 sec (1000 pts). ORANGE ROCKETS: Home in on you, deflect with flare or destroy.</p></section>
-    </div>
-  </div>
-
-  <script type="module" src="sounds.js?v=20250311b"></script>
-  <script type="module" src="game.js?v=20250311b"></script>
+  <script type="module" src="sounds.js?v=20250310d"></script>
+  <script type="module" src="game.js?v=20250310d"></script>
 </body>
 </html>
