@@ -9,6 +9,7 @@ import {
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem,
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
+  dbDevReset,
   SPIN_WHEEL_SEGMENTS,
 } from './db.js';
 
@@ -1656,6 +1657,9 @@ class Game {
 
   // ── Start Game ─────────────────────────────────────────────────────────────
   async _startGame() {
+    try { this._doStartGame(); } catch(e) { console.error('[_startGame]', e); alert('LAUNCH ERROR: ' + e.message); }
+  }
+  _doStartGame() {
     SFX.thrustStop(); this._wasThrusting = false;
     this.score=0; this.level=1; this.tick=0;
     this.asteroids=[]; this.bullets=[]; this.enemyBullets=[];
@@ -1731,6 +1735,7 @@ class Game {
 
     if (this.userData?.has_golden_plane) ups.golden_plane = true;
 
+    if (!this.upgrades) this.upgrades = {};
     this.ship = new Ship(this.W/2, this.H/2, ups);
     _updateShieldHUD(this.ship.shieldCharges);
     this._spawnAsteroids(this.level);

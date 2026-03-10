@@ -395,7 +395,7 @@ async function _grantUpgrade(id, upgradeId) {
 }
 
 // ── Dev/Admin reset — wipes upgrades, gives 30k shmips, keeps scores ──────────
-async function dbDevReset(telegramId) {
+export async function dbDevReset(telegramId) {
   await supa(`user_upgrades?telegram_id=eq.${telegramId}`, { method: 'DELETE' });
   await supa(`users?telegram_id=eq.${telegramId}`, {
     method: 'PATCH',
