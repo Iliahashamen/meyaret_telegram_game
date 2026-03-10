@@ -1490,8 +1490,8 @@ class Game {
     if (muteBtn) {
       const applyVolUi = (mode) => {
         muteBtn.classList.toggle('low', mode==='low'); muteBtn.classList.toggle('muted', mode==='mute');
-        const icon = mode==='high'?'VOL':mode==='low'?'LOW':'MUTE';
-        muteBtn.textContent = `${icon} ${mode.toUpperCase()}`; muteBtn.title = `Volume: ${mode}`;
+        const labels = { high: 'VOL HIGH', low: 'VOL LOW', mute: 'VOL MUTE' };
+        muteBtn.textContent = labels[mode] || 'VOL HIGH'; muteBtn.title = `Volume: ${mode}`;
       };
       applyVolUi(SFX.getVolumeMode());
       muteBtn.addEventListener('click', () => applyVolUi(SFX.cycleVolume()));
@@ -1618,11 +1618,7 @@ class Game {
   }
 
   async _loadLeaderboard() {
-    try {
-      const rows = await dbGetLeaderboard();
-      const entries = rows.map((e,i) => `${i+1}.${e.nickname} ${Number(e.best_score).toLocaleString()}`).join('  ·  ');
-      document.getElementById('lb-entries').textContent = entries || '—';
-    } catch { /* non-critical */ }
+    // leaderboard data is only shown in the top-5 modal (on demand)
   }
 
   async _loadSpinTimer() {

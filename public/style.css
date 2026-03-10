@@ -221,26 +221,24 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 /* Profile badge top-right */
 .profile-badge {
   position: fixed; top: calc(10px + var(--safe-top)); right: calc(10px + var(--safe-right));
-  display: flex; flex-direction: column; align-items: flex-end;
+  display: flex; flex-direction: column; align-items: center;
   background: rgba(7,0,15,0.88); border: var(--px) solid var(--border-c);
-  padding: 6px 10px; color: var(--cyan); font-size: 8px; letter-spacing: 1px;
-  cursor: pointer; z-index: 100; text-align: right; line-height: 2;
-  box-shadow: 2px 2px 0 #00ffcc22;
+  padding: 6px 12px; color: var(--cyan); font-size: 8px; letter-spacing: 1px;
+  cursor: pointer; z-index: 100; text-align: center; line-height: 2;
+  box-shadow: 2px 2px 0 #00ffcc22; min-width: 70px;
 }
 .profile-badge:active { border-color: var(--cyan); }
 .shmips-count { color: var(--yellow); text-shadow: var(--glow-y); margin-top: 2px; font-size: 8px; line-height: 2; }
 
-/* Leaderboard strip top-left */
+/* Top-5 button top-left */
 #leaderboard-strip {
   position: fixed; top: calc(10px + var(--safe-top)); left: calc(10px + var(--safe-left));
-  font-size: 7px; letter-spacing: 1px; color: var(--muted2);
-  max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  background: rgba(7,0,15,0.88); border: var(--px) solid var(--border-m);
-  padding: 5px 8px; line-height: 2; box-shadow: 2px 2px 0 #ff007722;
-  font-family: var(--font); text-align: left; cursor: pointer;
+  font-size: 8px; letter-spacing: 2px; color: var(--yellow); text-shadow: var(--glow-y);
+  background: rgba(7,0,15,0.88); border: var(--px) solid var(--border-y);
+  padding: 6px 12px; line-height: 2; box-shadow: 2px 2px 0 #ffee0022;
+  font-family: var(--font); cursor: pointer; white-space: nowrap; z-index: 100;
 }
-.lb-label, #lb-entries { pointer-events: none; }
-.lb-label { color: var(--yellow); text-shadow: var(--glow-y); margin-right: 4px; font-size: 7px; letter-spacing: 1px; }
+#leaderboard-strip:active { border-color: var(--cyan); }
 
 /* Multiplier banner */
 #multiplier-banner {
