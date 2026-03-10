@@ -441,14 +441,17 @@ bot.callbackQuery('gift_cancel', async (ctx) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
-  const webhookPath = `/bot${process.env.TELEGRAM_BOT_TOKEN}`;
+  const WEBHOOK_BASE = process.env.WEBHOOK_URL.trim();           // strip newlines/spaces
+  const BOT_TOKEN    = process.env.TELEGRAM_BOT_TOKEN.trim();
+  const webhookPath  = `/bot${BOT_TOKEN}`;
   app.use(webhookPath, webhookCallback(bot, 'express'));
 
   app.listen(PORT, async () => {
     console.log(`[server] Listening on port ${PORT}`);
     console.log(`[server] Public dir: ${PUBLIC_DIR}`);
-    await bot.api.setWebhook(`${process.env.WEBHOOK_URL}${webhookPath}`);
-    console.log('[bot] Webhook set');
+    const fullUrl = `${WEBHOOK_BASE}${webhookPath}`;
+    await bot.api.setWebhook(fullUrl);
+    console.log('[bot] Webhook set →', fullUrl);
     await setMenuButton();
   });
 } else {
