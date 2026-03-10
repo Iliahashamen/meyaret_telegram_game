@@ -1526,8 +1526,9 @@ class Game {
     const kmap = { ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
                    ArrowUp:'up', KeyW:'up', Space:'fire', KeyF:'flare', ShiftLeft:'flare',
                    KeyR:'rocket', KeyE:'shield' };
-    window.addEventListener('keydown', e => { const k=kmap[e.code]; if(k){this.keys[k]=true; e.preventDefault();} });
-    window.addEventListener('keyup',   e => { const k=kmap[e.code]; if(k) this.keys[k]=false; });
+    const isTyping = () => ['INPUT','TEXTAREA'].includes(document.activeElement?.tagName);
+    window.addEventListener('keydown', e => { if(isTyping()) return; const k=kmap[e.code]; if(k){this.keys[k]=true; e.preventDefault();} });
+    window.addEventListener('keyup',   e => { if(isTyping()) return; const k=kmap[e.code]; if(k) this.keys[k]=false; });
 
     const joyBase = document.getElementById('vjoy-base');
     const joyKnob = document.getElementById('vjoy-knob');
