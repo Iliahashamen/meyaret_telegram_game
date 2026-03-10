@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310i';
+import { SFX } from './sounds.js?v=20250310j';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -10,7 +10,7 @@ import {
   dbGetUserUpgrades, dbBuyItem,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
-} from './db.js?v=20250310i';
+} from './db.js?v=20250310j';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -2602,20 +2602,257 @@ class Game {
 
   // ── Guide ───────────────────────────────────────────────────────────────────
   _openGuide() {
-    const body = document.getElementById('guide-body');
-    if (body) {
-      body.innerHTML = `
-        <div><b>GAME FLOW</b><br>Play levels, survive, destroy asteroids and enemies, earn score and shmips.</div><br>
-        <div><b>IN-GAME BUTTONS</b><br>THRUST moves forward, SHOOT fires weapon, ROCKET launches rocket, FLARE destroys incoming rockets, SHIELD deploys one shield charge.</div><br>
-        <div><b>BOOSTS (STORE, ONE RUN)</b><br>Extra Life, Extra Flare, Run Shield, Run Rocket. Each can be bought once per round.</div><br>
-        <div><b>UPGRADES (PERMANENT)</b><br>MAGEN, PEW PEW 1.5, PEW PEW 3, JEW METHOD, KURWA RAKETA, ACE, ZEP ZEP ZEP, SHPLIT, TRIPPLE THREAT, LAZER PEW, SMART ROCKET, COLLECTOR.</div><br>
-        <div><b>JETS</b><br>STARTER JET: basic.<br>HAMUDI: more flares + rockets.<br>KILLAJET: faster fire + starts with shield.<br>VERY SCARY JET: strongest loadout + starts with shield.</div><br>
-        <div><b>MYSTERY ? REWARDS</b><br>Rapid fire, laser/super laser, life, shield, flare, rocket, one-shot damage boost, rare fireball.</div><br>
-        <div><b>NEW GREEN STAR</b><br>Very rare 3-second star pickup. Grants 10 seconds overdrive: strong green glow, 2-layer protection, purple lasers, and 2x fire rate.</div><br>
-        <div><b>ENEMIES</b><br>Asteroids split by size. Red fighters shoot and collide. Yellow aliens pass through objects, vanish quickly, and give high score. Orange homing rockets chase and explode.</div><br>
-        <div><b>DAILY GIFT</b><br>Opens every 4 hours. Rewards range from 10-50 shmips, one-run boosts, or a rare random skin (7% chance). Already own the skin? Get its value in shmips instead.</div>
-      `;
-    }
+    const GUIDE_TABS = [
+      { id: 'basics',   label: 'BASICS'   },
+      { id: 'controls', label: 'CONTROLS' },
+      { id: 'enemies',  label: 'ENEMIES'  },
+      { id: 'upgrades', label: 'UPGRADES' },
+      { id: 'gear',     label: 'GEAR'     },
+      { id: 'tips',     label: 'TIPS'     },
+    ];
+
+    const GUIDE_CONTENT = {
+      basics: `
+        <div class="guide-section">
+          <span class="guide-h1">SURVIVAL MODE</span>
+          <div class="guide-row">No levels. No end. Survive as long as possible and grind for your best score. The longer you play, the harder it gets — more enemies, bigger asteroids, faster rockets.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">SCORING</span>
+          <div class="guide-row">Small asteroid — <b>100 pts</b></div>
+          <div class="guide-row">Medium asteroid — <b>50 pts</b></div>
+          <div class="guide-row">Large asteroid — <b>20 pts</b></div>
+          <div class="guide-row">Red Fighter jet — <b>200 pts</b></div>
+          <div class="guide-row">Yellow Alien — <b>1,000 pts</b></div>
+          <div class="guide-row">Score doubles in real-time if the SCORE x2 boost is active.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">SHMIPS ($$)</span>
+          <div class="guide-row">The in-game currency. Earn $$ by collecting glowing coin pickups during runs. Spend in the STORE to buy upgrades, jets, skins, and one-run boosts. Check your total in PROFILE.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">DIFFICULTY RAMP</span>
+          <div class="guide-row">0–50s &nbsp;— Asteroids only. Easy start.</div>
+          <div class="guide-row">50s+ &nbsp;&nbsp;— Yellow Aliens appear occasionally.</div>
+          <div class="guide-row">100s+ &nbsp;— Orange Homing Rockets join in.</div>
+          <div class="guide-row">3 min+ &nbsp;— Red Fighter Jets spawn.</div>
+          <div class="guide-row">4 min+ &nbsp;— Max chaos. Everything, all at once.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">HUD — READING THE SCREEN</span>
+          <div class="guide-row"><b>Top-left</b> — Your score and elapsed time (MM:SS). A small x2 badge appears when the score boost is active.</div>
+          <div class="guide-row"><b>Below score</b> — LIVES triangles (max 5 shown, extras listed as +N).</div>
+          <div class="guide-row"><b>Top-right</b> — Three always-visible counters: FLARE / ROCKET / SHIELD. They dim to grey when empty.</div>
+        </div>`,
+
+      controls: `
+        <div class="guide-section">
+          <span class="guide-h1">JOYSTICK (LEFT SIDE)</span>
+          <div class="guide-row">Push in any direction to rotate and thrust your jet toward that direction. Release to coast with momentum. The jet always points where the joystick is pointing.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">SHOOT BUTTON</span>
+          <div class="guide-row">Large button, bottom-right. Hold it down to fire continuously. Fire rate depends on your jet type and purchased upgrades. What it shoots depends on your weapons:</div>
+          <div class="guide-row"><b>Standard</b> — Fast red bullets, straight ahead.</div>
+          <div class="guide-row"><b>SHPLIT upgrade</b> — Two parallel bullet lines from each side of the jet.</div>
+          <div class="guide-row"><b>TRIPPLE THREAT upgrade</b> — Three spread bullets covering a wide cone.</div>
+          <div class="guide-row"><b>LAZER PEW upgrade</b> — Continuous pink laser beams instead of bullets. Long range.</div>
+          <div class="guide-row"><b>LAZER + TRIPPLE</b> — Three pink lasers simultaneously. Maximum coverage.</div>
+          <div class="guide-row"><b>? Rapid Fire pickup</b> — Temporarily triples your fire rate for a few seconds.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">ROCKET BUTTON</span>
+          <div class="guide-row">Launches a glowing orange homing missile from your jet. It auto-tracks the nearest enemy and chases it until impact or timeout. Ammo shown top-right. The SMART ROCKET upgrade makes it fly until it hits something.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">FLARE BUTTON</span>
+          <div class="guide-row">Releases decoy flares behind your jet with a sparkle animation. <b>Instantly destroys any Orange Homing Rocket</b> that is chasing you. Limited ammo shown top-right. If you have none, the button shows NO FLARES.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">SHIELD BUTTON</span>
+          <div class="guide-row">Activates a force field around your jet that blocks all damage for a moment. One charge consumed per use. Charges shown top-right. The MAGEN upgrade gives you a free charge at the start of every run.</div>
+        </div>`,
+
+      enemies: `
+        <div class="guide-section">
+          <span class="guide-h1">ASTEROIDS</span>
+          <div class="guide-row">Grey rocky obstacles that drift across the screen. They spin slowly and wrap around screen edges.</div>
+          <div class="guide-row"><b>Large</b> (big) — Hit once → splits into 2 Medium chunks. <span class="guide-cost">20 pts</span></div>
+          <div class="guide-row"><b>Medium</b> — Hit once → splits into 2 Small pieces. <span class="guide-cost">50 pts</span></div>
+          <div class="guide-row"><b>Small</b> (tiny) — One hit destroys it completely. <span class="guide-cost">100 pts</span></div>
+          <div class="guide-row">They spawn more frequently and grow larger the longer you survive. Red Fighters that crash into asteroids destroy both.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">RED FIGHTER JET <span class="guide-tag danger">3 MIN+</span></span>
+          <div class="guide-row">A hostile red jet that locks onto your position and gives chase. Has <b>3 HP</b> — takes 3 hits to destroy.</div>
+          <div class="guide-row"><b>Combat:</b> Fires a 4-shot burst at you, then reloads for 3 seconds before firing again. Its shots are fast and aimed directly at where you are.</div>
+          <div class="guide-row"><b>Ramming:</b> If it collides with an asteroid, both the fighter and the asteroid are destroyed at once.</div>
+          <div class="guide-row">Worth <span class="guide-cost">200 pts</span>. The ACE upgrade gives you +1 life for every fighter you kill.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">YELLOW ALIEN <span class="guide-tag rare">RARE</span> <span class="guide-tag danger">50 SEC+</span></span>
+          <div class="guide-row">A bright yellow entity that zips across the screen at speed. Rare — spawns occasionally. <b>Passes through asteroids</b> without interacting with them.</div>
+          <div class="guide-row">It only exists for <b>3 seconds</b> before vanishing on its own. One shot to kill.</div>
+          <div class="guide-row">Worth a huge <span class="guide-cost">1,000 pts</span> — the highest score of any single enemy. The ZEP ZEP ZEP upgrade gives you +1 rocket for every alien killed.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">ORANGE HOMING ROCKET <span class="guide-tag danger">100 SEC+</span></span>
+          <div class="guide-row">An orange rocket that launches from the screen edge, locks onto your position, and pursues you for up to <b>7 seconds</b>. After that it detonates in a blast regardless of where it is.</div>
+          <div class="guide-row"><b>Counter:</b> Deploy a FLARE — the rocket homes onto the flare instead and explodes harmlessly.</div>
+          <div class="guide-row"><b>Asteroid kill:</b> It will also die if it collides with an asteroid.</div>
+          <div class="guide-row">Gets more frequent and slightly faster as your game time increases. Multiple can be active at once late-game.</div>
+        </div>`,
+
+      upgrades: `
+        <div class="guide-section">
+          <span class="guide-h1">PERMANENT UPGRADES</span>
+          <div class="guide-row">Bought once in STORE > UPGRADES. Active every single run forever. Stack and combine for powerful synergies.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">MAGEN <span class="guide-cost">800 $$</span></span>
+          <div class="guide-row">You start every run with 1 free shield charge pre-loaded. Basically a guaranteed free shield each game without buying a boost.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">PEW PEW 1.5 <span class="guide-cost">600 $$</span></span>
+          <div class="guide-row">Fire rate increased by 50%. Your gun shoots noticeably faster. <b>Stacks</b> with PEW PEW 3 if you own both.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">PEW PEW 3 <span class="guide-cost">1,500 $$</span></span>
+          <div class="guide-row">Triple fire rate. Already fast? Own both PEW PEW 1.5 and PEW PEW 3 for a combined <b>×4.5</b> fire rate. Absolutely shreds asteroids.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">JEW METHOD <span class="guide-cost">900 $$</span> — Magnet</span>
+          <div class="guide-row">All coins ($$) and Mystery boxes (?) are pulled toward your jet from much further away. You barely need to aim for pickups. Makes shmip farming significantly faster.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">KURWA RAKETA <span class="guide-cost">1,200 $$</span></span>
+          <div class="guide-row">Start every run with <b>2 extra rockets</b>. More rockets means more homing firepower on demand.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">ACE <span class="guide-cost">1,800 $$</span></span>
+          <div class="guide-row">Earn <b>+1 life</b> every time you destroy a Red Fighter jet. High-risk high-reward — hunting fighters refills your lives.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">ZEP ZEP ZEP <span class="guide-cost">1,400 $$</span></span>
+          <div class="guide-row">Earn <b>+1 rocket</b> every time you kill a Yellow Alien. Encourages hunting those rare yellow flashes for a constant rocket supply.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">SHPLIT <span class="guide-cost">1,000 $$</span></span>
+          <div class="guide-row">Your bullets split into <b>2 parallel lines</b> fired from the left and right sides of your jet instead of one central stream. Covers more horizontal width.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">TRIPPLE THREAT <span class="guide-cost">1,600 $$</span></span>
+          <div class="guide-row">Fire in <b>3 spread directions</b> simultaneously — one straight ahead, one angled left, one angled right. Covers a wide cone. Combines with SHPLIT for 6 bullet lines. With LAZER PEW: 3 pink lasers.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">LAZER PEW <span class="guide-cost">2,000 $$</span></span>
+          <div class="guide-row"><b>Replaces bullets</b> with long-range pink laser beams. Continuous fire, bigger hit range, and looks incredible. Add TRIPPLE THREAT for <b>3 pink lasers at once</b> — the most powerful weapon combo in the game.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">SMART ROCKET <span class="guide-cost">2,200 $$</span></span>
+          <div class="guide-row">Your homing rockets fly until they hit something — they never self-destruct from timeout. Better tracking arc. A rocket is guaranteed to find a target.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">COLLECTOR <span class="guide-cost">1,100 $$</span></span>
+          <div class="guide-row">Shoot at distant coins or mystery boxes to collect them without flying over them. Great for grabbing pickups that are near enemies or far away.</div>
+        </div>`,
+
+      gear: `
+        <div class="guide-section">
+          <span class="guide-h1">JETS</span>
+          <div class="guide-row">Buy in STORE > JETS. Equip in ARSENAL. Your jet determines starting lives, flares, rockets and special abilities.</div>
+          <div class="guide-row" style="margin-top:8px"><b>STARTER JET</b> <span class="guide-tag good">FREE</span><br>2 lives · 1 flare. Clean and simple. Perfect for learning the game.</div>
+          <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">3,000 $$</span><br>3 lives · 2 flares · 2 rockets. Bigger wings, better loadout. An honest upgrade from Starter.</div>
+          <div class="guide-row"><b>KILLAJET</b> <span class="guide-cost">6,500 $$</span><br>3 lives · 3 flares · 3 rockets · starts with SHIELD · ×1.5 fire rate. The aggressive choice. Fires faster than anything and starts shielded.</div>
+          <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">11,000 $$</span><br>4 lives · 3 flares · 4 rockets · starts with SHIELD. The tank. Maximum survivability, most ammo, best for long survival runs.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">SKINS</span>
+          <div class="guide-row">Buy in STORE > SKINS. Equip in ARSENAL. Changes your jet's color and glow. Pure cosmetic — no gameplay effect.</div>
+          <div class="guide-row">Special skins: <b>BEAST</b> = animated rainbow hull. <b>ACID</b> = fast colour-cycling psychedelic glow. <b>SILVER SURFER</b> = icy silver-blue chrome.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">STORE BOOSTS</span>
+          <div class="guide-row">One-time use per run. Buy in STORE > BOOSTS. Applied at the start of the next game, then consumed.</div>
+          <div class="guide-row"><b>Extra Life</b> <span class="guide-cost">10 $$</span> — +1 life for that run.</div>
+          <div class="guide-row"><b>Extra Flare</b> <span class="guide-cost">5 $$</span> — +1 flare for that run.</div>
+          <div class="guide-row"><b>Run Shield</b> <span class="guide-cost">10 $$</span> — 1 shield charge for that run.</div>
+          <div class="guide-row"><b>Run Rocket</b> <span class="guide-cost">15 $$</span> — +1 rocket for that run.</div>
+          <div class="guide-row"><b>SCORE x2</b> <span class="guide-cost">80 $$</span> — Every point earned is doubled in real-time for the entire run. A small x2 badge appears on the HUD. Best used on a serious score attempt.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">MYSTERY BOX ?</span>
+          <div class="guide-row">White glowing boxes that spawn from destroyed asteroids or appear randomly. Fly through them to collect (or shoot them with COLLECTOR upgrade). Random reward each time:</div>
+          <div class="guide-row">• Rapid Fire x3 — triples your fire rate briefly</div>
+          <div class="guide-row">• Laser beam — temporary pink laser</div>
+          <div class="guide-row">• Super Laser — if you already have a laser, makes it a larger pink beam</div>
+          <div class="guide-row">• Extra Life — +1 life immediately</div>
+          <div class="guide-row">• Shield charge — instant shield</div>
+          <div class="guide-row">• Flare — +1 flare ammo</div>
+          <div class="guide-row">• Rocket — +1 rocket ammo</div>
+          <div class="guide-row">• Double Damage — your next few shots one-shot anything</div>
+          <div class="guide-row">• <span class="guide-tag rare">RARE</span> FIREBALL — a single massive shot. You see "FIREBALL READY" — press SHOOT and a giant ball erupts, then detonates into fragments that destroy everything nearby.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">GREEN STAR <span class="guide-tag rare">VERY RARE</span></span>
+          <div class="guide-row">A rare green glowing star pickup. Grants <b>10 seconds of OVERDRIVE</b>: your jet glows bright green, gains a 2-layer green shield, fires purple laser beams, and your fire rate doubles. The most powerful temporary state in the game.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">DAILY GIFT</span>
+          <div class="guide-row">Tap GIFT in the main menu. Available every <b>4 hours</b> for everyone. A mystery box animates open, then a glowing reward is revealed:</div>
+          <div class="guide-row">• 10–50 shmips (most common)</div>
+          <div class="guide-row">• A random one-run boost</div>
+          <div class="guide-row">• <span class="guide-tag rare">7% chance</span> A random skin — if you already own it, you get its full shmip value instead.</div>
+        </div>`,
+
+      tips: `
+        <div class="guide-section">
+          <span class="guide-h1">SURVIVAL TIPS</span>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> Keep moving at all times. A stationary jet is an easy target.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> Save at least one FLARE for Orange Rockets — they will catch you if you run out.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> Yellow Aliens are 1,000 pts each. A quick detour to kill one is always worth it.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> Mystery boxes respawn. Loop the map to collect them after clearing an area.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> Use SHIELD to tank through tight multi-enemy situations — not just as a last resort.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> SCORE x2 boost doubles all score in real-time. Use it on your best run attempt for a massive high score.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">BEST UPGRADE COMBOS</span>
+          <div class="guide-row"><b>LAZER PEW + TRIPPLE THREAT</b> — 3 pink laser beams, the highest DPS weapon combo.</div>
+          <div class="guide-row"><b>MAGEN + VERY SCARY JET</b> — Shield + 4 lives. Near-unkillable for the first few minutes.</div>
+          <div class="guide-row"><b>ACE + ZEP ZEP ZEP</b> — Killing Red Fighters gives lives, killing Aliens gives rockets. Aggressive play refills all your resources.</div>
+          <div class="guide-row"><b>JEW METHOD + COLLECTOR</b> — Everything flies to you and you can grab from range. Never miss a pickup.</div>
+          <div class="guide-row"><b>PEW PEW 1.5 + PEW PEW 3</b> — Combined ×4.5 fire rate. Bullets become a solid wall of damage.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">SCORE TIPS</span>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> Small asteroids give the most points per hit (100pts). Break big ones down fast.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> Combine SCORE x2 boost with long survival — points scale exponentially as enemies get harder.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> Hunting Red Fighters (200pts each) and Yellow Aliens (1,000pts each) is key for top scores.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> The FIREBALL from ? boxes can clear an entire screen of enemies at once — huge point swing.</div>
+        </div>`,
+    };
+
+    const tabsEl = document.getElementById('guide-tabs');
+    const body   = document.getElementById('guide-body');
+    if (!tabsEl || !body) { this._showScreen('guide'); return; }
+
+    // Render tab buttons
+    tabsEl.innerHTML = GUIDE_TABS.map(t =>
+      `<button class="gtab${t.id==='basics'?' active':''}" data-gtab="${t.id}">${t.label}</button>`
+    ).join('');
+
+    const showTab = (id) => {
+      tabsEl.querySelectorAll('.gtab').forEach(b => b.classList.toggle('active', b.dataset.gtab === id));
+      body.innerHTML = GUIDE_CONTENT[id] || '';
+      body.scrollTop = 0;
+    };
+
+    tabsEl.addEventListener('click', e => {
+      const tab = e.target.closest('[data-gtab]');
+      if (tab) { SFX.btnClick?.(); showTab(tab.dataset.gtab); }
+    });
+
+    showTab('basics');
     this._showScreen('guide');
   }
 
