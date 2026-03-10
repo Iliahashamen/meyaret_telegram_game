@@ -72,7 +72,7 @@ const CFG = {
   asteroidSizes: { large: 42, medium: 21, small: 10 },
   asteroidScores: { large: 20, medium: 50, small: 100 },
   enemyRedScore:    200,
-  enemyYellowScore: 150,
+  enemyYellowScore: 1000,
   maxBullets:   6,
   respawnMs:    2400,
   invincibleMs: 3000,
@@ -157,7 +157,7 @@ class Ship {
     this.jetType = upgrades.jetType || 'starter';
 
     // Lives — capped at CFG.maxLivesBase for upgrade-based starting lives
-    const baseLives = { starter: 3, plane_hamud: 3, plane_walla_yofi: 3, plane_very_scary: 4 }[this.jetType] || 3;
+    const baseLives = { starter: 2, plane_hamud: 3, plane_walla_yofi: 3, plane_very_scary: 4 }[this.jetType] || 2;
     const extraLife = Math.min(upgrades.extra_life || 0, 1); // max 1 boost/game
     this.maxLives = Math.min(baseLives + extraLife, CFG.maxLivesBase);
     this.lives    = this.maxLives;
@@ -219,11 +219,13 @@ class Ship {
     this.tempRapidUntil      = 0;
     this.tempPowerBoostUntil = 0;
     this.fireballReady       = false;
+    this.spawnProtection     = 120; // 2 seconds at 60fps — immune to damage on spawn
     this.bobTimer = 0;
   }
 
   update(keys, W, H) {
     this.bobTimer++;
+    if (this.spawnProtection > 0) this.spawnProtection--;
     if (this.invincible) {
       this.invTimer--; this.blinkTimer++;
       if (this.invTimer <= 0) this.invincible = false;
@@ -294,6 +296,15 @@ class Ship {
       this._drawVeryScary(ctx, col, sz);
     } else {
       this._drawStarter(ctx, col, sz);
+    }
+
+    // Spawn protection ring (fades out over 2 seconds)
+    if (this.spawnProtection > 0) {
+      const alpha = this.spawnProtection / 120;
+      ctx.strokeStyle = `rgba(0,255,200,${alpha * 0.7})`;
+      glow(ctx, '#00ffcc', 14 * alpha);
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, sz + 12, 0, TAU); ctx.stroke();
     }
 
     // Shield ring
@@ -522,7 +533,10 @@ class Ship {
   }
 
   useFlare(rockets, particles, orangeRockets) {
-    if (this.flares <= 0) return;
+    if (this.flares <= 0) {
+      new FloatingText(this.x, this.y - 30, 'NO FLARES!', '#ff6600');
+      return;
+    }
     this.flares--;
     SFX.flare();
     for (let i = rockets.length - 1; i >= 0; i--) {
@@ -539,7 +553,7 @@ class Ship {
   }
 
   hit(particles) {
-    if (this.invincible) return false;
+    if (this.invincible || this.spawnProtection > 0) return false;
     if (this.shieldUp) {
       this.shieldUp = false;
       this.invincible = true;
@@ -635,7 +649,7 @@ class Fireball {
     if (this.life <= 0 && !this.exploded) this.exploded = true;
   }
   draw(ctx) {
-    const pct  = 1 - this.life / 60; // 0→1 as fuse counts down
+    const pct  = 1 - this.life / 60;
     const r    = this.radius * (1 + Math.sin(this.pulse * 0.35) * 0.12);
     ctx.save();
     // Outer aura
@@ -714,8 +728,8 @@ class RedFighter {
     this.angle = 0;
     this.speed  = 1.2;
     this.shootTimer = 0;
-    this.shootRate  = 200;
-    this.shotsLeft = 3;
+    this.shootRate  = 350; // slower firing
+    this.shotsLeft = 2;   // fewer shots per fighter
     this.health = 3;
     this.radius = 14;
     this.bobTimer = 0;
@@ -767,8 +781,8 @@ class YellowAlien {
     this.vx = Math.cos(ang) * rng(0.8, 1.5);
     this.vy = Math.sin(ang) * rng(0.8, 1.5);
     this.angle = 0;
-    this.lifeTimer = 0; this.maxLife = 720;
-    this.swoops = 0; this.health = 2;
+    this.lifeTimer = 0; this.maxLife = 180; // 3 seconds then vanish
+    this.swoops = 0; this.health = 1; // one-shot
     this.radius = 16; this.bobTimer = 0;
     this.dead = false;
   }
@@ -786,7 +800,7 @@ class YellowAlien {
       if (this.x < 60)     this.vx =  Math.abs(this.vx);
       if (this.x > W - 60) this.vx = -Math.abs(this.vx);
     }
-    this.dead = this.swoops >= 2 || this.lifeTimer > this.maxLife;
+    this.dead = this.lifeTimer > this.maxLife; // vanish after 3s
   }
   draw(ctx) {
     ctx.save();
@@ -871,7 +885,7 @@ class Rocket {
     this.x = x; this.y = y;
     this.vx = Math.cos(angle) * CFG.rocketSpeed;
     this.vy = Math.sin(angle) * CFG.rocketSpeed;
-    this.angle = angle; this.life = 300; this.radius = 5;
+    this.angle = angle; this.life = 180; this.radius = 5; // 3-second max life
     this.tailTimer = 0; this._expired = false;
   }
   update(W, H) {
@@ -900,7 +914,7 @@ class PlayerRocket {
     this.vx = Math.cos(angle) * 3;
     this.vy = Math.sin(angle) * 3;
     this.angle = angle;
-    this.life = smart ? 2400 : 180; // smart rocket lives 40s
+    this.life = smart ? 2400 : 180;
     this.radius = 5;
     this.isPlayerRocket = true;
     this._hit = false;
@@ -930,7 +944,7 @@ class OrangeHomingRocket {
     this.vx = 0; this.vy = 0;
     this.speed = 2.2;
     this.lifeTimer = 0;
-    this.fuseTime = 180; // 3 seconds
+    this.fuseTime = 240; // 4 seconds
     this.radius = 9;
     this.dead = false;
     this._exploded = false;
@@ -1116,31 +1130,75 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
 }
 
-// ── Spin Wheel ────────────────────────────────────────────────────────────────
-function drawSpinWheel(canvas, rotation) {
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const cx = W/2, cy = H/2, r = W/2 - 8;
-  ctx.clearRect(0,0,W,H);
-  const n = SPIN_WHEEL_SEGMENTS.length;
+// ── Case Reel (CS:GO style) ───────────────────────────────────────────────────
+const CASE_CARD_W = 70;
+const CASE_WIN_POS = 50; // which card index holds the winning reward
 
-  SPIN_WHEEL_SEGMENTS.forEach((seg, i) => {
-    const start = rotation + (TAU/n)*i;
-    const end   = start + TAU/n;
-    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,start,end); ctx.closePath();
-    ctx.fillStyle = '#0a0a1e'; ctx.fill();
-    glow(ctx, seg.color, 8); ctx.strokeStyle = seg.color; ctx.lineWidth = 2; ctx.stroke();
-    ctx.save(); ctx.translate(cx,cy); ctx.rotate(start+TAU/n/2);
-    ctx.fillStyle = seg.color; ctx.font = 'bold 10px "Courier New"'; ctx.textAlign = 'center';
-    ctx.fillText(seg.label, r*0.62, 4);
-    ctx.restore();
+function _buildCaseReelCards(winSegIdx) {
+  // Generate 70 cards, place winning segment at CASE_WIN_POS
+  const cards = [];
+  for (let i = 0; i < 70; i++) {
+    const idx = i === CASE_WIN_POS
+      ? winSegIdx
+      : Math.floor(Math.random() * SPIN_WHEEL_SEGMENTS.length);
+    cards.push(idx);
+  }
+  return cards;
+}
+
+function _renderCaseReel(cards) {
+  const reel = document.getElementById('case-reel');
+  if (!reel) return;
+  reel.innerHTML = '';
+  reel.style.transform = 'translateX(0px)';
+  cards.forEach((segIdx, i) => {
+    const seg = SPIN_WHEEL_SEGMENTS[segIdx];
+    const el = document.createElement('div');
+    el.className = 'case-card' + (i === CASE_WIN_POS ? ' case-win' : '');
+    el.innerHTML = `<div class="cc-icon" style="color:${seg.color};text-shadow:0 0 8px ${seg.color}">${_caseCardIcon(seg.rewardGroup)}</div><div class="cc-label" style="color:${seg.color}">${seg.label}</div>`;
+    reel.appendChild(el);
   });
+}
 
-  glow(ctx,'#ffffff',10); ctx.fillStyle='#ffffff';
-  ctx.beginPath(); ctx.moveTo(cx,4); ctx.lineTo(cx-7,18); ctx.lineTo(cx+7,18); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='#0a0a1e'; ctx.strokeStyle='#ffffff'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.arc(cx,cy,16,0,TAU); ctx.fill(); ctx.stroke();
-  ctx.shadowBlur=0;
+function _caseCardIcon(group) {
+  const icons = { cash_5:'$', cash_10:'$$', cash_25:'$$$', boost:'*', skin:'~', magneto:'M' };
+  return icons[group] || '?';
+}
+
+function _animateCaseReel(containerEl, winPos, duration = 5000) {
+  return new Promise(resolve => {
+    const containerW = containerEl.clientWidth || 340;
+    const centerX = containerW / 2;
+    // Winning card center in reel coords
+    const winCenter = winPos * CASE_CARD_W + CASE_CARD_W / 2;
+    // Add a small random offset so it doesn't always land dead-center
+    const jitter = (Math.random() - 0.5) * (CASE_CARD_W * 0.5);
+    const finalX = centerX - winCenter + jitter;
+    const startX = centerX - CASE_CARD_W / 2; // card 0 centered at start
+
+    const reel = document.getElementById('case-reel');
+    reel.style.transform = `translateX(${startX}px)`;
+
+    let startTime = null;
+    // Decelerate with quintic ease-out
+    const easeOut = t => 1 - Math.pow(1 - t, 5);
+
+    let lastTick = 0;
+    function frame(ts) {
+      if (!startTime) startTime = ts;
+      const t = Math.min((ts - startTime) / duration, 1);
+      const eased = easeOut(t);
+      const current = startX + (finalX - startX) * eased;
+      reel.style.transform = `translateX(${current}px)`;
+      // Tick sound proportional to speed (more at start, none at end)
+      const speed = Math.abs((finalX - startX) * (1 - eased));
+      if (speed > 40 && ts - lastTick > 80) { SFX.spinTick(); lastTick = ts; }
+      else if (speed > 15 && ts - lastTick > 200) { SFX.spinTick(); lastTick = ts; }
+      if (t < 1) requestAnimationFrame(frame);
+      else resolve();
+    }
+    requestAnimationFrame(frame);
+  });
 }
 
 // ── Main Game Class ───────────────────────────────────────────────────────────
@@ -1641,12 +1699,12 @@ class Game {
     }
 
     // Spawn enemies
-    const alienInterval = Math.max(600 - this.level * 20, 300);
+    const alienInterval = Math.max(1200 - this.level * 25, 600); // rarer — one every 10-20s
     const redInterval   = Math.max(1400 - this.level * 25, 600);
     this.yellowAlienTimer++;
     if (this.yellowAlienTimer > alienInterval && this.level >= 3) {
       this.yellowAlienTimer = 0;
-      if (this.yellowAliens.length < 1 + Math.floor(this.level/4)) {
+      if (this.yellowAliens.length < 1) { // max 1 alien on screen at a time
         const{x,y} = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
@@ -2298,16 +2356,24 @@ class Game {
     } catch(err){ errEl.textContent = err.message||'Error. Try again.'; }
   }
 
-  // ── SHPIN ─────────────────────────────────────────────────────────────────
+  // ── SHPIN (CS:GO case opening) ────────────────────────────────────────────
   async _openSpin() {
     this._showScreen('spin');
-    this._wheelRot = 0;
-    const spinCanvas = document.getElementById('spin-canvas');
-    drawSpinWheel(spinCanvas, 0);
 
-    const tid = TG_USER?.id || this.userData?.telegram_id;
+    // Render a static preview reel
+    const previewCards = _buildCaseReelCards(0);
+    _renderCaseReel(previewCards);
+    // Scroll to middle of reel so it looks populated
+    const reel = document.getElementById('case-reel');
+    const outer = document.getElementById('case-reel-outer');
+    const containerW = outer?.clientWidth || 340;
+    reel.style.transform = `translateX(${containerW / 2 - 5 * CASE_CARD_W - CASE_CARD_W / 2}px)`;
+
+    const tid   = TG_USER?.id || this.userData?.telegram_id;
     const btn   = document.getElementById('spin-btn');
     const timer = document.getElementById('spin-countdown');
+    const result = document.getElementById('spin-result');
+    result.classList.add('hidden');
 
     if (!tid) {
       btn.disabled = true; btn.style.opacity = '0.4';
@@ -2338,9 +2404,9 @@ class Game {
   }
 
   async _doSpin() {
-    const btn        = document.getElementById('spin-btn');
-    const result     = document.getElementById('spin-result');
-    const spinCanvas = document.getElementById('spin-canvas');
+    const btn    = document.getElementById('spin-btn');
+    const result = document.getElementById('spin-result');
+    const outer  = document.getElementById('case-reel-outer');
     btn.disabled = true; result.classList.add('hidden');
 
     if (OFFLINE_MODE) {
@@ -2351,7 +2417,7 @@ class Game {
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (!tid) { result.textContent = 'OPEN VIA TELEGRAM'; result.classList.remove('hidden'); btn.disabled = false; return; }
 
-    // Fetch reward DIRECTLY from Supabase (no Railway delay)
+    // Fetch reward from Supabase
     let data = null;
     try {
       data = await dbDoSpin(tid);
@@ -2367,30 +2433,15 @@ class Game {
     const reward = data?.reward;
     if (!reward) return;
 
-    // Animate to the EXACT segment that was rewarded.
-    // Pointer is at the TOP of the wheel = angle -TAU/4 in canvas coords,
-    // so subtract TAU/4 to align the segment center with the pointer.
+    // Build reel with winning segment at CASE_WIN_POS, then animate
     const segIdx = reward.segmentIndex ?? 0;
-    const n = SPIN_WHEEL_SEGMENTS.length;
-    const finalRot = TAU * (6 + Math.random() * 4) - (segIdx + 0.5) * (TAU / n) - TAU / 4;
-
-    let gone = 0, rot = 0, speed = 0.04, lastTickRot = 0;
-    const tickEvery = TAU / n;
-    await new Promise(resolve => {
-      const frame = () => {
-        gone += speed; rot += speed;
-        if (gone < finalRot * 0.3)      speed = Math.min(speed + 0.018, 0.42);
-        else if (gone > finalRot * 0.7) speed = Math.max(speed * 0.975, 0.008);
-        if (rot - lastTickRot >= tickEvery) { lastTickRot = rot; SFX.spinTick(); }
-        drawSpinWheel(spinCanvas, rot);
-        if (gone < finalRot || speed > 0.009) requestAnimationFrame(frame);
-        else resolve();
-      };
-      requestAnimationFrame(frame);
-    });
+    const cards  = _buildCaseReelCards(segIdx);
+    _renderCaseReel(cards);
+    await _animateCaseReel(outer, CASE_WIN_POS, 5000);
 
     result.textContent = `YOU GOT: ${reward.label}!`;
     result.classList.remove('hidden');
+    SFX.shmipEarn && SFX.shmipEarn();
 
     // Refresh user data
     try {
@@ -2402,7 +2453,7 @@ class Game {
     btn.disabled = true; btn.style.opacity = '0.4';
     const timerEl = document.getElementById('spin-countdown');
     timerEl.classList.remove('hidden');
-    this._startSpinCountdown(6 * 60 * 60 * 1000, timerEl);
+    this._startSpinCountdown(9 * 60 * 60 * 1000, timerEl);
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────

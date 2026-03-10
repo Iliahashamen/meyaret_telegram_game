@@ -112,12 +112,15 @@
     <button id="arsenal-open-store" class="btn-primary">OPEN STORE</button>
   </div>
 
-  <!-- SHPIN Screen -->
+  <!-- SHPIN Screen (CS:GO case opening) -->
   <div id="spin-screen" class="screen hidden">
     <button class="back-btn" data-back="menu">BACK</button>
     <div class="screen-title">SHPIN</div>
-    <div id="spin-wheel-wrap">
-      <canvas id="spin-canvas" width="300" height="300"></canvas>
+    <div id="case-opening-wrap">
+      <div class="case-center-line"></div>
+      <div id="case-reel-outer">
+        <div id="case-reel"></div>
+      </div>
     </div>
     <button id="spin-btn" class="btn-primary btn-big">SHPIN!</button>
     <div id="spin-countdown" class="spin-timer hidden"></div>

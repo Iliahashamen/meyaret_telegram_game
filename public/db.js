@@ -94,7 +94,7 @@ const SPIN_REWARDS = [
   { id: 'skin',    weight: 8,  label: 'SKIN',  type: 'skin_grant'               },
   { id: 'magneto', weight: 7,  label: 'MAGNTO',type: 'upgrade_grant', upgradeId: 'jew_method' },
 ];
-const COOLDOWN_MS = 6 * 60 * 60 * 1000;  // 6 hours
+const COOLDOWN_MS = 9 * 60 * 60 * 1000;  // 9 hours
 
 function pickSpinReward() {
   const total = SPIN_REWARDS.reduce((a, r) => a + r.weight, 0);

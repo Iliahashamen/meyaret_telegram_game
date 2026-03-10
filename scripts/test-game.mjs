@@ -256,9 +256,9 @@ async function testSpin() {
     assert(rows[0].last_spin_at, 'last_spin_at not set');
   });
 
-  await test('Spin cooldown correctly detected (6h window)', async () => {
+  await test('Spin cooldown correctly detected (9h window)', async () => {
     const rows = await supa(`users?telegram_id=eq.${TEST_ID}&select=last_spin_at`);
-    const COOLDOWN_MS = 6 * 60 * 60 * 1000;
+    const COOLDOWN_MS = 9 * 60 * 60 * 1000;
     const next = new Date(new Date(rows[0].last_spin_at).getTime() + COOLDOWN_MS);
     assert(Date.now() < next, 'Expected spin to be on cooldown');
   });
@@ -378,9 +378,9 @@ async function testCatalog() {
 async function testGameConfig() {
   console.log('\n  8. Game config sanity');
 
-  await test('Spin cooldown is 6 hours', () => {
-    const COOLDOWN_MS = 6 * 60 * 60 * 1000;
-    assert(COOLDOWN_MS === 21_600_000, 'Cooldown is not 6 hours');
+  await test('Spin cooldown is 9 hours', () => {
+    const COOLDOWN_MS = 9 * 60 * 60 * 1000;
+    assert(COOLDOWN_MS === 32_400_000, 'Cooldown is not 9 hours');
   });
 
   await test('CFG-style constants are in valid ranges', () => {
