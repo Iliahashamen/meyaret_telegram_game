@@ -184,7 +184,7 @@ bot.command('gift', async (ctx) => {
   try {
     const { data: users, error } = await supabase
       .from('users')
-      .select('telegram_id, nickname, shmips')
+      .select('telegram_id, nickname, tele_name, shmips')
       .order('nickname');
     if (error) throw error;
     if (!users?.length) return ctx.reply('No players registered yet.');
@@ -197,16 +197,21 @@ bot.command('gift', async (ctx) => {
     for (let i = 0; i < shown.length; i += 2) {
       const row = [];
       const a = shown[i];
-      row.push({ text: `${a.nickname} (${Number(a.shmips).toFixed(0)}$$)`, callback_data: `gift1_${a.telegram_id}` });
+      const aLabel = a.tele_name ? `${a.tele_name} / ${a.nickname}` : a.nickname;
+      row.push({ text: `${aLabel} (${Number(a.shmips).toFixed(0)}$$)`, callback_data: `gift1_${a.telegram_id}` });
       if (shown[i + 1]) {
         const b = shown[i + 1];
-        row.push({ text: `${b.nickname} (${Number(b.shmips).toFixed(0)}$$)`, callback_data: `gift1_${b.telegram_id}` });
+        const bLabel = b.tele_name ? `${b.tele_name} / ${b.nickname}` : b.nickname;
+        row.push({ text: `${bLabel} (${Number(b.shmips).toFixed(0)}$$)`, callback_data: `gift1_${b.telegram_id}` });
       }
       keyboard.push(row);
     }
     keyboard.push([{ text: 'CANCEL', callback_data: 'gift_cancel' }]);
 
-    const list = shown.map((u, i) => `${i + 1}. *${u.nickname}* — ${Number(u.shmips).toFixed(0)} $$`).join('\n');
+    const list = shown.map((u, i) => {
+      const tele = u.tele_name ? ` _(${u.tele_name})_` : '';
+      return `${i + 1}. *${u.nickname}*${tele} — ${Number(u.shmips).toFixed(0)} $$`;
+    }).join('\n');
     await ctx.reply(
       `*ADMIN — GIFT ${GIFT_AMOUNT} SHMIPS*\n\n${list}${users.length > 50 ? `\n_(+ ${users.length - 50} more)_` : ''}\n\nTap a pilot to gift them, or gift everyone:`,
       { parse_mode: 'Markdown', reply_markup: { inline_keyboard: keyboard } },
@@ -290,20 +295,25 @@ bot.callbackQuery(/^gift1_(.+)$/, async (ctx) => {
     // Refresh the message so balances stay up to date
     const { data: allUsers } = await supabase
       .from('users')
-      .select('telegram_id, nickname, shmips')
+      .select('telegram_id, nickname, tele_name, shmips')
       .order('nickname');
     const shown = (allUsers || []).slice(0, 50);
-    const list  = shown.map((u, i) => `${i + 1}. *${u.nickname}* — ${Number(u.shmips).toFixed(0)} $$`).join('\n');
+    const list  = shown.map((u, i) => {
+      const tele = u.tele_name ? ` _(${u.tele_name})_` : '';
+      return `${i + 1}. *${u.nickname}*${tele} — ${Number(u.shmips).toFixed(0)} $$`;
+    }).join('\n');
     const keyboard = [
       [{ text: `GIFT ALL ${(allUsers||[]).length} PILOTS (+${GIFT_AMOUNT} shmips)`, callback_data: 'gift_all' }],
     ];
     for (let i = 0; i < shown.length; i += 2) {
       const row = [];
       const a = shown[i];
-      row.push({ text: `${a.nickname} (${Number(a.shmips).toFixed(0)}$$)`, callback_data: `gift1_${a.telegram_id}` });
+      const aLabel = a.tele_name ? `${a.tele_name} / ${a.nickname}` : a.nickname;
+      row.push({ text: `${aLabel} (${Number(a.shmips).toFixed(0)}$$)`, callback_data: `gift1_${a.telegram_id}` });
       if (shown[i + 1]) {
         const b = shown[i + 1];
-        row.push({ text: `${b.nickname} (${Number(b.shmips).toFixed(0)}$$)`, callback_data: `gift1_${b.telegram_id}` });
+        const bLabel = b.tele_name ? `${b.tele_name} / ${b.nickname}` : b.nickname;
+        row.push({ text: `${bLabel} (${Number(b.shmips).toFixed(0)}$$)`, callback_data: `gift1_${b.telegram_id}` });
       }
       keyboard.push(row);
     }

@@ -7,7 +7,12 @@ const dbGuard = (_req, res, next) => DB_OK ? next() : res.status(503).json({ err
 
 // GET /api/users/me  — fetch or auto-create the calling user's profile
 usersRouter.get('/me', dbGuard, requireTelegramAuth, async (req, res) => {
-  const tid = req.telegramUserId;
+  const tid  = req.telegramUserId;
+  const tgUser = req.telegramUser || {};
+  // Build a readable Telegram display name: "@username" or "First Last"
+  const teleName = tgUser.username
+    ? `@${tgUser.username}`
+    : [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || null;
 
   let { data: user, error } = await supabase
     .from('users')
@@ -19,7 +24,7 @@ usersRouter.get('/me', dbGuard, requireTelegramAuth, async (req, res) => {
     // User does not exist yet — create with defaults
     const { data: newUser, error: createErr } = await supabase
       .from('users')
-      .insert({ telegram_id: tid, nickname: 'ACE' })
+      .insert({ telegram_id: tid, nickname: 'ACE', tele_name: teleName })
       .select()
       .single();
 
@@ -28,6 +33,12 @@ usersRouter.get('/me', dbGuard, requireTelegramAuth, async (req, res) => {
   }
 
   if (error) return res.status(500).json({ error: error.message });
+
+  // Keep tele_name in sync every login (Telegram name can change)
+  if (teleName && teleName !== user.tele_name) {
+    await supabase.from('users').update({ tele_name: teleName }).eq('telegram_id', tid);
+    user.tele_name = teleName;
+  }
 
   // Fetch user's upgrades
   const { data: upgrades } = await supabase
