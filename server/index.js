@@ -173,8 +173,64 @@ bot.command('help', (ctx) =>
   ),
 );
 
-// ── Admin Gift Command ─────────────────────────────────────────────────────────
+// ── Admin Tools ───────────────────────────────────────────────────────────────
 const ADMIN_ID = 1357754255;
+
+bot.command('tools', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.reply('Access denied.');
+
+  await ctx.reply(
+    '*MEYARET — ADMIN TOOLS*',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'OPEN GAME', web_app: { url: GAME_URL } }],
+          [{ text: 'GIFT SHMIPS', callback_data: 'tools_gift' }],
+        ],
+      },
+    },
+  );
+});
+
+bot.callbackQuery('tools_gift', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText(
+    '*ADMIN — GIFT SHMIPS*\n\nHow many shmips do you want to send?',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '50 Shmips',  callback_data: 'gamt_50'  },
+            { text: '250 Shmips', callback_data: 'gamt_250' },
+          ],
+          [{ text: 'BACK', callback_data: 'tools_back' }],
+        ],
+      },
+    },
+  );
+});
+
+bot.callbackQuery('tools_back', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText(
+    '*MEYARET — ADMIN TOOLS*',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'OPEN GAME', web_app: { url: GAME_URL } }],
+          [{ text: 'GIFT SHMIPS', callback_data: 'tools_gift' }],
+        ],
+      },
+    },
+  );
+});
+
+// ── Admin Gift Command ─────────────────────────────────────────────────────────
 
 // Build the player-list message + keyboard for a given amount
 async function buildGiftScreen(amount, note = '') {
@@ -215,7 +271,7 @@ async function buildGiftScreen(amount, note = '') {
   return { text, keyboard, users };
 }
 
-// Step 1 — /gift → pick amount
+// Step 1 — /gift → pick amount (also reachable from /tools)
 bot.command('gift', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.reply('Access denied.');
   if (!supabase) return ctx.reply('DB not connected.');
@@ -268,7 +324,7 @@ bot.callbackQuery('gift_pick', async (ctx) => {
             { text: '50 Shmips',  callback_data: 'gamt_50'  },
             { text: '250 Shmips', callback_data: 'gamt_250' },
           ],
-          [{ text: 'CANCEL', callback_data: 'gift_cancel' }],
+          [{ text: 'BACK', callback_data: 'tools_back' }],
         ],
       },
     },
@@ -360,11 +416,22 @@ bot.callbackQuery(/^g1_(\d+)_(.+)$/, async (ctx) => {
   }
 });
 
-// Cancel
+// Cancel — return to tools menu
 bot.callbackQuery('gift_cancel', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery();
   await ctx.answerCallbackQuery('Cancelled.');
-  await ctx.editMessageText('Gift cancelled.');
+  await ctx.editMessageText(
+    '*MEYARET — ADMIN TOOLS*',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'OPEN GAME', web_app: { url: GAME_URL } }],
+          [{ text: 'GIFT SHMIPS', callback_data: 'tools_gift' }],
+        ],
+      },
+    },
+  );
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
