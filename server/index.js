@@ -19,6 +19,8 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Security & Middleware ──────────────────────────────────────────────────────
+// Trust Railway's reverse proxy so express-rate-limit can read X-Forwarded-For
+app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 // CORS: allow GitHub Pages, Telegram WebView, and localhost.
 // Security is enforced by HMAC initData validation in auth.js, not origin.
