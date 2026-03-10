@@ -2279,22 +2279,29 @@ class Game {
     const grid = document.getElementById('store-items');
     grid.innerHTML = '';
     (this._catalog || []).filter(item => item.category === category).forEach(item => {
-      const owned = !item.stackable && (this.upgrades[item.id]||0) > 0;
-      const qty   = this.upgrades[item.id] || 0;
+      const qty = this.upgrades[item.id] || 0;
+      // Boosts: locked once 1 is owned (max 1 per round).
+      // Upgrades/skins/jets: locked once owned (non-stackable only).
+      const locked = item.category === 'boost'
+        ? qty >= 1
+        : (!item.stackable && qty > 0);
       const el = document.createElement('div'); el.className = 'store-item';
       const colorDot = (item.category==='skin' && item.color && item.color!=='rainbow' && item.color!=='acid')
         ? `<span style="display:inline-block;width:10px;height:10px;background:${item.color};border-radius:50%;margin-right:4px;vertical-align:middle;"></span>`
         : '';
+      const btnLabel = locked
+        ? (item.category === 'boost' ? 'READY' : 'OWNED')
+        : 'BUY';
       el.innerHTML = `
         <div class="store-item-info">
-          <div class="store-item-name">${colorDot}${item.name}${item.stackable && qty>0?' (×'+qty+')':''}</div>
+          <div class="store-item-name">${colorDot}${item.name}</div>
           <div class="store-item-desc">${item.description}</div>
         </div>
         <span class="store-item-cost">${item.cost} $$</span>
-        <button class="store-buy-btn${owned?' owned':''}" data-id="${item.id}">
-          ${owned ? 'OWNED' : 'BUY'}
+        <button class="store-buy-btn${locked ? ' owned' : ''}" data-id="${item.id}">
+          ${btnLabel}
         </button>`;
-      if (!owned) el.querySelector('button').addEventListener('click', () => this._buyItem(item));
+      if (!locked) el.querySelector('button').addEventListener('click', () => this._buyItem(item));
       grid.appendChild(el);
     });
   }
