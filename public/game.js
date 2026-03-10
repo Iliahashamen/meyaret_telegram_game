@@ -101,9 +101,9 @@ function rainbowColor(t, speed = 1) {
   return `hsl(${h}, 100%, 60%)`;
 }
 function acidColor(t) {
-  const h = (t * 0.12) % 360;
+  const h = (t * 0.45) % 360;
   const s = 100;
-  const l = 50 + 15 * Math.sin(t * 0.07);
+  const l = 50 + 18 * Math.sin(t * 0.25);
   return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
@@ -171,17 +171,17 @@ class Ship {
     this.shieldCharges = (upgrades.magen ? 1 : 0) + Math.min(upgrades.extra_shield || 0, 1);
     this.shieldUp      = false; // must be deployed manually
 
-    // Weapon modes
+    // Weapon modes — all stackable
     this.hasLaser  = !!(upgrades.lazer_pew);
-    this.hasShplit = !!(upgrades.shplit) && !upgrades.tripple_threat;
-    this.hasTripple= !!(upgrades.tripple_threat);
+    this.hasShplit  = !!(upgrades.shplit);
+    this.hasTripple = !!(upgrades.tripple_threat);
 
-    // Fire rate
+    // Fire rate — stack both multipliers if both owned (x1.5 * x3 = x4.5)
     const baseFireRate = { starter: 22, plane_hamud: 22, plane_walla_yofi: 15, plane_very_scary: 22 }[this.jetType] || 22;
-    if (upgrades.pew_pew_3)      this.fireRate = Math.floor(baseFireRate / 3);
-    else if (upgrades.pew_pew_15) this.fireRate = Math.floor(baseFireRate / 1.5);
-    else                          this.fireRate = baseFireRate;
-    this.fireRate = Math.max(this.fireRate, 4);
+    let rateDiv = 1;
+    if (upgrades.pew_pew_15) rateDiv *= 1.5;
+    if (upgrades.pew_pew_3)  rateDiv *= 3;
+    this.fireRate = Math.max(Math.floor(baseFireRate / rateDiv), 4);
 
     // Rockets
     const baseRockets = { starter: 0, plane_hamud: 2, plane_walla_yofi: 3, plane_very_scary: 4 }[this.jetType] || 0;
@@ -216,6 +216,7 @@ class Ship {
     this.fireCooldown = 0;
     this.thrusting    = false;
     this.tempLaserUntil      = 0;
+    this.tempPinkBeamUntil   = 0;
     this.tempRapidUntil      = 0;
     this.tempPowerBoostUntil = 0;
     this.fireballReady       = false;
@@ -411,40 +412,86 @@ class Ship {
   }
 
   _drawVeryScary(ctx, col, sz) {
-    // Wide fuselage
-    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    const purp = this.skinColor || '#bb44ff';
+
+    // Engine glow aura
+    glow(ctx, purp, 22);
+    ctx.strokeStyle = purp + '44'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.arc(0, sz * 0.3, sz * 0.45, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Delta-body fill
+    ctx.fillStyle = purp + '22';
     ctx.beginPath();
-    ctx.moveTo(0, -sz);
-    ctx.lineTo(sz * 0.6, sz * 0.4);
-    ctx.lineTo(sz * 0.3, sz * 0.65);
-    ctx.lineTo(0, sz * 0.4);
-    ctx.lineTo(-sz * 0.3, sz * 0.65);
-    ctx.lineTo(-sz * 0.6, sz * 0.4);
-    ctx.closePath();
-    ctx.stroke();
-    // Swept wings
-    ctx.lineWidth = 1.5;
+    ctx.moveTo(0, -sz * 1.05);
+    ctx.lineTo(sz * 0.55, sz * 0.35);
+    ctx.lineTo(0, sz * 0.55);
+    ctx.lineTo(-sz * 0.55, sz * 0.35);
+    ctx.closePath(); ctx.fill();
+
+    // Main fuselage outline
+    glow(ctx, purp, 14);
+    ctx.strokeStyle = purp; ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(-sz * 0.6, sz * 0.4);
-    ctx.lineTo(-sz * 1.3, sz * 0.55);
-    ctx.lineTo(-sz * 0.7, sz * 0.7);
-    ctx.stroke();
+    ctx.moveTo(0, -sz * 1.05);
+    ctx.lineTo(sz * 0.55, sz * 0.35);
+    ctx.lineTo(sz * 0.22, sz * 0.6);
+    ctx.lineTo(0, sz * 0.45);
+    ctx.lineTo(-sz * 0.22, sz * 0.6);
+    ctx.lineTo(-sz * 0.55, sz * 0.35);
+    ctx.closePath(); ctx.stroke();
+
+    // Spine line
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#ffffff66';
     ctx.beginPath();
-    ctx.moveTo(sz * 0.6, sz * 0.4);
-    ctx.lineTo(sz * 1.3, sz * 0.55);
-    ctx.lineTo(sz * 0.7, sz * 0.7);
+    ctx.moveTo(0, -sz * 1.05); ctx.lineTo(0, sz * 0.45);
     ctx.stroke();
-    // Rocket pods on wings
-    const podCol = this.skinColor || '#bb44ff';
-    glow(ctx, podCol, 10);
-    ctx.strokeStyle = podCol; ctx.lineWidth = 1.2;
+
+    // Swept delta wings (very wide)
+    glow(ctx, purp, 10);
+    ctx.strokeStyle = purp; ctx.lineWidth = 1.8;
     [-1, 1].forEach(side => {
-      const wx = side * sz * 0.95, wy = sz * 0.48;
       ctx.beginPath();
-      ctx.moveTo(wx, wy - sz * 0.18); ctx.lineTo(wx + side * sz * 0.12, wy + sz * 0.1); ctx.lineTo(wx - side * sz * 0.06, wy + sz * 0.1);
+      ctx.moveTo(side * sz * 0.55, sz * 0.35);
+      ctx.lineTo(side * sz * 1.55, sz * 0.65);
+      ctx.lineTo(side * sz * 1.1,  sz * 0.85);
+      ctx.lineTo(side * sz * 0.22, sz * 0.6);
+      ctx.closePath(); ctx.stroke();
+      // Canard fins at front
+      ctx.beginPath();
+      ctx.moveTo(side * sz * 0.18, -sz * 0.5);
+      ctx.lineTo(side * sz * 0.7, -sz * 0.05);
+      ctx.lineTo(side * sz * 0.55, sz * 0.1);
       ctx.closePath(); ctx.stroke();
     });
-    this._drawFlame(ctx, col, sz);
+
+    // Missile pods under wings
+    glow(ctx, '#ff4488', 14);
+    ctx.strokeStyle = '#ff4488'; ctx.lineWidth = 1.2;
+    [-1, 1].forEach(side => {
+      const wx = side * sz * 1.0, wy = sz * 0.55;
+      // missile body
+      ctx.beginPath();
+      ctx.moveTo(wx, wy - sz * 0.22);
+      ctx.lineTo(wx + side * sz * 0.08, wy + sz * 0.14);
+      ctx.lineTo(wx - side * sz * 0.06, wy + sz * 0.14);
+      ctx.closePath(); ctx.stroke();
+      // missile glow tip
+      glow(ctx, '#ff8800', 8);
+      ctx.fillStyle = '#ff440088';
+      ctx.beginPath(); ctx.arc(wx, wy - sz * 0.22, sz * 0.05, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // Cockpit glow
+    glow(ctx, '#aaffff', 10);
+    ctx.fillStyle = '#aaffff33';
+    ctx.beginPath(); ctx.ellipse(0, -sz * 0.55, sz * 0.12, sz * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#aaffff88'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(0, -sz * 0.55, sz * 0.12, sz * 0.2, 0, 0, Math.PI * 2); ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    this._drawFlame(ctx, purp, sz);
   }
 
   _drawFlame(ctx, col, sz) {
@@ -461,7 +508,8 @@ class Ship {
   }
 
   canFire() { return this.fireCooldown <= 0; }
-  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0; }
+  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0; }
+  get isPinkBeam()    { return this.tempPinkBeamUntil > 0; }
   get effectiveFireRate() {
     if (this.tempRapidUntil > 0) return Math.max(Math.floor(this.fireRate / 3), 2);
     return this.fireRate;
@@ -482,21 +530,48 @@ class Ship {
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
 
     if (this.effectiveLaser) {
-      bullets.push(new Laser(nose.x, nose.y, this.angle));
+      const pink = this.isPinkBeam;
+      if (this.hasTripple && this.hasShplit) {
+        // laser + triple + shplit: 6 pink/laser beams
+        [-0.22, 0, 0.22].forEach(spread => {
+          const perp = (this.angle + spread) + Math.PI / 2;
+          const ox = Math.cos(perp) * 9, oy = Math.sin(perp) * 9;
+          bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle + spread, pink));
+          bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle + spread, pink));
+        });
+      } else if (this.hasTripple) {
+        [-0.22, 0, 0.22].forEach(spread =>
+          bullets.push(new Laser(nose.x, nose.y, this.angle + spread, pink)));
+      } else if (this.hasShplit) {
+        const perp = this.angle + Math.PI / 2;
+        const ox = Math.cos(perp) * 10, oy = Math.sin(perp) * 10;
+        bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle, pink));
+        bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle, pink));
+      } else {
+        bullets.push(new Laser(nose.x, nose.y, this.angle, pink));
+      }
       SFX.laser();
       return;
     }
 
-    if (this.hasTripple) {
+    if (this.hasTripple && this.hasShplit) {
+      // shplit + triple = 6 bullets: 2 parallel per direction
       [-0.22, 0, 0.22].forEach(spread => {
-        bullets.push(new Bullet(nose.x, nose.y, this.angle + spread, this.golden));
+        const perp = (this.angle + spread) + Math.PI / 2;
+        const ox = Math.cos(perp) * 8, oy = Math.sin(perp) * 8;
+        bullets.push(new Bullet(nose.x + ox, nose.y + oy, this.angle + spread, this.golden));
+        bullets.push(new Bullet(nose.x - ox, nose.y - oy, this.angle + spread, this.golden));
       });
+      SFX.shoot();
+    } else if (this.hasTripple) {
+      [-0.22, 0, 0.22].forEach(spread =>
+        bullets.push(new Bullet(nose.x, nose.y, this.angle + spread, this.golden)));
       SFX.shoot();
     } else if (this.hasShplit) {
       const perp = this.angle + Math.PI / 2;
-      const offX = Math.cos(perp) * 10, offY = Math.sin(perp) * 10;
-      bullets.push(new Bullet(nose.x + offX, nose.y + offY, this.angle, this.golden));
-      bullets.push(new Bullet(nose.x - offX, nose.y - offY, this.angle, this.golden));
+      const ox = Math.cos(perp) * 10, oy = Math.sin(perp) * 10;
+      bullets.push(new Bullet(nose.x + ox, nose.y + oy, this.angle, this.golden));
+      bullets.push(new Bullet(nose.x - ox, nose.y - oy, this.angle, this.golden));
       SFX.shoot();
     } else {
       bullets.push(new Bullet(nose.x, nose.y, this.angle, this.golden));
@@ -602,14 +677,15 @@ class Bullet {
 
 // ── Laser ─────────────────────────────────────────────────────────────────────
 class Laser {
-  constructor(x, y, angle) {
+  constructor(x, y, angle, pink = false) {
     this.x = x; this.y = y;
     this.angle = angle;
-    this.len  = 80;
-    this.life = CFG.laserLife;
-    this.vx = Math.cos(angle) * 14;
-    this.vy = Math.sin(angle) * 14;
-    this.radius = 4;
+    this.pink  = pink;
+    this.len   = pink ? 130 : 80;
+    this.life  = pink ? Math.floor(CFG.laserLife * 1.4) : CFG.laserLife;
+    this.vx    = Math.cos(angle) * (pink ? 18 : 14);
+    this.vy    = Math.sin(angle) * (pink ? 18 : 14);
+    this.radius = pink ? 6 : 4;
   }
   update(W, H) {
     this.x = wrap(this.x + this.vx, 0, W);
@@ -617,12 +693,23 @@ class Laser {
     this.life--;
   }
   draw(ctx) {
-    glow(ctx, C.laser, 16);
-    ctx.strokeStyle = C.laser; ctx.lineWidth = 3;
+    const col = this.pink ? '#ff00ee' : C.laser;
+    const width = this.pink ? 5 : 3;
+    glow(ctx, col, this.pink ? 24 : 16);
+    ctx.strokeStyle = col; ctx.lineWidth = width;
     ctx.beginPath();
     ctx.moveTo(this.x, this.y);
     ctx.lineTo(this.x - Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
     ctx.stroke();
+    if (this.pink) {
+      // inner white core
+      glow(ctx, '#ffffff', 6);
+      ctx.strokeStyle = '#ffffff88'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.x - Math.cos(this.angle) * this.len * 0.6, this.y - Math.sin(this.angle) * this.len * 0.6);
+      ctx.stroke();
+    }
     ctx.shadowBlur = 0;
   }
   get dead() { return this.life <= 0; }
@@ -1087,27 +1174,30 @@ function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, ro
   ctx.shadowBlur = 0; ctx.font = `8px ${FONT}`;
   ctx.textAlign = 'right';
 
+  // Always-visible counters stacked at top-right (dim when zero)
+  const dimAlpha = 0.35;
+
   // Flare
-  ctx.fillStyle = C.hudFlare; glow(ctx, C.hudFlare, 8);
+  ctx.globalAlpha = flares > 0 ? 1 : dimAlpha;
+  ctx.fillStyle = C.hudFlare; glow(ctx, C.hudFlare, flares > 0 ? 8 : 2);
   ctx.fillText(`FLARE ${flares}`, W - 10, 24);
 
   // Rocket
-  if (rocketAmmo > 0) {
-    ctx.fillStyle = '#ff6600'; glow(ctx, '#ff6600', 8);
-    ctx.fillText(`ROCKET ${rocketAmmo}`, W - 10, 42);
-  }
+  ctx.globalAlpha = rocketAmmo > 0 ? 1 : dimAlpha;
+  ctx.fillStyle = '#ffaa00'; glow(ctx, '#ffaa00', rocketAmmo > 0 ? 8 : 2);
+  ctx.fillText(`ROCKET ${rocketAmmo}`, W - 10, 42);
 
-  // Shield charges
-  if (shieldCharges > 0) {
-    ctx.fillStyle = '#00aaff'; glow(ctx, '#00aaff', 8);
-    ctx.fillText(`SHIELD ${shieldCharges}`, W - 10, rocketAmmo > 0 ? 60 : 42);
-  }
+  // Shield
+  ctx.globalAlpha = shieldCharges > 0 ? 1 : dimAlpha;
+  ctx.fillStyle = '#00aaff'; glow(ctx, '#00aaff', shieldCharges > 0 ? 8 : 2);
+  ctx.fillText(`SHIELD ${shieldCharges}`, W - 10, 60);
+
+  ctx.globalAlpha = 1;
 
   // Multiplier
   if (multiplier > 1) {
     ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', 10);
-    const mY = 60 + (rocketAmmo > 0 ? 18 : 0) + (shieldCharges > 0 ? 18 : 0);
-    ctx.fillText(`${multiplier}x`, W - 10, mY);
+    ctx.fillText(`${multiplier}x`, W - 10, 78);
   }
 
   ctx.textAlign = 'left'; ctx.shadowBlur = 0; ctx.lineWidth = 1;
@@ -1705,18 +1795,20 @@ class Game {
     }
 
     this.ship.update(this.keys, this.W, this.H);
-    if (this.ship.tempLaserUntil > 0) this.ship.tempLaserUntil--;
-    if (this.ship.tempRapidUntil > 0) this.ship.tempRapidUntil--;
+    if (this.ship.tempLaserUntil > 0)      this.ship.tempLaserUntil--;
+    if (this.ship.tempPinkBeamUntil > 0)   this.ship.tempPinkBeamUntil--;
+    if (this.ship.tempRapidUntil > 0)      this.ship.tempRapidUntil--;
     if (this.ship.tempPowerBoostUntil > 0) this.ship.tempPowerBoostUntil--;
 
-    // JEW METHOD: magnet
+    // JEW METHOD: magnet — strong pull with non-linear falloff
     if (this.ship.hasMagnet) {
-      const MAGNET_R = 180, MAGNET_F = 0.35;
+      const MAGNET_R = 300, MAGNET_F = 1.8;
       [...this.coins, ...this.mysteryPickups].forEach(p => {
         const d = dist(this.ship, p);
         if (d > 0 && d < MAGNET_R) {
-          const ang = Math.atan2(this.ship.y - p.y, this.ship.x - p.x);
-          const force = MAGNET_F * (1 - d / MAGNET_R);
+          const ang   = Math.atan2(this.ship.y - p.y, this.ship.x - p.x);
+          const t     = 1 - d / MAGNET_R;
+          const force = MAGNET_F * t * t; // quadratic — snaps hard when close
           p.x += Math.cos(ang) * force;
           p.y += Math.sin(ang) * force;
         }
@@ -2147,7 +2239,10 @@ class Game {
     const roll = Math.random();
     let label;
     if      (roll < 0.16) { ship.tempRapidUntil    = 900;                          label = 'RAPID FIRE!'; }
-    else if (roll < 0.32) { ship.tempLaserUntil    = 1200;                         label = 'LASER!'; }
+    else if (roll < 0.32) {
+      if (ship.hasLaser) { ship.tempPinkBeamUntil = 1200; label = 'SUPER LASER!'; }
+      else               { ship.tempLaserUntil    = 1200; label = 'LASER!'; }
+    }
     else if (roll < 0.44) { ship.lives++;                                           label = '+1 LIFE!'; }
     else if (roll < 0.56) { ship.shieldCharges++; _updateShieldHUD(ship.shieldCharges); label = '+1 SHIELD!'; }
     else if (roll < 0.68) { ship.flares = Math.min(ship.flares+1, 9);              label = '+1 FLARE!'; }
