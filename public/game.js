@@ -1178,7 +1178,7 @@ class Game {
     if (muteBtn) {
       const applyVolUi = (mode) => {
         muteBtn.classList.toggle('low', mode==='low'); muteBtn.classList.toggle('muted', mode==='mute');
-        const icon = mode==='high'?'🔊':mode==='low'?'♪':'🔇';
+        const icon = mode==='high'?'VOL':mode==='low'?'LOW':'MUTE';
         muteBtn.textContent = `${icon} ${mode.toUpperCase()}`; muteBtn.title = `Volume: ${mode}`;
       };
       applyVolUi(SFX.getVolumeMode());
@@ -1321,7 +1321,7 @@ class Game {
       if (!tid) return;
       const status = await dbSpinStatus(tid);
       if (status.available) {
-        timerEl.textContent = '✓ SHPIN READY!';
+        timerEl.textContent = 'SHPIN READY!';
         timerEl.style.color = 'var(--cyan)';
       } else {
         timerEl.style.color = 'var(--muted2)';
@@ -1333,7 +1333,7 @@ class Game {
   _tickMenuSpinTimer(ms, el) {
     const tick = () => {
       ms -= 1000;
-      if (ms <= 0) { el.textContent = '✓ SHPIN READY!'; el.style.color = 'var(--cyan)'; return; }
+      if (ms <= 0) { el.textContent = 'SHPIN READY!'; el.style.color = 'var(--cyan)'; return; }
       const h = Math.floor(ms/3_600_000);
       const m = Math.floor((ms%3_600_000)/60_000);
       const s = Math.floor((ms%60_000)/1000);
@@ -1896,7 +1896,7 @@ class Game {
     area.innerHTML = '';
 
     // ── Jets section ─────────────────────────────────────────────────────────
-    this._arsSection(area, '✈ JETS');
+    this._arsSection(area, '-- JETS --');
     const jets = [{ id:'starter', name:'STARTER JET', owned: true }, ...CATALOG.filter(c=>c.category==='plane')];
     jets.forEach(jet => {
       const owned = jet.id === 'starter' || (this.upgrades[jet.id] > 0);
@@ -1915,7 +1915,7 @@ class Game {
     });
 
     // ── Skins section ─────────────────────────────────────────────────────────
-    this._arsSection(area, '🎨 SKINS');
+    this._arsSection(area, '-- SKINS --');
     const ownedSkins = CATALOG.filter(c => c.category === 'skin' && this.upgrades[c.id] > 0);
     if (ownedSkins.length === 0) {
       const msg = document.createElement('div'); msg.className = 'ars-empty-msg';
@@ -1949,7 +1949,7 @@ class Game {
     // ── Upgrades section ─────────────────────────────────────────────────────
     const ownedUps = CATALOG.filter(c => c.category === 'upgrade' && this.upgrades[c.id] > 0);
     if (ownedUps.length > 0) {
-      this._arsSection(area, '⚡ UPGRADES');
+      this._arsSection(area, '-- UPGRADES --');
       ownedUps.forEach(up => {
         const row = document.createElement('div'); row.className = 'ars-equip-item';
         row.innerHTML = `<span class="ars-name">${up.name}</span><span class="ars-equip-btn equipped">ACTIVE</span>`;
@@ -1960,7 +1960,7 @@ class Game {
     // ── Boosts section ───────────────────────────────────────────────────────
     const ownedBoosts = CATALOG.filter(c => c.category === 'boost' && (this.upgrades[c.id] || 0) > 0);
     if (ownedBoosts.length > 0) {
-      this._arsSection(area, '💊 BOOSTS (NEXT RUN)');
+      this._arsSection(area, '-- BOOSTS (NEXT RUN) --');
       ownedBoosts.forEach(boost => {
         const row = document.createElement('div'); row.className = 'ars-equip-item';
         row.innerHTML = `<span class="ars-name">${boost.name} ×${this.upgrades[boost.id]}</span><span class="ars-equip-btn" style="border-color:var(--yellow);color:var(--yellow)">READY</span>`;
