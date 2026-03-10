@@ -176,58 +176,57 @@ bot.command('help', (ctx) =>
 // ── Admin Tools ───────────────────────────────────────────────────────────────
 const ADMIN_ID = 1357754255;
 
+function adminToolsKeyboard() {
+  const keyboard = [];
+  if (GAME_URL) keyboard.push([{ text: 'OPEN GAME', web_app: { url: GAME_URL } }]);
+  keyboard.push([{ text: 'GIFT SHMIPS', callback_data: 'tools_gift' }]);
+  return keyboard;
+}
+
 bot.command('tools', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.reply('Access denied.');
-
-  await ctx.reply(
-    '*MEYARET — ADMIN TOOLS*',
-    {
+  try {
+    await ctx.reply('*MEYARET — ADMIN TOOLS*', {
       parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'OPEN GAME', web_app: { url: GAME_URL } }],
-          [{ text: 'GIFT SHMIPS', callback_data: 'tools_gift' }],
-        ],
-      },
-    },
-  );
+      reply_markup: { inline_keyboard: adminToolsKeyboard() },
+    });
+  } catch (e) {
+    console.error('[/tools]', e.message);
+    await ctx.reply('Error: ' + e.message);
+  }
 });
 
 bot.callbackQuery('tools_gift', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
   await ctx.answerCallbackQuery();
-  await ctx.editMessageText(
-    '*ADMIN — GIFT SHMIPS*\n\nHow many shmips do you want to send?',
-    {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '50 Shmips',  callback_data: 'gamt_50'  },
-            { text: '250 Shmips', callback_data: 'gamt_250' },
+  try {
+    await ctx.editMessageText(
+      '*ADMIN — GIFT SHMIPS*\n\nHow many shmips do you want to send?',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '50 Shmips',  callback_data: 'gamt_50'  },
+              { text: '250 Shmips', callback_data: 'gamt_250' },
+            ],
+            [{ text: 'BACK', callback_data: 'tools_back' }],
           ],
-          [{ text: 'BACK', callback_data: 'tools_back' }],
-        ],
+        },
       },
-    },
-  );
+    );
+  } catch (e) { console.error('[tools_gift]', e.message); }
 });
 
 bot.callbackQuery('tools_back', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
   await ctx.answerCallbackQuery();
-  await ctx.editMessageText(
-    '*MEYARET — ADMIN TOOLS*',
-    {
+  try {
+    await ctx.editMessageText('*MEYARET — ADMIN TOOLS*', {
       parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'OPEN GAME', web_app: { url: GAME_URL } }],
-          [{ text: 'GIFT SHMIPS', callback_data: 'tools_gift' }],
-        ],
-      },
-    },
-  );
+      reply_markup: { inline_keyboard: adminToolsKeyboard() },
+    });
+  } catch (e) { console.error('[tools_back]', e.message); }
 });
 
 // ── Admin Gift Command ─────────────────────────────────────────────────────────
@@ -420,18 +419,12 @@ bot.callbackQuery(/^g1_(\d+)_(.+)$/, async (ctx) => {
 bot.callbackQuery('gift_cancel', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery();
   await ctx.answerCallbackQuery('Cancelled.');
-  await ctx.editMessageText(
-    '*MEYARET — ADMIN TOOLS*',
-    {
+  try {
+    await ctx.editMessageText('*MEYARET — ADMIN TOOLS*', {
       parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'OPEN GAME', web_app: { url: GAME_URL } }],
-          [{ text: 'GIFT SHMIPS', callback_data: 'tools_gift' }],
-        ],
-      },
-    },
-  );
+      reply_markup: { inline_keyboard: adminToolsKeyboard() },
+    });
+  } catch (e) { console.error('[gift_cancel]', e.message); }
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
