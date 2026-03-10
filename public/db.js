@@ -65,11 +65,11 @@ export const CATALOG = [
   { id: 'skin_silver_surfer', name: 'SILVER SURFER',            category: 'skin', cost: 450, description: 'Chrome metallic — pure silver',        color: '#c0c0c0', accent: '#f0f8ff' },
 
   // ── Jets (3 purchasable — Starter is always available for free) ───────────
-  { id: 'plane_hamud',      name: 'F2 HAMUDI',      category: 'plane', cost: 3000,
+  { id: 'plane_hamud',      name: 'HAMUDI',         category: 'plane', cost: 3000,
     description: '3 lives · 2 flares · 2 rockets · Wings', lives: 3, flares: 2, rockets: 2 },
-  { id: 'plane_walla_yofi', name: 'F16 KILLAJET',   category: 'plane', cost: 6500,
+  { id: 'plane_walla_yofi', name: 'KILLAJET',        category: 'plane', cost: 6500,
     description: '3 lives · 3 flares · 3 rockets · Shield · ×1.5 fire', lives: 3, flares: 3, rockets: 3, shield: true, rapidFire: true },
-  { id: 'plane_very_scary', name: 'F35 VERY SCARY JET', category: 'plane', cost: 11000,
+  { id: 'plane_very_scary', name: 'VERY SCARY JET',  category: 'plane', cost: 11000,
     description: '4 lives · 3 flares · 4 rockets · Shield', lives: 4, flares: 3, rockets: 4, shield: true },
 ];
 
