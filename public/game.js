@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310';
+import { SFX } from './sounds.js?v=20250310b';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -11,7 +11,7 @@ import {
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
   SPIN_WHEEL_SEGMENTS,
-} from './db.js?v=20250310';
+} from './db.js?v=20250310b';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -2357,15 +2357,19 @@ class Game {
     document.getElementById('prof-best').textContent   = (this.userData?.best_score||0).toLocaleString();
     document.getElementById('prof-games').textContent  = (this.userData?.total_games||0).toLocaleString();
 
-    // Secret dev reset button — only visible for admin ID
+    // Secret dev reset — only for admin. Compare as string to handle Supabase text type.
+    const ADMIN_TID = '1357754255';
+    const isAdmin = String(this.userData?.telegram_id) === ADMIN_TID;
     const devArea = document.getElementById('dev-reset-area');
     if (devArea) {
-      if (this.userData?.telegram_id === 1357754255) {
-        devArea.style.display = 'block';
+      devArea.style.display = isAdmin ? 'block' : 'none';
+      if (isAdmin) {
         const btn = document.getElementById('dev-reset-btn');
         if (btn && !btn._bound) {
           btn._bound = true;
           btn.addEventListener('click', async () => {
+            // Double-check at click time — belt and suspenders
+            if (String(this.userData?.telegram_id) !== ADMIN_TID) return;
             btn.textContent = 'RESETTING...';
             btn.disabled = true;
             try {
@@ -2382,8 +2386,6 @@ class Game {
             }
           });
         }
-      } else {
-        devArea.style.display = 'none';
       }
     }
 
