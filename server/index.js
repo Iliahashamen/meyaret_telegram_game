@@ -174,57 +174,111 @@ bot.command('help', (ctx) =>
 );
 
 // ── Admin Gift Command ─────────────────────────────────────────────────────────
-const ADMIN_ID    = 1357754255;
-const GIFT_AMOUNT = 250;
+const ADMIN_ID = 1357754255;
 
+// Build the player-list message + keyboard for a given amount
+async function buildGiftScreen(amount, note = '') {
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('telegram_id, nickname, tele_name, shmips')
+    .order('nickname');
+  if (error) throw error;
+  if (!users?.length) return null;
+
+  const shown = users.slice(0, 50);
+
+  const keyboard = [
+    [{ text: `GIFT ALL ${users.length} PILOTS  (+${amount} shmips)`, callback_data: `gall_${amount}` }],
+  ];
+  for (let i = 0; i < shown.length; i += 2) {
+    const row = [];
+    for (const u of shown.slice(i, i + 2)) {
+      const label = u.tele_name ? `${u.tele_name} / ${u.nickname}` : u.nickname;
+      row.push({ text: `${label} (${Number(u.shmips).toFixed(0)}$$)`, callback_data: `g1_${amount}_${u.telegram_id}` });
+    }
+    keyboard.push(row);
+  }
+  keyboard.push([
+    { text: 'CHANGE AMOUNT', callback_data: 'gift_pick' },
+    { text: 'CANCEL',        callback_data: 'gift_cancel' },
+  ]);
+
+  const list = shown.map((u, i) => {
+    const tele = u.tele_name ? ` _(${u.tele_name})_` : '';
+    return `${i + 1}. *${u.nickname}*${tele} — ${Number(u.shmips).toFixed(0)} $$`;
+  }).join('\n');
+
+  const extra = users.length > 50 ? `\n_(+ ${users.length - 50} more)_` : '';
+  const footer = note ? `\n\n_${note}_` : '';
+  const text = `*ADMIN — GIFT ${amount} SHMIPS*\n\n${list}${extra}${footer}\n\nTap a pilot or gift everyone:`;
+
+  return { text, keyboard, users };
+}
+
+// Step 1 — /gift → pick amount
 bot.command('gift', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.reply('Access denied.');
   if (!supabase) return ctx.reply('DB not connected.');
 
+  await ctx.reply(
+    '*ADMIN — GIFT SHMIPS*\n\nHow many shmips do you want to send?',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '50 Shmips',  callback_data: 'gamt_50'  },
+            { text: '250 Shmips', callback_data: 'gamt_250' },
+          ],
+          [{ text: 'CANCEL', callback_data: 'gift_cancel' }],
+        ],
+      },
+    },
+  );
+});
+
+// Step 2 — amount chosen → show player list
+bot.callbackQuery(/^gamt_(\d+)$/, async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  const amount = Number(ctx.match[1]);
+  await ctx.answerCallbackQuery();
+  if (!supabase) return ctx.editMessageText('DB not connected.');
+
   try {
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('telegram_id, nickname, tele_name, shmips')
-      .order('nickname');
-    if (error) throw error;
-    if (!users?.length) return ctx.reply('No players registered yet.');
-
-    // Build inline keyboard: GIFT ALL + one button per player (max 50)
-    const shown = users.slice(0, 50);
-    const keyboard = [
-      [{ text: `GIFT ALL ${users.length} PILOTS (+${GIFT_AMOUNT} shmips)`, callback_data: 'gift_all' }],
-    ];
-    for (let i = 0; i < shown.length; i += 2) {
-      const row = [];
-      const a = shown[i];
-      const aLabel = a.tele_name ? `${a.tele_name} / ${a.nickname}` : a.nickname;
-      row.push({ text: `${aLabel} (${Number(a.shmips).toFixed(0)}$$)`, callback_data: `gift1_${a.telegram_id}` });
-      if (shown[i + 1]) {
-        const b = shown[i + 1];
-        const bLabel = b.tele_name ? `${b.tele_name} / ${b.nickname}` : b.nickname;
-        row.push({ text: `${bLabel} (${Number(b.shmips).toFixed(0)}$$)`, callback_data: `gift1_${b.telegram_id}` });
-      }
-      keyboard.push(row);
-    }
-    keyboard.push([{ text: 'CANCEL', callback_data: 'gift_cancel' }]);
-
-    const list = shown.map((u, i) => {
-      const tele = u.tele_name ? ` _(${u.tele_name})_` : '';
-      return `${i + 1}. *${u.nickname}*${tele} — ${Number(u.shmips).toFixed(0)} $$`;
-    }).join('\n');
-    await ctx.reply(
-      `*ADMIN — GIFT ${GIFT_AMOUNT} SHMIPS*\n\n${list}${users.length > 50 ? `\n_(+ ${users.length - 50} more)_` : ''}\n\nTap a pilot to gift them, or gift everyone:`,
-      { parse_mode: 'Markdown', reply_markup: { inline_keyboard: keyboard } },
-    );
+    const screen = await buildGiftScreen(amount);
+    if (!screen) return ctx.editMessageText('No players registered yet.');
+    await ctx.editMessageText(screen.text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: screen.keyboard } });
   } catch (e) {
-    console.error('[gift cmd]', e.message);
-    await ctx.reply('Error: ' + e.message);
+    console.error('[gamt]', e.message);
+    await ctx.editMessageText('Error: ' + e.message);
   }
 });
 
-// Gift ALL players
-bot.callbackQuery('gift_all', async (ctx) => {
+// "Change amount" — go back to amount picker
+bot.callbackQuery('gift_pick', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText(
+    '*ADMIN — GIFT SHMIPS*\n\nHow many shmips do you want to send?',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '50 Shmips',  callback_data: 'gamt_50'  },
+            { text: '250 Shmips', callback_data: 'gamt_250' },
+          ],
+          [{ text: 'CANCEL', callback_data: 'gift_cancel' }],
+        ],
+      },
+    },
+  );
+});
+
+// Gift ALL players
+bot.callbackQuery(/^gall_(\d+)$/, async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  const amount = Number(ctx.match[1]);
   await ctx.answerCallbackQuery('Sending gifts...');
   if (!supabase) return ctx.editMessageText('DB not connected.');
 
@@ -239,35 +293,35 @@ bot.callbackQuery('gift_all', async (ctx) => {
     for (const u of users) {
       const { error: upErr } = await supabase
         .from('users')
-        .update({ shmips: Math.round((Number(u.shmips) + GIFT_AMOUNT) * 100) / 100 })
+        .update({ shmips: Math.round((Number(u.shmips) + amount) * 100) / 100 })
         .eq('telegram_id', u.telegram_id);
       if (!upErr) {
         gifted++;
-        // Notify each player via bot message
         try {
           await bot.api.sendMessage(
             u.telegram_id,
-            `You received *${GIFT_AMOUNT} Shmips* from the admin!\n\nOpen the game to spend them.`,
+            `You received *${amount} Shmips* from the admin!\n\nOpen the game to spend them.`,
             { parse_mode: 'Markdown' },
           );
-        } catch { /* user may have blocked the bot */ }
+        } catch { /* player may have blocked the bot */ }
       }
     }
 
     await ctx.editMessageText(
-      `*GIFT COMPLETE!*\n\n${GIFT_AMOUNT} shmips sent to ${gifted} pilots.\nThey've been notified.`,
+      `*GIFT COMPLETE!*\n\n${amount} shmips sent to ${gifted} pilots.\nThey've been notified.`,
       { parse_mode: 'Markdown' },
     );
   } catch (e) {
-    console.error('[gift_all]', e.message);
+    console.error('[gall]', e.message);
     await ctx.editMessageText('Failed: ' + e.message);
   }
 });
 
-// Gift ONE player
-bot.callbackQuery(/^gift1_(.+)$/, async (ctx) => {
+// Gift ONE player  — callback_data: g1_<amount>_<telegram_id>
+bot.callbackQuery(/^g1_(\d+)_(.+)$/, async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
-  const targetId = ctx.match[1];
+  const amount   = Number(ctx.match[1]);
+  const targetId = ctx.match[2];
   if (!supabase) return ctx.answerCallbackQuery('DB not connected.');
 
   try {
@@ -278,54 +332,30 @@ bot.callbackQuery(/^gift1_(.+)$/, async (ctx) => {
     const user = rows?.[0];
     if (!user) return ctx.answerCallbackQuery('Player not found.');
 
-    const newShmips = Math.round((Number(user.shmips) + GIFT_AMOUNT) * 100) / 100;
-    await supabase.from('users').update({ shmips: newShmips }).eq('telegram_id', targetId);
+    await supabase
+      .from('users')
+      .update({ shmips: Math.round((Number(user.shmips) + amount) * 100) / 100 })
+      .eq('telegram_id', targetId);
 
-    // Notify the player
     try {
       await bot.api.sendMessage(
         Number(targetId),
-        `You received *${GIFT_AMOUNT} Shmips* from the admin!\n\nOpen the game to spend them.`,
+        `You received *${amount} Shmips* from the admin!\n\nOpen the game to spend them.`,
         { parse_mode: 'Markdown' },
       );
     } catch { /* player may have blocked the bot */ }
 
-    await ctx.answerCallbackQuery(`Gifted ${GIFT_AMOUNT} shmips to ${user.nickname}!`);
+    await ctx.answerCallbackQuery(`Gifted ${amount} shmips to ${user.nickname}!`);
 
-    // Refresh the message so balances stay up to date
-    const { data: allUsers } = await supabase
-      .from('users')
-      .select('telegram_id, nickname, tele_name, shmips')
-      .order('nickname');
-    const shown = (allUsers || []).slice(0, 50);
-    const list  = shown.map((u, i) => {
-      const tele = u.tele_name ? ` _(${u.tele_name})_` : '';
-      return `${i + 1}. *${u.nickname}*${tele} — ${Number(u.shmips).toFixed(0)} $$`;
-    }).join('\n');
-    const keyboard = [
-      [{ text: `GIFT ALL ${(allUsers||[]).length} PILOTS (+${GIFT_AMOUNT} shmips)`, callback_data: 'gift_all' }],
-    ];
-    for (let i = 0; i < shown.length; i += 2) {
-      const row = [];
-      const a = shown[i];
-      const aLabel = a.tele_name ? `${a.tele_name} / ${a.nickname}` : a.nickname;
-      row.push({ text: `${aLabel} (${Number(a.shmips).toFixed(0)}$$)`, callback_data: `gift1_${a.telegram_id}` });
-      if (shown[i + 1]) {
-        const b = shown[i + 1];
-        const bLabel = b.tele_name ? `${b.tele_name} / ${b.nickname}` : b.nickname;
-        row.push({ text: `${bLabel} (${Number(b.shmips).toFixed(0)}$$)`, callback_data: `gift1_${b.telegram_id}` });
-      }
-      keyboard.push(row);
-    }
-    keyboard.push([{ text: 'CANCEL', callback_data: 'gift_cancel' }]);
+    // Refresh the list with updated balances
     try {
-      await ctx.editMessageText(
-        `*ADMIN — GIFT ${GIFT_AMOUNT} SHMIPS*\n\n${list}\n\n_Gifted ${GIFT_AMOUNT} to ${user.nickname}_\n\nTap a pilot to gift them, or gift everyone:`,
-        { parse_mode: 'Markdown', reply_markup: { inline_keyboard: keyboard } },
-      );
-    } catch { /* message unchanged, that's fine */ }
+      const screen = await buildGiftScreen(amount, `Gifted ${amount} to ${user.nickname}`);
+      if (screen) {
+        await ctx.editMessageText(screen.text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: screen.keyboard } });
+      }
+    } catch { /* message may be unchanged */ }
   } catch (e) {
-    console.error('[gift1]', e.message);
+    console.error('[g1]', e.message);
     await ctx.answerCallbackQuery('Failed: ' + e.message);
   }
 });
