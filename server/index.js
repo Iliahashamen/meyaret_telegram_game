@@ -11,6 +11,7 @@ import { usersRouter }  from './routes/users.js';
 import { scoresRouter } from './routes/scores.js';
 import { spinRouter }   from './routes/spin.js';
 import { storeRouter }  from './routes/store.js';
+import { supabase }     from './supabase.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
@@ -171,6 +172,160 @@ bot.command('help', (ctx) =>
     { parse_mode: 'Markdown' },
   ),
 );
+
+// ── Admin Gift Command ─────────────────────────────────────────────────────────
+const ADMIN_ID    = 1357754255;
+const GIFT_AMOUNT = 250;
+
+bot.command('gift', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.reply('Access denied.');
+  if (!supabase) return ctx.reply('DB not connected.');
+
+  try {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('telegram_id, nickname, shmips')
+      .order('nickname');
+    if (error) throw error;
+    if (!users?.length) return ctx.reply('No players registered yet.');
+
+    // Build inline keyboard: GIFT ALL + one button per player (max 50)
+    const shown = users.slice(0, 50);
+    const keyboard = [
+      [{ text: `GIFT ALL ${users.length} PILOTS (+${GIFT_AMOUNT} shmips)`, callback_data: 'gift_all' }],
+    ];
+    for (let i = 0; i < shown.length; i += 2) {
+      const row = [];
+      const a = shown[i];
+      row.push({ text: `${a.nickname} (${Number(a.shmips).toFixed(0)}$$)`, callback_data: `gift1_${a.telegram_id}` });
+      if (shown[i + 1]) {
+        const b = shown[i + 1];
+        row.push({ text: `${b.nickname} (${Number(b.shmips).toFixed(0)}$$)`, callback_data: `gift1_${b.telegram_id}` });
+      }
+      keyboard.push(row);
+    }
+    keyboard.push([{ text: 'CANCEL', callback_data: 'gift_cancel' }]);
+
+    const list = shown.map((u, i) => `${i + 1}. *${u.nickname}* — ${Number(u.shmips).toFixed(0)} $$`).join('\n');
+    await ctx.reply(
+      `*ADMIN — GIFT ${GIFT_AMOUNT} SHMIPS*\n\n${list}${users.length > 50 ? `\n_(+ ${users.length - 50} more)_` : ''}\n\nTap a pilot to gift them, or gift everyone:`,
+      { parse_mode: 'Markdown', reply_markup: { inline_keyboard: keyboard } },
+    );
+  } catch (e) {
+    console.error('[gift cmd]', e.message);
+    await ctx.reply('Error: ' + e.message);
+  }
+});
+
+// Gift ALL players
+bot.callbackQuery('gift_all', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery('Sending gifts...');
+  if (!supabase) return ctx.editMessageText('DB not connected.');
+
+  try {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('telegram_id, shmips, nickname');
+    if (error) throw error;
+    if (!users?.length) return ctx.editMessageText('No players to gift.');
+
+    let gifted = 0;
+    for (const u of users) {
+      const { error: upErr } = await supabase
+        .from('users')
+        .update({ shmips: Math.round((Number(u.shmips) + GIFT_AMOUNT) * 100) / 100 })
+        .eq('telegram_id', u.telegram_id);
+      if (!upErr) {
+        gifted++;
+        // Notify each player via bot message
+        try {
+          await bot.api.sendMessage(
+            u.telegram_id,
+            `You received *${GIFT_AMOUNT} Shmips* from the admin!\n\nOpen the game to spend them.`,
+            { parse_mode: 'Markdown' },
+          );
+        } catch { /* user may have blocked the bot */ }
+      }
+    }
+
+    await ctx.editMessageText(
+      `*GIFT COMPLETE!*\n\n${GIFT_AMOUNT} shmips sent to ${gifted} pilots.\nThey've been notified.`,
+      { parse_mode: 'Markdown' },
+    );
+  } catch (e) {
+    console.error('[gift_all]', e.message);
+    await ctx.editMessageText('Failed: ' + e.message);
+  }
+});
+
+// Gift ONE player
+bot.callbackQuery(/^gift1_(.+)$/, async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  const targetId = ctx.match[1];
+  if (!supabase) return ctx.answerCallbackQuery('DB not connected.');
+
+  try {
+    const { data: rows } = await supabase
+      .from('users')
+      .select('shmips, nickname')
+      .eq('telegram_id', targetId);
+    const user = rows?.[0];
+    if (!user) return ctx.answerCallbackQuery('Player not found.');
+
+    const newShmips = Math.round((Number(user.shmips) + GIFT_AMOUNT) * 100) / 100;
+    await supabase.from('users').update({ shmips: newShmips }).eq('telegram_id', targetId);
+
+    // Notify the player
+    try {
+      await bot.api.sendMessage(
+        Number(targetId),
+        `You received *${GIFT_AMOUNT} Shmips* from the admin!\n\nOpen the game to spend them.`,
+        { parse_mode: 'Markdown' },
+      );
+    } catch { /* player may have blocked the bot */ }
+
+    await ctx.answerCallbackQuery(`Gifted ${GIFT_AMOUNT} shmips to ${user.nickname}!`);
+
+    // Refresh the message so balances stay up to date
+    const { data: allUsers } = await supabase
+      .from('users')
+      .select('telegram_id, nickname, shmips')
+      .order('nickname');
+    const shown = (allUsers || []).slice(0, 50);
+    const list  = shown.map((u, i) => `${i + 1}. *${u.nickname}* — ${Number(u.shmips).toFixed(0)} $$`).join('\n');
+    const keyboard = [
+      [{ text: `GIFT ALL ${(allUsers||[]).length} PILOTS (+${GIFT_AMOUNT} shmips)`, callback_data: 'gift_all' }],
+    ];
+    for (let i = 0; i < shown.length; i += 2) {
+      const row = [];
+      const a = shown[i];
+      row.push({ text: `${a.nickname} (${Number(a.shmips).toFixed(0)}$$)`, callback_data: `gift1_${a.telegram_id}` });
+      if (shown[i + 1]) {
+        const b = shown[i + 1];
+        row.push({ text: `${b.nickname} (${Number(b.shmips).toFixed(0)}$$)`, callback_data: `gift1_${b.telegram_id}` });
+      }
+      keyboard.push(row);
+    }
+    keyboard.push([{ text: 'CANCEL', callback_data: 'gift_cancel' }]);
+    try {
+      await ctx.editMessageText(
+        `*ADMIN — GIFT ${GIFT_AMOUNT} SHMIPS*\n\n${list}\n\n_Gifted ${GIFT_AMOUNT} to ${user.nickname}_\n\nTap a pilot to gift them, or gift everyone:`,
+        { parse_mode: 'Markdown', reply_markup: { inline_keyboard: keyboard } },
+      );
+    } catch { /* message unchanged, that's fine */ }
+  } catch (e) {
+    console.error('[gift1]', e.message);
+    await ctx.answerCallbackQuery('Failed: ' + e.message);
+  }
+});
+
+// Cancel
+bot.callbackQuery('gift_cancel', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery('Cancelled.');
+  await ctx.editMessageText('Gift cancelled.');
+});
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
