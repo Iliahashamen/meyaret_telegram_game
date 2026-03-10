@@ -1644,6 +1644,13 @@ class Game {
 
   _nextLevel() {
     this.level++;
+    // Clear all residue so the screen is clean at the start of each level
+    this.particles     = [];
+    this.bullets       = [];
+    this.rockets       = [];
+    this.orangeRockets = [];
+    this.fireballs     = [];
+    this.floatingTexts = [];
     SFX.levelUp();
     SFX.startGameMusic(this.level);
     this._spawnAsteroids(this.level);

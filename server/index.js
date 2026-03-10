@@ -362,20 +362,11 @@ bot.callbackQuery(/^gall_(\d+)$/, async (ctx) => {
         .from('users')
         .update({ shmips: Math.round((Number(u.shmips) + amount) * 100) / 100 })
         .eq('telegram_id', u.telegram_id);
-      if (!upErr) {
-        gifted++;
-        try {
-          await bot.api.sendMessage(
-            u.telegram_id,
-            `You received *${amount} Shmips* from the admin!\n\nOpen the game to spend them.`,
-            { parse_mode: 'Markdown' },
-          );
-        } catch { /* player may have blocked the bot */ }
-      }
+      if (!upErr) gifted++;
     }
 
     await ctx.editMessageText(
-      `*GIFT COMPLETE!*\n\n${amount} shmips sent to ${gifted} pilots.\nThey've been notified.`,
+      `*GIFT COMPLETE!*\n\n${amount} shmips sent to ${gifted} pilots.`,
       { parse_mode: 'Markdown' },
     );
   } catch (e) {
@@ -403,14 +394,6 @@ bot.callbackQuery(/^g1_(\d+)_(.+)$/, async (ctx) => {
       .from('users')
       .update({ shmips: Math.round((Number(user.shmips) + amount) * 100) / 100 })
       .eq('telegram_id', targetId);
-
-    try {
-      await bot.api.sendMessage(
-        Number(targetId),
-        `You received *${amount} Shmips* from the admin!\n\nOpen the game to spend them.`,
-        { parse_mode: 'Markdown' },
-      );
-    } catch { /* player may have blocked the bot */ }
 
     await ctx.answerCallbackQuery(`Gifted ${amount} shmips to ${user.nickname}!`);
 
