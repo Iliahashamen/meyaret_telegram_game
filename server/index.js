@@ -174,7 +174,18 @@ bot.command('help', (ctx) =>
 );
 
 // ── Admin Tools ───────────────────────────────────────────────────────────────
-const ADMIN_ID = 1357754255;
+// Use env var ADMIN_TELEGRAM_ID if set, otherwise fall back to hardcoded value
+const ADMIN_ID = Number(process.env.ADMIN_TELEGRAM_ID || 1357754255);
+
+// /ping — public debug command: replies with your Telegram ID so you can verify
+bot.command('ping', async (ctx) => {
+  const id   = ctx.from?.id;
+  const name = ctx.from?.username ? `@${ctx.from.username}` : ctx.from?.first_name;
+  await ctx.reply(
+    `*PONG*\n\nYour Telegram ID: \`${id}\`\nName: ${name}\nAdmin ID configured: \`${ADMIN_ID}\`\nMatch: ${id === ADMIN_ID ? 'YES — you are admin' : 'NO'}`,
+    { parse_mode: 'Markdown' },
+  );
+});
 
 function adminToolsKeyboard() {
   const keyboard = [];
