@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Bot, webhookCallback } from 'grammy';
@@ -23,29 +22,16 @@ process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]
 process.on('uncaughtException',  (err)    => console.error('[uncaughtException]',  err));
 
 // ── Security & Middleware ──────────────────────────────────────────────────────
-// Trust Railway's reverse proxy so express-rate-limit can read X-Forwarded-For
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
-// CORS: allow GitHub Pages, Telegram WebView, and localhost.
-// Security is enforced by HMAC initData validation in auth.js, not origin.
 app.use(cors({
-  origin: (origin, cb) => cb(null, true),   // allow all origins
+  origin: (origin, cb) => cb(null, true),
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'X-Telegram-Init-Data'],
   credentials: false,
 }));
 app.options('*', cors());
 app.use(express.json());
-
-// Rate-limit only API routes — never the Telegram webhook (it delivers in bursts)
-const apiLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => req.path.startsWith('/bot'),   // skip webhook path
-});
-app.use(apiLimiter);
 
 // ── Static Files ──────────────────────────────────────────────────────────────
 console.log('[server] Serving static from:', PUBLIC_DIR);
