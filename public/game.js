@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js';
+import { SFX } from './sounds.js?v=20250310';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -11,7 +11,7 @@ import {
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
   SPIN_WHEEL_SEGMENTS,
-} from './db.js';
+} from './db.js?v=20250310';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -1653,7 +1653,10 @@ class Game {
 
   // ── Start Game ─────────────────────────────────────────────────────────────
   async _startGame() {
-    try { this._doStartGame(); } catch(e) { console.error('[_startGame]', e); alert('LAUNCH ERROR: ' + e.message); }
+    try { this._doStartGame(); } catch(e) {
+      console.error('[_startGame]', e);
+      alert('LAUNCH ERROR: ' + e.message + '\n\n' + (e.stack || ''));
+    }
   }
   _doStartGame() {
     SFX.thrustStop(); this._wasThrusting = false;
