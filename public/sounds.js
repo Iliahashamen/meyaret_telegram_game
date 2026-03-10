@@ -561,7 +561,7 @@ export const SFX = {
   // Level-based music — starts calm (lv1) and escalates to chaos (lv20)
   startGameMusic(level = 1) {
     if (this.muted) return;
-    const tier = level <= 4 ? 1 : level <= 8 ? 2 : level <= 12 ? 3 : level <= 16 ? 4 : 5;
+    const tier = level <= 5 ? 1 : level <= 10 ? 2 : level <= 15 ? 3 : level <= 20 ? 4 : 5;
     const newMode = `game_${tier}`;
     if (_musicMode === newMode) return;   // already playing this tier
     _stopMusicLoop();

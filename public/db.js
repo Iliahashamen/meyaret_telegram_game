@@ -376,6 +376,11 @@ export async function dbDoSpin(telegramId) {
     ? matchingIdxs[Math.floor(Math.random() * matchingIdxs.length)]
     : { i: 0 };
 
+  // Admin multiplier reward → show "2X $$" segment (idx 12) so wheel matches real prize
+  const segIdx = (isAdmin && reward.type === 'shmips' && updates.multiplier_value)
+    ? 12
+    : picked.i;
+
   const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
   return {
     reward: {
@@ -383,7 +388,7 @@ export async function dbDoSpin(telegramId) {
       label:        grantedLabel,
       type:         reward.type,
       upgrade:      grantedUpgrade,
-      segmentIndex: picked.i,
+      segmentIndex: segIdx,
     },
     user: updated[0],
   };

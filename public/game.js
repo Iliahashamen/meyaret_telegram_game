@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310d';
+import { SFX } from './sounds.js?v=20250310e';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -11,7 +11,7 @@ import {
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
   SPIN_WHEEL_SEGMENTS,
-} from './db.js?v=20250310d';
+} from './db.js?v=20250310e';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -227,7 +227,7 @@ class Ship {
     this.tempStarUntil       = 0;
     this.starShieldLayers    = 0;
     this.fireballReady       = false;
-    this.spawnProtection     = 120; // 2 seconds at 60fps — immune to damage on spawn
+    this.spawnProtection     = 180; // 3 seconds at 60fps — immune to damage on spawn
     this.bobTimer = 0;
   }
 
@@ -307,13 +307,20 @@ class Ship {
       this._drawStarter(ctx, col, sz);
     }
 
-    // Spawn protection ring (fades out over 2 seconds)
+    // Spawn protection ring — pulsing green, fades over 3 seconds
     if (this.spawnProtection > 0) {
-      const alpha = this.spawnProtection / 120;
-      ctx.strokeStyle = `rgba(0,255,200,${alpha * 0.7})`;
-      glow(ctx, '#00ffcc', 14 * alpha);
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(0, 0, sz + 12, 0, TAU); ctx.stroke();
+      const pct   = this.spawnProtection / 180;
+      const pulse = 0.45 + 0.45 * Math.sin(this.bobTimer * 0.25);
+      const alpha = pct * pulse;
+      ctx.strokeStyle = `rgba(0,255,136,${alpha * 0.85})`;
+      glow(ctx, '#00ff88', 20 * pct);
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, sz + 11 + 3 * Math.sin(this.bobTimer * 0.18), 0, TAU); ctx.stroke();
+      ctx.globalAlpha = alpha * 0.3;
+      ctx.strokeStyle = '#aaffcc';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(0, 0, sz + 18 + 4 * Math.sin(this.bobTimer * 0.12), 0, TAU); ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     // Shield ring
@@ -1097,7 +1104,7 @@ class OrangeHomingRocket {
     this.vx = 0; this.vy = 0;
     this.speed = 2.2;
     this.lifeTimer = 0;
-    this.fuseTime = 240; // 4 seconds
+    this.fuseTime = 420; // 7 seconds
     this.radius = 9;
     this.dead = false;
     this._exploded = false;
@@ -1196,7 +1203,7 @@ function drawGrid(ctx, W, H, tick) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, rocketAmmo, shieldCharges }) {
+function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges }) {
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = '#0a0018';
   roundRect(ctx, 6, 6, 162, 92, 0); ctx.fill();
@@ -1260,10 +1267,23 @@ function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, ro
 
   ctx.globalAlpha = 1;
 
-  // Multiplier
+  // Multiplier with live countdown timer
   if (multiplier > 1) {
-    ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', 10);
-    ctx.fillText(`${multiplier}x`, W - 10, 78);
+    const remainMs  = Math.max(0, (multiplierEndMs || 0) - Date.now());
+    const remainMin = Math.floor(remainMs / 60000);
+    const remainSec = Math.floor((remainMs % 60000) / 1000);
+    const timeStr   = remainMs > 0
+      ? `${String(remainMin).padStart(2,'0')}:${String(remainSec).padStart(2,'0')}`
+      : '';
+    const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 350);
+    ctx.globalAlpha = pulse;
+    ctx.font = `9px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', 12);
+    ctx.fillText(`${multiplier}x BONUS`, W - 10, 78);
+    if (timeStr) {
+      ctx.font = `7px ${FONT}`; ctx.fillStyle = '#ffcc44'; glow(ctx, '#ffcc44', 6);
+      ctx.fillText(timeStr, W - 10, 91);
+    }
+    ctx.globalAlpha = 1;
   }
 
   ctx.textAlign = 'left'; ctx.shadowBlur = 0; ctx.lineWidth = 1;
@@ -1438,6 +1458,7 @@ class Game {
       this._parseUpgrades(data.upgrades || []);
       if (data.user.multiplier_end && new Date(data.user.multiplier_end) > new Date()) {
         this.activeMultiplier = Number(data.user.multiplier_value);
+        this.multiplierEndMs  = new Date(data.user.multiplier_end).getTime();
         this._showMultiplierBanner();
       }
       bar.style.width = '100%'; label.textContent = 'READY FOR LAUNCH';
@@ -1715,6 +1736,7 @@ class Game {
   }
   _doStartGame() {
     SFX.thrustStop(); this._wasThrusting = false;
+    if (!this.multiplierEndMs) this.multiplierEndMs = 0;
     this.score=0; this.level=1; this.tick=0;
     this.asteroids=[]; this.bullets=[]; this.enemyBullets=[];
     this.rockets=[]; this.playerRockets=[]; this.fireballs=[]; this.particles=[];
@@ -1723,6 +1745,7 @@ class Game {
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
     this.redFighterTimer=0; this.yellowAlienTimer=0; this.orangeRocketTimer=0;
     this.greenStarTimer=rngInt(60 * 180, 60 * 300);
+    this.levelTransitionCooldown=0;
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ups = {};
@@ -1836,35 +1859,43 @@ class Game {
   }
 
   _spawnAsteroids(level) {
-    const count = Math.min(CFG.baseAsteroids + Math.floor((level-1)*1.2), 18);
+    // Gradual scaling: 3 at L1, +1/level up to L10, then slower, cap 22
+    const count = level <= 10
+      ? Math.min(2 + level, 12)
+      : Math.min(12 + Math.floor((level - 10) * 0.6), 22);
     for (let i = 0; i < count; i++) {
       const avoid = this.ship || { x: this.W / 2, y: this.H / 2 };
       const pos = this._findSafeSpawnPoint(36, avoid, 170);
       const x = pos.x, y = pos.y;
       const roll=Math.random();
-      const size = level<=2 ? (roll<0.15?'large':roll<0.55?'medium':'small')
-                 : level<=5 ? (roll<0.25?'large':roll<0.65?'medium':'small')
-                 : level<=10? (roll<0.35?'large':roll<0.7?'medium':'small')
-                 :             (roll<0.4?'large':roll<0.75?'medium':'small');
+      // Size ramp: very gentle at low levels, harsher later
+      const large = Math.min(0.05 + level * 0.025, 0.45);
+      const med   = Math.min(0.25 + level * 0.03,  0.50);
+      const size  = level <= 2 ? (roll<0.07?'large':roll<0.40?'medium':'small')
+                  : roll < large ? 'large'
+                  : roll < large + med ? 'medium'
+                  : 'small';
       this.asteroids.push(new Asteroid(x, y, size, null, level));
     }
   }
 
   _nextLevel() {
     this.level++;
-    // Clear all residue so the screen is clean at the start of each level
+    // Clear residue (bullets, particles, enemies) — keep coins/$/?/green stars across levels
     this.particles     = [];
     this.bullets       = [];
     this.enemyBullets  = [];
     this.rockets       = [];
     this.orangeRockets = [];
+    this.playerRockets = [];
+    this.fireballs     = [];
+    this.floatingTexts = [];
     this.redFighters   = [];
     this.yellowAliens  = [];
-    this.coins         = [];
-    this.mysteryPickups= [];
-    this.greenStars    = [];
-    this.fireballs     = [];
-    this.ship.spawnProtection = 120;
+    // coins, mysteryPickups, greenStars intentionally kept across levels
+    this.pickupSpawnTimer = 0;
+    this.levelTransitionCooldown = 45; // 0.75 sec grace — prevents chain level-skip when holding fire
+    this.ship.spawnProtection = 180; // 3 sec
     SFX.levelUp();
     SFX.startGameMusic(this.level);
     this._spawnAsteroids(this.level);
@@ -1942,30 +1973,31 @@ class Game {
     }
 
     // Spawn enemies
-    const alienInterval = Math.max(1200 - this.level * 25, 600); // rarer — one every 10-20s
-    const redInterval   = Math.max(1400 - this.level * 25, 600);
+    // Gradual enemy progression: aliens L5+, orange rockets L7+, red jets L10+
+    const alienInterval = Math.max(1500 - this.level * 20, 650);
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > alienInterval && this.level >= 3) {
+    if (this.yellowAlienTimer > alienInterval && this.level >= 5) {
       this.yellowAlienTimer = 0;
-      if (this.yellowAliens.length < 1) { // max 1 alien on screen at a time
+      if (this.yellowAliens.length < 1) {
         const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
     }
+    const redInterval = Math.max(1500 - this.level * 18, 550);
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && this.level >= 7) {
+    if (this.redFighterTimer > redInterval && this.level >= 10) {
       this.redFighterTimer = 0;
-      if (this.redFighters.length < Math.floor(this.level/6)) {
+      if (this.redFighters.length < Math.max(1, Math.floor((this.level - 8) / 5))) {
         const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
-    // Orange homing rockets: start level 5, one at a time per wave
-    const orangeInterval = Math.max(900 - this.level * 18, 400);
+    // Orange homing rockets: start L7, one at a time early, more later
+    const orangeInterval = Math.max(1000 - this.level * 15, 380);
     this.orangeRocketTimer++;
-    if (this.orangeRocketTimer > orangeInterval && this.level >= 5) {
+    if (this.orangeRocketTimer > orangeInterval && this.level >= 7) {
       this.orangeRocketTimer = 0;
-      if (this.orangeRockets.length < 1 + Math.floor((this.level - 5) / 4)) {
+      if (this.orangeRockets.length < 1 + Math.floor((this.level - 7) / 5)) {
         const { x, y } = this._edgeSpawn();
         this.orangeRockets.push(new OrangeHomingRocket(x, y));
       }
@@ -2030,7 +2062,11 @@ class Game {
     }
 
     this._collisions();
-    if (this.asteroids.length === 0) this._nextLevel();
+    if (this.levelTransitionCooldown > 0) {
+      this.levelTransitionCooldown--;
+    } else if (this.asteroids.length === 0) {
+      this._nextLevel();
+    }
   }
 
   _edgeSpawn() {
@@ -2044,7 +2080,7 @@ class Game {
   _collisions() {
     const ship = this.ship;
 
-    // ── COLLECTOR: bullets collect $ and ? ─────────────────────────────────
+    // ── COLLECTOR: bullets collect $, ?, and green star ────────────────────
     if (ship.hasCollector) {
       for (let bi = this.bullets.length-1; bi >= 0; bi--) {
         const b = this.bullets[bi];
@@ -2064,6 +2100,16 @@ class Game {
             if (dist(b, this.mysteryPickups[mi]) < this.mysteryPickups[mi].radius + b.radius) {
               this._applyMysteryReward(this.mysteryPickups[mi].x, this.mysteryPickups[mi].y);
               this.mysteryPickups.splice(mi, 1);
+              hit = true; break;
+            }
+          }
+        }
+        if (!hit) {
+          // COLLECTOR also shoots the green star to collect its power from range
+          for (let gi = this.greenStars.length-1; gi >= 0; gi--) {
+            if (dist(b, this.greenStars[gi]) < this.greenStars[gi].radius + b.radius + 4) {
+              this._activateGreenStar(this.greenStars[gi]);
+              this.greenStars.splice(gi, 1);
               hit = true; break;
             }
           }
@@ -2243,6 +2289,23 @@ class Game {
       }
     }
 
+    // ── Orange rockets vs red fighters ─────────────────────────────────────────
+    for (let oi = this.orangeRockets.length-1; oi >= 0; oi--) {
+      const or = this.orangeRockets[oi];
+      if (or.dead) continue;
+      for (let fi = this.redFighters.length-1; fi >= 0; fi--) {
+        if (dist(or, this.redFighters[fi]) < this.redFighters[fi].radius + or.radius) {
+          or._explode(this.particles);
+          burst(this.particles, this.redFighters[fi].x, this.redFighters[fi].y, C.enemyRed, 20, 5, 35);
+          SFX.enemyDie();
+          this._addScore(CFG.enemyRedScore);
+          if (ship.hasAce) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
+          this.redFighters.splice(fi, 1);
+          break;
+        }
+      }
+    }
+
     // Red fighters vs ship
     for (let fi = this.redFighters.length-1; fi >= 0; fi--) {
       const rf = this.redFighters[fi];
@@ -2415,14 +2478,15 @@ class Game {
     this.fireballs.forEach(fb=>fb.draw(ctx));
     if (this.ship?.alive) this.ship.draw(ctx);
     drawHUD(ctx, W, {
-      score:        this.score,
-      level:        this.level,
-      lives:        this.ship?.lives    ?? 0,
-      maxLives:     this.ship?.maxLives ?? 3,
-      flares:       this.ship?.flares   ?? 0,
-      multiplier:   this.activeMultiplier,
-      rocketAmmo:   this.ship?.rocketAmmo ?? 0,
-      shieldCharges:this.ship?.shieldCharges ?? 0,
+      score:          this.score,
+      level:          this.level,
+      lives:          this.ship?.lives    ?? 0,
+      maxLives:       this.ship?.maxLives ?? 3,
+      flares:         this.ship?.flares   ?? 0,
+      multiplier:     this.activeMultiplier,
+      multiplierEndMs:this.multiplierEndMs ?? 0,
+      rocketAmmo:     this.ship?.rocketAmmo ?? 0,
+      shieldCharges:  this.ship?.shieldCharges ?? 0,
     });
   }
 
@@ -2436,11 +2500,35 @@ class Game {
     const effectiveScore = Math.floor(rawScore * this.activeMultiplier);
     const shmipsEarned   = (effectiveScore/1000) + (this.runShmipsBonus || 0);
 
-    document.getElementById('go-score').textContent  = `SCORE  ${effectiveScore.toLocaleString()}`;
-    document.getElementById('go-shmips').textContent = `+${shmipsEarned.toFixed(2)} $$ EARNED`;
-    const isNew = effectiveScore > (this.userData?.best_score||0);
+    const scoreEl  = document.getElementById('go-score');
+    const shmipsEl = document.getElementById('go-shmips');
+    const isNew    = effectiveScore > (this.userData?.best_score||0);
     document.getElementById('go-title').textContent = isNew ? 'NEW HIGH SCORE' : 'GAME OVER';
-    setTimeout(() => isNew ? SFX.highScore() : SFX.shmipEarn(), 700);
+
+    if (this.activeMultiplier > 1) {
+      // Animated multiplier sequence: raw → ×NX → = final
+      scoreEl.textContent = `SCORE  ${rawScore.toLocaleString()}`;
+      scoreEl.style.color = ''; scoreEl.style.textShadow = '';
+      shmipsEl.textContent = '';
+      setTimeout(() => {
+        scoreEl.textContent  = `${rawScore.toLocaleString()} × ${this.activeMultiplier}X`;
+        scoreEl.style.color  = '#ffee00';
+        scoreEl.style.textShadow = '0 0 18px #ffee00';
+        SFX.shmipEarn();
+      }, 900);
+      setTimeout(() => {
+        scoreEl.textContent = `= ${effectiveScore.toLocaleString()}`;
+        scoreEl.style.color = '#00ffcc';
+        scoreEl.style.textShadow = '0 0 22px #00ffcc';
+        shmipsEl.textContent = `+${shmipsEarned.toFixed(2)} $$ EARNED`;
+        if (isNew) SFX.highScore();
+      }, 2000);
+    } else {
+      scoreEl.textContent  = `SCORE  ${effectiveScore.toLocaleString()}`;
+      scoreEl.style.color  = ''; scoreEl.style.textShadow = '';
+      shmipsEl.textContent = `+${shmipsEarned.toFixed(2)} $$ EARNED`;
+      setTimeout(() => isNew ? SFX.highScore() : SFX.shmipEarn(), 700);
+    }
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (tid && !OFFLINE_MODE) {
