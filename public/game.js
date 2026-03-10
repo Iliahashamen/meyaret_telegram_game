@@ -2,16 +2,15 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310h';
+import { SFX } from './sounds.js?v=20250310i';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem,
-  dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
+  dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
-  SPIN_WHEEL_SEGMENTS,
-} from './db.js?v=20250310h';
+} from './db.js?v=20250310i';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -1312,74 +1311,47 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 // ── Case Reel (CS:GO style) ───────────────────────────────────────────────────
-const CASE_CARD_W = 70;
-const CASE_WIN_POS = 50; // which card index holds the winning reward
-
-function _buildCaseReelCards(winSegIdx) {
-  // Generate 70 cards, place winning segment at CASE_WIN_POS
-  const cards = [];
-  for (let i = 0; i < 70; i++) {
-    const idx = i === CASE_WIN_POS
-      ? winSegIdx
-      : Math.floor(Math.random() * SPIN_WHEEL_SEGMENTS.length);
-    cards.push(idx);
-  }
-  return cards;
-}
-
-function _renderCaseReel(cards) {
-  const reel = document.getElementById('case-reel');
-  if (!reel) return;
-  reel.innerHTML = '';
-  reel.style.transform = 'translateX(0px)';
-  cards.forEach((segIdx, i) => {
-    const seg = SPIN_WHEEL_SEGMENTS[segIdx];
+// ── Gift box animation helpers ─────────────────────────────────────────────────
+function _spawnGiftSparks(container, type) {
+  const palettes = {
+    skin_grant:  ['#cc44ff', '#ff44ff', '#aa00ff'],
+    boost_grant: ['#ff6600', '#ffaa00', '#ffee00'],
+    shmips:      ['#ffee00', '#00ffcc', '#ffcc00'],
+  };
+  const cols = palettes[type] || palettes.shmips;
+  for (let i = 0; i < 16; i++) {
     const el = document.createElement('div');
-    el.className = 'case-card' + (i === CASE_WIN_POS ? ' case-win' : '');
-    el.innerHTML = `<div class="cc-icon" style="color:${seg.color};text-shadow:0 0 8px ${seg.color}">${_caseCardIcon(seg.rewardGroup)}</div><div class="cc-label" style="color:${seg.color}">${seg.label}</div>`;
-    reel.appendChild(el);
-  });
+    el.className = 'gift-spark';
+    const angle = (i / 16) * Math.PI * 2;
+    const d = 40 + Math.random() * 55;
+    el.style.setProperty('--dx', `${Math.cos(angle) * d}px`);
+    el.style.setProperty('--dy', `${Math.sin(angle) * d}px`);
+    el.style.background = cols[i % cols.length];
+    el.style.boxShadow  = `0 0 8px ${cols[i % cols.length]}`;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 900);
+  }
 }
 
-function _caseCardIcon(group) {
-  const icons = { cash_5:'$', cash_10:'$$', cash_25:'$$$', boost:'*', skin:'~', magneto:'M' };
-  return icons[group] || '?';
-}
-
-function _animateCaseReel(containerEl, winPos, duration = 5000) {
-  return new Promise(resolve => {
-    const containerW = containerEl.clientWidth || 340;
-    const centerX = containerW / 2;
-    // Winning card center in reel coords
-    const winCenter = winPos * CASE_CARD_W + CASE_CARD_W / 2;
-    // Add a small random offset so it doesn't always land dead-center
-    const jitter = (Math.random() - 0.5) * (CASE_CARD_W * 0.5);
-    const finalX = centerX - winCenter + jitter;
-    const startX = centerX - CASE_CARD_W / 2; // card 0 centered at start
-
-    const reel = document.getElementById('case-reel');
-    reel.style.transform = `translateX(${startX}px)`;
-
-    let startTime = null;
-    // Decelerate with quintic ease-out
-    const easeOut = t => 1 - Math.pow(1 - t, 5);
-
-    let lastTick = 0;
-    function frame(ts) {
-      if (!startTime) startTime = ts;
-      const t = Math.min((ts - startTime) / duration, 1);
-      const eased = easeOut(t);
-      const current = startX + (finalX - startX) * eased;
-      reel.style.transform = `translateX(${current}px)`;
-      // Tick sound proportional to speed (more at start, none at end)
-      const speed = Math.abs((finalX - startX) * (1 - eased));
-      if (speed > 40 && ts - lastTick > 80) { SFX.spinTick(); lastTick = ts; }
-      else if (speed > 15 && ts - lastTick > 200) { SFX.spinTick(); lastTick = ts; }
-      if (t < 1) requestAnimationFrame(frame);
-      else resolve();
-    }
-    requestAnimationFrame(frame);
-  });
+async function _animateGiftOpen(rewardType) {
+  const box   = document.getElementById('gift-box');
+  const lid   = document.getElementById('gift-lid');
+  const sparks = document.getElementById('gift-sparks');
+  if (!box) return;
+  // Phase 1 — shake (600ms)
+  box.classList.remove('gift-idle');
+  box.classList.add('gift-shake');
+  await new Promise(r => setTimeout(r, 600));
+  box.classList.remove('gift-shake');
+  // Phase 2 — lid flies off + first burst (900ms)
+  lid.classList.add('gift-lid-open');
+  _spawnGiftSparks(sparks, rewardType);
+  await new Promise(r => setTimeout(r, 600));
+  _spawnGiftSparks(sparks, rewardType);
+  await new Promise(r => setTimeout(r, 700));
+  // Phase 3 — second burst + settle (700ms)
+  _spawnGiftSparks(sparks, rewardType);
+  await new Promise(r => setTimeout(r, 700));
 }
 
 // ── Main Game Class ───────────────────────────────────────────────────────────
@@ -1555,7 +1527,7 @@ class Game {
     document.getElementById('callsign-input').addEventListener('keydown', e => { if (e.key === 'Enter') this._submitCallsign(); });
 
     document.getElementById('btn-play').addEventListener('click',    () => this._startGame());
-    document.getElementById('btn-spin').addEventListener('click',    () => this._openSpin());
+    document.getElementById('btn-spin').addEventListener('click',    () => this._openGift());
     document.getElementById('btn-store').addEventListener('click',   () => this._openStore());
     document.getElementById('btn-arsenal').addEventListener('click', () => this._openArsenal());
     document.getElementById('btn-guide').addEventListener('click',   () => this._openGuide());
@@ -1583,7 +1555,7 @@ class Game {
     });
     document.getElementById('new-nick-confirm').addEventListener('click', () => this._changeNickname());
 
-    document.getElementById('spin-btn').addEventListener('click', () => this._doSpin());
+    document.getElementById('spin-btn').addEventListener('click', () => this._doOpenGift());
     document.getElementById('arsenal-open-store').addEventListener('click', () => this._openStore());
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1692,7 +1664,7 @@ class Game {
     const shmips = Number(this.userData.shmips || 0);
     document.getElementById('menu-shmips').textContent = `${shmips%1===0?shmips:shmips.toFixed(2)} $$`;
     this._loadLeaderboard();
-    this._loadSpinTimer();
+    this._loadGiftTimer();
   }
 
   async _loadLeaderboard() {
@@ -1701,32 +1673,31 @@ class Game {
     } catch { /* non-critical */ }
   }
 
-  async _loadSpinTimer() {
+  async _loadGiftTimer() {
     const timerEl = document.getElementById('menu-spin-timer');
     if (!timerEl) return;
     try {
       const tid = TG_USER?.id || this.userData?.telegram_id;
       if (!tid) return;
-      if (String(tid) === ADMIN_TID) { timerEl.textContent = ''; return; }
-      const status = await dbSpinStatus(tid);
+      const status = await dbGiftStatus(tid);
       if (status.available) {
-        timerEl.textContent = 'SHPIN READY!';
+        timerEl.textContent = 'GIFT READY!';
         timerEl.style.color = 'var(--cyan)';
       } else {
         timerEl.style.color = 'var(--muted2)';
-        this._tickMenuSpinTimer(status.remainingMs, timerEl);
+        this._tickMenuGiftTimer(status.remainingMs, timerEl);
       }
     } catch { /* non-critical */ }
   }
 
-  _tickMenuSpinTimer(ms, el) {
+  _tickMenuGiftTimer(ms, el) {
     const tick = () => {
       ms -= 1000;
-      if (ms <= 0) { el.textContent = 'SHPIN READY!'; el.style.color = 'var(--cyan)'; return; }
+      if (ms <= 0) { el.textContent = 'GIFT READY!'; el.style.color = 'var(--cyan)'; return; }
       const h = Math.floor(ms/3_600_000);
       const m = Math.floor((ms%3_600_000)/60_000);
       const s = Math.floor((ms%60_000)/1000);
-      el.textContent = `SHPIN: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      el.textContent = `GIFT: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
       if (this.state === 'menu') setTimeout(tick, 1000);
     };
     tick();
@@ -2642,7 +2613,7 @@ class Game {
         <div><b>MYSTERY ? REWARDS</b><br>Rapid fire, laser/super laser, life, shield, flare, rocket, one-shot damage boost, rare fireball.</div><br>
         <div><b>NEW GREEN STAR</b><br>Very rare 3-second star pickup. Grants 10 seconds overdrive: strong green glow, 2-layer protection, purple lasers, and 2x fire rate.</div><br>
         <div><b>ENEMIES</b><br>Asteroids split by size. Red fighters shoot and collide. Yellow aliens pass through objects, vanish quickly, and give high score. Orange homing rockets chase and explode.</div><br>
-        <div><b>SHPIN</b><br>Spin for shmips, boosts, skins, and upgrades. Dev account can also roll 1-hour x2/x3 multiplier rewards.</div>
+        <div><b>DAILY GIFT</b><br>Opens every 4 hours. Rewards range from 10-50 shmips, one-run boosts, or a rare random skin (7% chance). Already own the skin? Get its value in shmips instead.</div>
       `;
     }
     this._showScreen('guide');
@@ -2775,24 +2746,24 @@ class Game {
     } catch(err){ errEl.textContent = err.message||'Error. Try again.'; }
   }
 
-  // ── SHPIN (CS:GO case opening) ────────────────────────────────────────────
-  async _openSpin() {
+  // ── Daily Gift Box ─────────────────────────────────────────────────────────
+  async _openGift() {
     this._showScreen('spin');
 
-    // Render a static preview reel
-    const previewCards = _buildCaseReelCards(0);
-    _renderCaseReel(previewCards);
-    // Scroll to middle of reel so it looks populated
-    const reel = document.getElementById('case-reel');
-    const outer = document.getElementById('case-reel-outer');
-    const containerW = outer?.clientWidth || 340;
-    reel.style.transform = `translateX(${containerW / 2 - 5 * CASE_CARD_W - CASE_CARD_W / 2}px)`;
+    // Reset box state
+    const box  = document.getElementById('gift-box');
+    const lid  = document.getElementById('gift-lid');
+    if (box) { box.className = 'gift-idle'; }
+    if (lid) { lid.classList.remove('gift-lid-open'); }
+    const sparks = document.getElementById('gift-sparks');
+    if (sparks) sparks.innerHTML = '';
 
-    const tid   = TG_USER?.id || this.userData?.telegram_id;
+    const resultEl = document.getElementById('spin-result');
+    if (resultEl) { resultEl.classList.add('hidden'); resultEl.className = 'spin-result hidden'; }
+
     const btn   = document.getElementById('spin-btn');
     const timer = document.getElementById('spin-countdown');
-    const result = document.getElementById('spin-result');
-    result.classList.add('hidden');
+    const tid   = TG_USER?.id || this.userData?.telegram_id;
 
     if (!tid) {
       btn.disabled = true; btn.style.opacity = '0.4';
@@ -2801,48 +2772,50 @@ class Game {
     }
 
     let status = null;
-    const isAdmin = String(tid) === ADMIN_TID;
-    try { status = await dbSpinStatus(tid); } catch { /* non-critical */ }
-    if (isAdmin || status?.available) {
+    try { status = await dbGiftStatus(tid); } catch { /* non-critical */ }
+    if (status?.available) {
       btn.disabled = false; btn.style.opacity = '1'; timer.classList.add('hidden');
     } else if (status) {
       btn.disabled = true; btn.style.opacity = '0.4';
       timer.classList.remove('hidden');
-      this._startSpinCountdown(status.remainingMs, timer);
+      this._startGiftCountdown(status.remainingMs, timer);
     }
   }
 
-  _startSpinCountdown(ms, el) {
+  _startGiftCountdown(ms, el) {
     const tick = () => {
       ms -= 1000;
-      if (ms <= 0) { el.textContent = 'SHPIN READY!'; el.style.color = 'var(--cyan)'; return; }
+      if (ms <= 0) {
+        el.textContent = 'GIFT READY!'; el.style.color = 'var(--cyan)';
+        const btn = document.getElementById('spin-btn');
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        return;
+      }
       const h = Math.floor(ms/3_600_000), m = Math.floor((ms%3_600_000)/60_000), s = Math.floor((ms%60_000)/1000);
-      el.textContent = `NEXT SHPIN: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      el.textContent = `NEXT GIFT: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
       setTimeout(tick, 1000);
     };
     tick();
   }
 
-  async _doSpin() {
+  async _doOpenGift() {
     const btn    = document.getElementById('spin-btn');
     const result = document.getElementById('spin-result');
-    const outer  = document.getElementById('case-reel-outer');
     btn.disabled = true; result.classList.add('hidden');
 
     if (OFFLINE_MODE) {
-      result.textContent = 'OFFLINE — SHPIN REQUIRES CONNECTION';
+      result.textContent = 'OFFLINE — GIFT REQUIRES CONNECTION';
       result.classList.remove('hidden'); btn.disabled = false; return;
     }
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (!tid) { result.textContent = 'OPEN VIA TELEGRAM'; result.classList.remove('hidden'); btn.disabled = false; return; }
 
-    // Fetch reward from Supabase
     let data = null;
     try {
-      data = await dbDoSpin(tid);
+      data = await dbOpenGift(tid);
     } catch(e) {
-      result.textContent = (e.message || 'SHPIN FAILED').toUpperCase();
+      result.textContent = (e.message || 'GIFT FAILED').toUpperCase();
       result.classList.remove('hidden'); btn.disabled = false; return;
     }
     if (data?.error) {
@@ -2853,14 +2826,17 @@ class Game {
     const reward = data?.reward;
     if (!reward) return;
 
-    // Build reel with winning segment at CASE_WIN_POS, then animate
-    const segIdx = reward.segmentIndex ?? 0;
-    const cards  = _buildCaseReelCards(segIdx);
-    _renderCaseReel(cards);
-    await _animateCaseReel(outer, CASE_WIN_POS, 5000);
+    // Run box opening animation
+    await _animateGiftOpen(reward.type);
 
+    // Show glowing reward text
+    const typeColors = { skin_grant: '#cc44ff', boost_grant: '#ff7700', shmips: '#ffee00' };
+    const col = typeColors[reward.type] || '#ffee00';
+    result.style.color = col;
+    result.style.textShadow = `0 0 18px ${col}, 0 0 36px ${col}88`;
     result.textContent = `YOU GOT: ${reward.label}!`;
     result.classList.remove('hidden');
+    result.classList.add('gift-reward-reveal');
     SFX.shmipEarn && SFX.shmipEarn();
 
     // Refresh user data
@@ -2870,17 +2846,11 @@ class Game {
     } catch { /* non-critical */ }
     this._loadMenu();
 
-    const isAdmin = String(tid) === ADMIN_TID;
-    if (!isAdmin) {
-      btn.disabled = true; btn.style.opacity = '0.4';
-      const timerEl = document.getElementById('spin-countdown');
-      timerEl.classList.remove('hidden');
-      this._startSpinCountdown(9 * 60 * 60 * 1000, timerEl);
-    } else {
-      btn.disabled = false; btn.style.opacity = '1';
-      const timerEl = document.getElementById('spin-countdown');
-      timerEl.classList.add('hidden');
-    }
+    // Start cooldown timer
+    btn.disabled = true; btn.style.opacity = '0.4';
+    const timerEl = document.getElementById('spin-countdown');
+    timerEl.classList.remove('hidden');
+    this._startGiftCountdown(4 * 60 * 60 * 1000, timerEl);
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────

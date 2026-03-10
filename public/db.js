@@ -75,42 +75,24 @@ export const CATALOG = [
 ];
 
 // ── Spin Wheel — 13 segments: shmips 5-30 + one-time boosts, every 6h ────────
-export const SPIN_WHEEL_SEGMENTS = [
-  { label: '5 $$',  color: '#00ffcc', rewardGroup: 'cash_5'  },
-  { label: '10 $$', color: '#ffcc00', rewardGroup: 'cash_10' },
-  { label: '5 $$',  color: '#00ddaa', rewardGroup: 'cash_5'  },
-  { label: '10 $$', color: '#ffd700', rewardGroup: 'cash_10' },
-  { label: 'BOOST', color: '#ff0077', rewardGroup: 'boost'   },
-  { label: '15 $$', color: '#ff8844', rewardGroup: 'cash_15' },
-  { label: '5 $$',  color: '#00ffcc', rewardGroup: 'cash_5'  },
-  { label: '20 $$', color: '#ff6600', rewardGroup: 'cash_20' },
-  { label: '5 $$',  color: '#00ddaa', rewardGroup: 'cash_5'  },
-  { label: '10 $$', color: '#ffcc00', rewardGroup: 'cash_10' },
-  { label: '25 $$', color: '#ff8800', rewardGroup: 'cash_25' },
-  { label: '30 $$', color: '#ff3300', rewardGroup: 'cash_30' },
-  { label: 'BOOST', color: '#ff0077', rewardGroup: 'boost'   },
+// ── Daily Gift reward table ────────────────────────────────────────────────────
+const GIFT_REWARDS = [
+  { id: 'cash_10', weight: 30, type: 'shmips',      value: 10 },
+  { id: 'cash_20', weight: 25, type: 'shmips',      value: 20 },
+  { id: 'cash_30', weight: 18, type: 'shmips',      value: 30 },
+  { id: 'cash_40', weight: 10, type: 'shmips',      value: 40 },
+  { id: 'cash_50', weight: 6,  type: 'shmips',      value: 50 },
+  { id: 'boost',   weight: 11, type: 'boost_grant'            },
+  { id: 'skin',    weight: 7,  type: 'skin_grant'             },
 ];
-
-const SPIN_REWARDS = [
-  { id: 'cash_5',  weight: 35, label: '5 $$',  type: 'shmips', value: 5  },
-  { id: 'cash_10', weight: 25, label: '10 $$', type: 'shmips', value: 10 },
-  { id: 'cash_15', weight: 15, label: '15 $$', type: 'shmips', value: 15 },
-  { id: 'cash_20', weight: 10, label: '20 $$', type: 'shmips', value: 20 },
-  { id: 'cash_25', weight: 7,  label: '25 $$', type: 'shmips', value: 25 },
-  { id: 'cash_30', weight: 3,  label: '30 $$', type: 'shmips', value: 30 },
-  { id: 'boost',   weight: 5,  label: 'BOOST', type: 'boost_grant'        },
-];
-const COOLDOWN_MS = 6 * 60 * 60 * 1000;  // 6 hours
+const COOLDOWN_MS = 4 * 60 * 60 * 1000;  // 4 hours (applies to everyone)
 const ADMIN_TID = '1357754255';
 
-function pickSpinReward() {
-  const total = SPIN_REWARDS.reduce((a, r) => a + r.weight, 0);
+function _pickGiftReward() {
+  const total = GIFT_REWARDS.reduce((a, r) => a + r.weight, 0);
   let roll = Math.random() * total;
-  for (const r of SPIN_REWARDS) {
-    roll -= r.weight;
-    if (roll < 0) return r;
-  }
-  return SPIN_REWARDS[0];
+  for (const r of GIFT_REWARDS) { roll -= r.weight; if (roll < 0) return r; }
+  return GIFT_REWARDS[0];
 }
 
 // ── Get or create user ────────────────────────────────────────────────────────
@@ -290,77 +272,71 @@ export async function dbGetUserUpgrades(telegramId) {
   return rows || [];
 }
 
-// ── Spin status ───────────────────────────────────────────────────────────────
-export async function dbSpinStatus(telegramId) {
-  if (String(telegramId) === ADMIN_TID) return { available: true, remainingMs: 0 };
-  const rows = await supa(`users?telegram_id=eq.${telegramId}&select=last_spin_at`);
+// ── Gift status (timer for everyone, no admin bypass) ─────────────────────────
+export async function dbGiftStatus(telegramId) {
+  const rows = await supa(`users?telegram_id=eq.${String(telegramId)}&select=last_spin_at`);
   const user = rows[0];
   if (!user?.last_spin_at) return { available: true, remainingMs: 0 };
-  const next = new Date(new Date(user.last_spin_at).getTime() + COOLDOWN_MS);
-  const now = Date.now();
+  const next = new Date(user.last_spin_at).getTime() + COOLDOWN_MS;
+  const now  = Date.now();
   return { available: now >= next, remainingMs: Math.max(0, next - now) };
 }
 
-// ── Do Spin ────────────────────────────────────────────────────────────────────
-export async function dbDoSpin(telegramId) {
+// ── Open daily gift ────────────────────────────────────────────────────────────
+export async function dbOpenGift(telegramId) {
   const id = String(telegramId);
-  const isAdmin = id === ADMIN_TID;
-  const rows = await supa(`users?telegram_id=eq.${id}&select=shmips,last_spin_at`);
-  const user = rows[0];
+  const [userRows, upgradeRows] = await Promise.all([
+    supa(`users?telegram_id=eq.${id}&select=shmips,last_spin_at`),
+    supa(`user_upgrades?telegram_id=eq.${id}&select=upgrade_id`),
+  ]);
+  const user = userRows[0];
   if (!user) throw new Error('User not found.');
 
   const now = new Date();
-  if (!isAdmin && user.last_spin_at) {
-    const next = new Date(new Date(user.last_spin_at).getTime() + COOLDOWN_MS);
-    if (now < next) {
-      const remainMs = next - now;
-      const h = Math.floor(remainMs / 3_600_000);
-      const m = Math.floor((remainMs % 3_600_000) / 60_000);
-      throw new Error(`SHPIN LOCKED — ${h}H ${m}M REMAINING`);
+  if (user.last_spin_at) {
+    const next = new Date(user.last_spin_at).getTime() + COOLDOWN_MS;
+    if (now.getTime() < next) {
+      const rem = next - now.getTime();
+      const h = Math.floor(rem / 3_600_000);
+      const m = Math.floor((rem % 3_600_000) / 60_000);
+      throw new Error(`GIFT LOCKED — ${h}H ${m}M REMAINING`);
     }
   }
 
-  const reward = pickSpinReward();
-  const updates = isAdmin ? {} : { last_spin_at: now.toISOString() };
-  let grantedLabel = reward.label;
-  let grantedUpgrade = null;
+  const reward  = _pickGiftReward();
+  const updates = { last_spin_at: now.toISOString() };
+  let label = '';
+  let type  = reward.type;
 
   if (reward.type === 'shmips') {
     updates.shmips = Math.round((Number(user.shmips) + reward.value) * 100) / 100;
+    label = `+${reward.value} $$`;
 
   } else if (reward.type === 'boost_grant') {
-    // Random one-time boost from the boost pool
     const boostPool = ['extra_life', 'extra_flare', 'extra_shield', 'extra_rocket', 'score_x2'];
-    grantedUpgrade = boostPool[Math.floor(Math.random() * boostPool.length)];
-    const boostItem = CATALOG.find(c => c.id === grantedUpgrade);
-    grantedLabel = `BOOST: ${boostItem?.name || grantedUpgrade}`;
-    await _grantUpgrade(id, grantedUpgrade);
+    const grantedId = boostPool[Math.floor(Math.random() * boostPool.length)];
+    const item = CATALOG.find(c => c.id === grantedId);
+    label = item?.name || grantedId;
+    await _grantUpgrade(id, grantedId);
+
+  } else if (reward.type === 'skin_grant') {
+    const allSkins  = CATALOG.filter(c => c.category === 'skin');
+    const ownedIds  = new Set(upgradeRows.map(u => u.upgrade_id));
+    const skin      = allSkins[Math.floor(Math.random() * allSkins.length)];
+    if (ownedIds.has(skin.id)) {
+      // Already owned — compensate with the skin's cost in shmips
+      updates.shmips = Math.round((Number(user.shmips) + skin.cost) * 100) / 100;
+      label = `${skin.name} (OWNED) +${skin.cost} $$`;
+      type  = 'shmips';
+    } else {
+      label = skin.name;
+      await _grantUpgrade(id, skin.id);
+    }
   }
 
-  await supa(`users?telegram_id=eq.${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(updates),
-  });
-
-  // Find a matching segment index (pick randomly if multiple segments share the reward group)
-  const matchingIdxs = SPIN_WHEEL_SEGMENTS
-    .map((s, i) => ({ ...s, i }))
-    .filter(s => s.rewardGroup === reward.id);
-  const picked = matchingIdxs.length > 0
-    ? matchingIdxs[Math.floor(Math.random() * matchingIdxs.length)]
-    : { i: 0 };
-
+  await supa(`users?telegram_id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
   const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
-  return {
-    reward: {
-      id:           reward.id,
-      label:        grantedLabel,
-      type:         reward.type,
-      upgrade:      grantedUpgrade,
-      segmentIndex: picked.i,
-    },
-    user: updated[0],
-  };
+  return { reward: { label, type }, user: updated[0] };
 }
 
 async function _grantUpgrade(id, upgradeId) {
