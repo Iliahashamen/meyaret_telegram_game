@@ -656,7 +656,6 @@ class Ship {
     return false;
   }
 
-  get radius() { return this.golden ? 14 : 10; }
 }
 
 // ── Bullet ────────────────────────────────────────────────────────────────────
