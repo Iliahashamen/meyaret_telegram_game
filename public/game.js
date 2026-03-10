@@ -218,6 +218,7 @@ class Ship {
     this.tempLaserUntil      = 0;
     this.tempRapidUntil      = 0;
     this.tempPowerBoostUntil = 0;
+    this.fireballReady       = false;
     this.bobTimer = 0;
   }
 
@@ -301,6 +302,14 @@ class Ship {
       glow(ctx, '#00aaff', 16);
       ctx.lineWidth = 1.8;
       ctx.beginPath(); ctx.arc(0, 0, sz + 8, 0, TAU); ctx.stroke();
+    }
+
+    // Fireball ready — pulsing orange glow on nose
+    if (this.fireballReady) {
+      const pulse = Math.sin(this.bobTimer * 0.25) * 0.4 + 0.7;
+      glow(ctx, '#ff6600', 22 * pulse);
+      ctx.fillStyle = `rgba(255,100,0,${0.5 * pulse})`;
+      ctx.beginPath(); ctx.arc(0, -sz, 8, 0, TAU); ctx.fill();
     }
 
     ctx.restore();
@@ -447,8 +456,17 @@ class Ship {
     return this.fireRate;
   }
 
-  fire(bullets) {
+  fire(bullets, fireballs) {
     if (!this.canFire()) return;
+    // Fireball overrides everything — consume it on next shot
+    if (this.fireballReady) {
+      this.fireballReady = false;
+      this.fireCooldown = 20;
+      const nose = { x: this.x + Math.cos(this.angle) * 20, y: this.y + Math.sin(this.angle) * 20 };
+      if (fireballs) fireballs.push(new Fireball(nose.x, nose.y, this.angle));
+      SFX.rocketFire();
+      return;
+    }
     this.fireCooldown = this.effectiveFireRate;
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
 
@@ -594,6 +612,48 @@ class Laser {
     ctx.shadowBlur = 0;
   }
   get dead() { return this.life <= 0; }
+}
+
+// ── Fireball ──────────────────────────────────────────────────────────────────
+class Fireball {
+  constructor(x, y, angle) {
+    this.x = x; this.y = y;
+    this.vx = Math.cos(angle) * 3.5;
+    this.vy = Math.sin(angle) * 3.5;
+    this.angle = angle;
+    this.life   = 60; // 1 second fuse
+    this.radius = 22;
+    this.pulse  = 0;
+    this.dead   = false;
+    this.exploded = false;
+  }
+  update(W, H) {
+    this.pulse++;
+    this.x = wrap(this.x + this.vx, 0, W);
+    this.y = wrap(this.y + this.vy, 0, H);
+    this.life--;
+    if (this.life <= 0 && !this.exploded) this.exploded = true;
+  }
+  draw(ctx) {
+    const pct  = 1 - this.life / 60; // 0→1 as fuse counts down
+    const r    = this.radius * (1 + Math.sin(this.pulse * 0.35) * 0.12);
+    ctx.save();
+    // Outer aura
+    glow(ctx, '#ff4400', 36 + pct * 20);
+    // Gradient ball
+    const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, r);
+    grad.addColorStop(0,   '#ffffff');
+    grad.addColorStop(0.25,'#ffff88');
+    grad.addColorStop(0.6, '#ff6600');
+    grad.addColorStop(1,   'rgba(255,30,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(this.x, this.y, r * 1.6, 0, TAU); ctx.fill();
+    // Fuse ring grows red as detonation nears
+    ctx.beginPath(); ctx.arc(this.x, this.y, r + 6 + pct * 14, 0, TAU);
+    ctx.strokeStyle = `rgba(255,${Math.floor(180 - pct * 180)},0,${0.3 + pct * 0.6})`;
+    ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.restore(); ctx.shadowBlur = 0;
+  }
 }
 
 // ── Asteroid ──────────────────────────────────────────────────────────────────
@@ -1098,7 +1158,7 @@ class Game {
 
     this.ship = null;
     this.asteroids = []; this.bullets = []; this.enemyBullets = [];
-    this.rockets = []; this.playerRockets = []; this.particles = [];
+    this.rockets = []; this.playerRockets = []; this.fireballs = []; this.particles = [];
     this.redFighters = []; this.yellowAliens = []; this.orangeRockets = [];
     this.coins = []; this.mysteryPickups = [];
 
@@ -1435,7 +1495,7 @@ class Game {
     SFX.thrustStop(); this._wasThrusting = false;
     this.score=0; this.level=1; this.tick=0;
     this.asteroids=[]; this.bullets=[]; this.enemyBullets=[];
-    this.rockets=[]; this.playerRockets=[]; this.particles=[];
+    this.rockets=[]; this.playerRockets=[]; this.fireballs=[]; this.particles=[];
     this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[];
     this.coins=[]; this.mysteryPickups=[];
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
@@ -1552,7 +1612,7 @@ class Game {
     if (!this.ship?.alive) return;
 
     // Input
-    if (this.keys.fire)  this.ship.fire(this.bullets);
+    if (this.keys.fire)  this.ship.fire(this.bullets, this.fireballs);
     if (this.keys.flare) { this.ship.useFlare(this.rockets, this.particles, this.orangeRockets); this.keys.flare = false; }
     if (this.keys.rocket){ this.ship.fireRocket(this.playerRockets); this.keys.rocket = false; }
     if (this.keys.shield){ this.ship.deployShield(); this.keys.shield = false; }
@@ -1620,6 +1680,15 @@ class Game {
     this.rockets = this.rockets.filter(r => !r.dead);
     this.playerRockets.forEach(r => r.update(this.W, this.H));
     this.playerRockets = this.playerRockets.filter(r => !r.dead);
+    this.fireballs.forEach(f => f.update(this.W, this.H));
+    // Handle fireball detonations
+    for (let fi = this.fireballs.length - 1; fi >= 0; fi--) {
+      const fb = this.fireballs[fi];
+      if (fb.exploded) {
+        this._detonateFireball(fb);
+        this.fireballs.splice(fi, 1);
+      }
+    }
     this.particles.forEach(p => p.update());
     this.particles = this.particles.filter(p => !p.dead);
     this.redFighters.forEach(rf => rf.update(this.ship, this.enemyBullets, this.W, this.H, this.particles));
@@ -1866,6 +1935,21 @@ class Game {
       }
     }
 
+    // ── Fireballs vs asteroids/enemies (early trigger on direct hit) ─────────
+    for (let fi = this.fireballs.length - 1; fi >= 0; fi--) {
+      const fb = this.fireballs[fi];
+      let triggered = false;
+      for (const a of this.asteroids) {
+        if (dist(fb, a) < a.radius + fb.radius) { triggered = true; break; }
+      }
+      if (!triggered) {
+        for (const e of [...this.redFighters, ...this.yellowAliens]) {
+          if (dist(fb, e) < e.radius + fb.radius) { triggered = true; break; }
+        }
+      }
+      if (triggered) { fb.exploded = true; }
+    }
+
     // ── Orange homing rockets vs player bullets ──────────────────────────────
     for (let bi = this.bullets.length-1; bi >= 0; bi--) {
       const b = this.bullets[bi];
@@ -1922,6 +2006,59 @@ class Game {
     }
   }
 
+  _detonateFireball(fb) {
+    const AOE = 190;
+    // Massive visual burst
+    burst(this.particles, fb.x, fb.y, '#ffffff',  10, 6, 60);
+    burst(this.particles, fb.x, fb.y, '#ffff00',  16, 5, 50);
+    burst(this.particles, fb.x, fb.y, '#ff6600',  20, 4, 40);
+    burst(this.particles, fb.x, fb.y, '#ff0000',  12, 3, 30);
+    SFX.explodeLarge(); SFX.rocketExplode();
+    // 16 shard bullets fly out in all directions
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * TAU;
+      const b = new Bullet(fb.x, fb.y, a, false);
+      b.vx = Math.cos(a) * 9; b.vy = Math.sin(a) * 9;
+      b.life = 35; b.radius = 5;
+      b._isShard = true;
+      this.bullets.push(b);
+    }
+    // AOE: obliterate asteroids
+    for (let ai = this.asteroids.length - 1; ai >= 0; ai--) {
+      if (dist(fb, this.asteroids[ai]) < AOE) {
+        burst(this.particles, this.asteroids[ai].x, this.asteroids[ai].y, C.asteroid, 10, 3, 25);
+        this._addScore(this.asteroids[ai].score * 3);
+        this.asteroids.splice(ai, 1);
+      }
+    }
+    // AOE: destroy enemies
+    for (let ei = this.redFighters.length - 1; ei >= 0; ei--) {
+      if (dist(fb, this.redFighters[ei]) < AOE) {
+        burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 16, 4, 35);
+        this._addScore(CFG.enemyRedScore * 3);
+        this.redFighters.splice(ei, 1);
+      }
+    }
+    for (let ei = this.yellowAliens.length - 1; ei >= 0; ei--) {
+      if (dist(fb, this.yellowAliens[ei]) < AOE) {
+        burst(this.particles, this.yellowAliens[ei].x, this.yellowAliens[ei].y, C.enemyYellow, 16, 4, 35);
+        this._addScore(CFG.enemyYellowScore * 3);
+        this.yellowAliens.splice(ei, 1);
+      }
+    }
+    for (let oi = this.orangeRockets.length - 1; oi >= 0; oi--) {
+      if (dist(fb, this.orangeRockets[oi]) < AOE) {
+        this._addScore(150);
+        this.orangeRockets.splice(oi, 1);
+      }
+    }
+    // AOE: enemy rockets caught in blast
+    for (let ri = this.rockets.length - 1; ri >= 0; ri--) {
+      if (dist(fb, this.rockets[ri]) < AOE) this.rockets.splice(ri, 1);
+    }
+    new FloatingText(fb.x, fb.y - 30, 'KABOOM!', '#ffff00');
+  }
+
   _applyMysteryReward(mx, my) {
     const ship = this.ship;
     const roll = Math.random();
@@ -1932,10 +2069,11 @@ class Game {
     else if (roll < 0.56) { ship.shieldCharges++; _updateShieldHUD(ship.shieldCharges); label = '+1 SHIELD!'; }
     else if (roll < 0.68) { ship.flares = Math.min(ship.flares+1, 9);              label = '+1 FLARE!'; }
     else if (roll < 0.82) { ship.rocketAmmo++;                                     label = '+1 ROCKET!'; }
-    else                  { ship.tempPowerBoostUntil = 1200;                       label = '2X DAMAGE!'; }
+    else if (roll < 0.94) { ship.tempPowerBoostUntil = 1200;                       label = '2X DAMAGE!'; }
+    else                  { ship.fireballReady = true;                             label = 'FIREBALL READY!'; }
     SFX.mysteryPickup();
     burst(this.particles, mx, my, '#aa00ff', 12, 3, 25);
-    new FloatingText(mx, my - 20, label, '#ff00ff');
+    new FloatingText(mx, my - 20, label, roll >= 0.94 ? '#ff6600' : '#ff00ff');
   }
 
   _addScore(pts) { this.score += Math.floor(pts * this.activeMultiplier); }
@@ -1955,6 +2093,7 @@ class Game {
     this.redFighters.forEach(rf=>rf.draw(ctx));
     this.yellowAliens.forEach(ya=>ya.draw(ctx));
     this.orangeRockets.forEach(or=>or.draw(ctx));
+    this.fireballs.forEach(fb=>fb.draw(ctx));
     if (this.ship?.alive) this.ship.draw(ctx);
     drawHUD(ctx, W, {
       score:        this.score,
