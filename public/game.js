@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310n';
+import { SFX } from './sounds.js?v=20250310o';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -10,7 +10,7 @@ import {
   dbGetUserUpgrades, dbBuyItem,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
-} from './db.js?v=20250310n';
+} from './db.js?v=20250310o';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -718,11 +718,11 @@ class Laser {
     this.angle = angle;
     this.pink  = pink;
     this.customColor = customColor;
-    this.len   = pink ? 220 : 80;
+    this.len   = pink ? 160 : 80;
     this.life  = pink ? Math.floor(CFG.laserLife * 1.8) : CFG.laserLife;
     this.vx    = Math.cos(angle) * (pink ? 20 : 14);
     this.vy    = Math.sin(angle) * (pink ? 20 : 14);
-    this.radius = pink ? 10 : 4;
+    this.radius = pink ? 6 : (customColor ? 3 : 4);
   }
   update(W, H) {
     this.x = wrap(this.x + this.vx, 0, W);
@@ -731,24 +731,24 @@ class Laser {
   }
   draw(ctx) {
     const col = this.pink ? '#ff00ee' : (this.customColor || C.laser);
-    const width = this.pink ? 10 : (this.customColor ? 4 : 3);
-    glow(ctx, col, this.pink ? 40 : (this.customColor ? 22 : 16));
+    const width = this.pink ? 6 : (this.customColor ? 2.5 : 3);
+    glow(ctx, col, this.pink ? 22 : (this.customColor ? 10 : 16));
     ctx.strokeStyle = col; ctx.lineWidth = width;
     ctx.beginPath();
     ctx.moveTo(this.x, this.y);
     ctx.lineTo(this.x - Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
     ctx.stroke();
     if (this.pink) {
-      // outer bloom
-      glow(ctx, '#ff88ff', 20);
-      ctx.strokeStyle = '#ff88ff44'; ctx.lineWidth = 22;
+      // outer bloom — toned down
+      glow(ctx, '#ff88ff', 10);
+      ctx.strokeStyle = '#ff88ff28'; ctx.lineWidth = 12;
       ctx.beginPath();
       ctx.moveTo(this.x, this.y);
       ctx.lineTo(this.x - Math.cos(this.angle) * this.len, this.y - Math.sin(this.angle) * this.len);
       ctx.stroke();
       // inner white core
-      glow(ctx, '#ffffff', 10);
-      ctx.strokeStyle = '#ffffffcc'; ctx.lineWidth = 3;
+      glow(ctx, '#ffffff', 6);
+      ctx.strokeStyle = '#ffffff99'; ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(this.x, this.y);
       ctx.lineTo(this.x - Math.cos(this.angle) * this.len * 0.7, this.y - Math.sin(this.angle) * this.len * 0.7);
