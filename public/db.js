@@ -34,6 +34,7 @@ export const CATALOG = [
   { id: 'extra_flare',  name: 'Extra Flare',  category: 'boost', cost: 5,   description: '+1 flare for one run (max 1/game)',   stackable: true },
   { id: 'extra_shield', name: 'Run Shield',   category: 'boost', cost: 10,  description: '1 shield charge for one run',         stackable: true },
   { id: 'extra_rocket', name: 'Run Rocket',   category: 'boost', cost: 15,  description: '+1 rocket for one run (max 1/game)',  stackable: true },
+  { id: 'score_x2',     name: 'SCORE x2',     category: 'boost', cost: 80,  description: 'Double all score for one run',        stackable: true },
 
   // ── Upgrades (permanent — always active once owned) ───────────────────────
   { id: 'magen',          name: 'MAGEN',          category: 'upgrade', cost: 800,  description: 'Always start every run with a shield charge' },
@@ -73,48 +74,43 @@ export const CATALOG = [
     description: '4 lives · 3 flares · 4 rockets · Shield', lives: 4, flares: 3, rockets: 4, shield: true },
 ];
 
-// ── Spin Wheel — 12 segments matching 5×5$$, 3×10$$, 1×25$$, BOOST, SKIN, MAGNTO ──
+// ── Spin Wheel — 13 segments: shmips 5-30 + one-time boosts, every 6h ────────
 export const SPIN_WHEEL_SEGMENTS = [
   { label: '5 $$',  color: '#00ffcc', rewardGroup: 'cash_5'  },
   { label: '10 $$', color: '#ffcc00', rewardGroup: 'cash_10' },
   { label: '5 $$',  color: '#00ddaa', rewardGroup: 'cash_5'  },
-  { label: '5 $$',  color: '#00ffcc', rewardGroup: 'cash_5'  },
-  { label: 'BOOST', color: '#ff0077', rewardGroup: 'boost'   },
   { label: '10 $$', color: '#ffd700', rewardGroup: 'cash_10' },
-  { label: '5 $$',  color: '#00ddaa', rewardGroup: 'cash_5'  },
-  { label: 'SKIN',  color: '#8800ff', rewardGroup: 'skin'    },
+  { label: 'BOOST', color: '#ff0077', rewardGroup: 'boost'   },
+  { label: '15 $$', color: '#ff8844', rewardGroup: 'cash_15' },
   { label: '5 $$',  color: '#00ffcc', rewardGroup: 'cash_5'  },
+  { label: '20 $$', color: '#ff6600', rewardGroup: 'cash_20' },
+  { label: '5 $$',  color: '#00ddaa', rewardGroup: 'cash_5'  },
   { label: '10 $$', color: '#ffcc00', rewardGroup: 'cash_10' },
   { label: '25 $$', color: '#ff8800', rewardGroup: 'cash_25' },
-  { label: 'MAGNTO',color: '#00aaff', rewardGroup: 'magneto' },
+  { label: '30 $$', color: '#ff3300', rewardGroup: 'cash_30' },
+  { label: 'BOOST', color: '#ff0077', rewardGroup: 'boost'   },
 ];
 
 const SPIN_REWARDS = [
-  { id: 'cash_5',  weight: 42, label: '5 $$',  type: 'shmips',       value: 5  },
-  { id: 'cash_10', weight: 25, label: '10 $$', type: 'shmips',       value: 10 },
-  { id: 'cash_25', weight: 8,  label: '25 $$', type: 'shmips',       value: 25 },
-  { id: 'boost',   weight: 10, label: 'BOOST', type: 'boost_grant'              },
-  { id: 'skin',    weight: 8,  label: 'SKIN',  type: 'skin_grant'               },
-  { id: 'magneto', weight: 7,  label: 'MAGNTO',type: 'upgrade_grant', upgradeId: 'jew_method' },
+  { id: 'cash_5',  weight: 35, label: '5 $$',  type: 'shmips', value: 5  },
+  { id: 'cash_10', weight: 25, label: '10 $$', type: 'shmips', value: 10 },
+  { id: 'cash_15', weight: 15, label: '15 $$', type: 'shmips', value: 15 },
+  { id: 'cash_20', weight: 10, label: '20 $$', type: 'shmips', value: 20 },
+  { id: 'cash_25', weight: 7,  label: '25 $$', type: 'shmips', value: 25 },
+  { id: 'cash_30', weight: 3,  label: '30 $$', type: 'shmips', value: 30 },
+  { id: 'boost',   weight: 5,  label: 'BOOST', type: 'boost_grant'        },
 ];
-const COOLDOWN_MS = 9 * 60 * 60 * 1000;  // 9 hours
+const COOLDOWN_MS = 6 * 60 * 60 * 1000;  // 6 hours
 const ADMIN_TID = '1357754255';
 
-function pickSpinReward(isAdmin = false) {
-  const pool = [...SPIN_REWARDS];
-  if (isAdmin) {
-    pool.push(
-      { id: 'dev_x2_1h', weight: 7, label: 'X2 SHMIPS 1H', type: 'multiplier', value: 2, hours: 1 },
-      { id: 'dev_x3_1h', weight: 3, label: 'X3 SHMIPS 1H', type: 'multiplier', value: 3, hours: 1 }
-    );
-  }
-  const total = pool.reduce((a, r) => a + r.weight, 0);
+function pickSpinReward() {
+  const total = SPIN_REWARDS.reduce((a, r) => a + r.weight, 0);
   let roll = Math.random() * total;
-  for (const r of pool) {
+  for (const r of SPIN_REWARDS) {
     roll -= r.weight;
     if (roll < 0) return r;
   }
-  return pool[0];
+  return SPIN_REWARDS[0];
 }
 
 // ── Get or create user ────────────────────────────────────────────────────────
@@ -305,11 +301,11 @@ export async function dbSpinStatus(telegramId) {
   return { available: now >= next, remainingMs: Math.max(0, next - now) };
 }
 
-// ── Do Spin (direct Supabase — no Railway needed) ────────────────────────────
+// ── Do Spin ────────────────────────────────────────────────────────────────────
 export async function dbDoSpin(telegramId) {
   const id = String(telegramId);
   const isAdmin = id === ADMIN_TID;
-  const rows = await supa(`users?telegram_id=eq.${id}&select=shmips,last_spin_at,multiplier_value,multiplier_end`);
+  const rows = await supa(`users?telegram_id=eq.${id}&select=shmips,last_spin_at`);
   const user = rows[0];
   if (!user) throw new Error('User not found.');
 
@@ -324,7 +320,7 @@ export async function dbDoSpin(telegramId) {
     }
   }
 
-  const reward = pickSpinReward(isAdmin);
+  const reward = pickSpinReward();
   const updates = isAdmin ? {} : { last_spin_at: now.toISOString() };
   let grantedLabel = reward.label;
   let grantedUpgrade = null;
@@ -333,34 +329,12 @@ export async function dbDoSpin(telegramId) {
     updates.shmips = Math.round((Number(user.shmips) + reward.value) * 100) / 100;
 
   } else if (reward.type === 'boost_grant') {
-    const boostPool = ['extra_life', 'extra_flare', 'extra_shield', 'extra_rocket'];
+    // Random one-time boost from the boost pool
+    const boostPool = ['extra_life', 'extra_flare', 'extra_shield', 'extra_rocket', 'score_x2'];
     grantedUpgrade = boostPool[Math.floor(Math.random() * boostPool.length)];
     const boostItem = CATALOG.find(c => c.id === grantedUpgrade);
     grantedLabel = `BOOST: ${boostItem?.name || grantedUpgrade}`;
     await _grantUpgrade(id, grantedUpgrade);
-
-  } else if (reward.type === 'skin_grant') {
-    const ownedRows = await supa(`user_upgrades?telegram_id=eq.${id}&select=upgrade_id`);
-    const ownedIds = ownedRows.map(r => r.upgrade_id);
-    const affordableSkins = CATALOG.filter(c => c.category === 'skin' && c.cost < 500);
-    const unowned = affordableSkins.filter(s => !ownedIds.includes(s.id));
-    const pick = unowned.length > 0
-      ? unowned[Math.floor(Math.random() * unowned.length)]
-      : affordableSkins[Math.floor(Math.random() * affordableSkins.length)];
-    grantedUpgrade = pick.id;
-    grantedLabel = `SKIN: ${pick.name}`;
-    await _grantUpgrade(id, grantedUpgrade);
-
-  } else if (reward.type === 'upgrade_grant') {
-    grantedUpgrade = reward.upgradeId;
-    const upItem = CATALOG.find(c => c.id === grantedUpgrade);
-    grantedLabel = upItem?.name || grantedUpgrade;
-    await _grantUpgrade(id, grantedUpgrade);
-  } else if (reward.type === 'multiplier') {
-    const end = new Date(now.getTime() + (reward.hours || 1) * 60 * 60 * 1000);
-    updates.multiplier_value = reward.value;
-    updates.multiplier_end = end.toISOString();
-    grantedLabel = `${reward.value}X SHMIPS FOR 1 HOUR`;
   }
 
   await supa(`users?telegram_id=eq.${id}`, {
@@ -376,11 +350,6 @@ export async function dbDoSpin(telegramId) {
     ? matchingIdxs[Math.floor(Math.random() * matchingIdxs.length)]
     : { i: 0 };
 
-  // Admin multiplier reward → show "2X $$" segment (idx 12) so wheel matches real prize
-  const segIdx = (isAdmin && reward.type === 'shmips' && updates.multiplier_value)
-    ? 12
-    : picked.i;
-
   const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
   return {
     reward: {
@@ -388,7 +357,7 @@ export async function dbDoSpin(telegramId) {
       label:        grantedLabel,
       type:         reward.type,
       upgrade:      grantedUpgrade,
-      segmentIndex: segIdx,
+      segmentIndex: picked.i,
     },
     user: updated[0],
   };

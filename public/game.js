@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310e';
+import { SFX } from './sounds.js?v=20250310f';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -11,7 +11,7 @@ import {
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
   SPIN_WHEEL_SEGMENTS,
-} from './db.js?v=20250310e';
+} from './db.js?v=20250310f';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -307,19 +307,11 @@ class Ship {
       this._drawStarter(ctx, col, sz);
     }
 
-    // Spawn protection ring — pulsing green, fades over 3 seconds
-    if (this.spawnProtection > 0) {
-      const pct   = this.spawnProtection / 180;
-      const pulse = 0.45 + 0.45 * Math.sin(this.bobTimer * 0.25);
-      const alpha = pct * pulse;
-      ctx.strokeStyle = `rgba(0,255,136,${alpha * 0.85})`;
-      glow(ctx, '#00ff88', 20 * pct);
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(0, 0, sz + 11 + 3 * Math.sin(this.bobTimer * 0.18), 0, TAU); ctx.stroke();
-      ctx.globalAlpha = alpha * 0.3;
-      ctx.strokeStyle = '#aaffcc';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(0, 0, sz + 18 + 4 * Math.sin(this.bobTimer * 0.12), 0, TAU); ctx.stroke();
+    // Spawn protection: subtle white blink only (no green level-transition ring)
+    if (this.spawnProtection > 0 && Math.floor(this.spawnProtection / 12) % 2 === 0) {
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(0, 0, sz + 10, 0, TAU); ctx.stroke();
       ctx.globalAlpha = 1;
     }
 
@@ -868,8 +860,10 @@ class RedFighter {
     this.angle = 0;
     this.speed  = 1.2;
     this.shootTimer = 0;
-    this.shootRate  = 350; // slower firing
-    this.shotsLeft = 2;   // fewer shots per fighter
+    this.shootRate  = 90;  // ~1.5s between shots in burst
+    this.shotsLeft = 4;    // 4-shot burst
+    this.reloadTimer = 0;
+    this.reloadTime  = 180; // 3s reload after burst
     this.health = 3;
     this.radius = 14;
     this.bobTimer = 0;
@@ -884,12 +878,17 @@ class RedFighter {
     if (spd > this.speed) { this.vx = (this.vx / spd) * this.speed; this.vy = (this.vy / spd) * this.speed; }
     this.x = wrap(this.x + this.vx, 0, W);
     this.y = wrap(this.y + this.vy, 0, H);
-    this.shootTimer++;
-    if (this.shootTimer >= this.shootRate && this.shotsLeft > 0) {
-      this.shootTimer = 0; this.shotsLeft--;
-      const nose = { x: this.x + Math.cos(this.angle) * 18, y: this.y + Math.sin(this.angle) * 18 };
-      bullets.push(new EnemyBullet(nose.x, nose.y, this.angle, '#ff3333'));
-      SFX.enemyShoot();
+    if (this.shotsLeft <= 0) {
+      this.reloadTimer++;
+      if (this.reloadTimer >= this.reloadTime) { this.shotsLeft = 4; this.reloadTimer = 0; this.shootTimer = 0; }
+    } else {
+      this.shootTimer++;
+      if (this.shootTimer >= this.shootRate) {
+        this.shootTimer = 0; this.shotsLeft--;
+        const nose = { x: this.x + Math.cos(this.angle) * 18, y: this.y + Math.sin(this.angle) * 18 };
+        bullets.push(new EnemyBullet(nose.x, nose.y, this.angle, '#ff3333'));
+        SFX.enemyShoot();
+      }
     }
   }
   draw(ctx) {
@@ -1087,10 +1086,16 @@ class PlayerRocket {
   }
   draw(ctx) {
     ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle + Math.PI / 2);
-    glow(ctx, '#ff6600', 14); ctx.strokeStyle = '#ff6600'; ctx.lineWidth = 2;
+    // Pulsing outer aura
+    const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 75);
+    ctx.shadowColor = '#ff7700'; ctx.shadowBlur = 30 * pulse;
+    ctx.strokeStyle = `rgba(255,110,0,${0.35 * pulse})`; ctx.lineWidth = 7;
     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.stroke();
-    ctx.strokeStyle = '#ffee00'; glow(ctx, '#ffee00', 10);
-    ctx.beginPath(); ctx.moveTo(-2, 4); ctx.lineTo(0, 4 + rng(4, 8)); ctx.lineTo(2, 4); ctx.stroke();
+    // Core rocket
+    glow(ctx, '#ff6600', 18); ctx.strokeStyle = '#ff8800'; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.stroke();
+    ctx.strokeStyle = '#ffee00'; glow(ctx, '#ffee00', 12);
+    ctx.beginPath(); ctx.moveTo(-2, 4); ctx.lineTo(0, 4 + rng(4, 9)); ctx.lineTo(2, 4); ctx.stroke();
     ctx.restore(); ctx.shadowBlur = 0;
   }
   get dead() { return this.life <= 0 || this._hit; }
@@ -1203,7 +1208,7 @@ function drawGrid(ctx, W, H, tick) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges }) {
+function drawHUD(ctx, W, { score, timeS, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2 }) {
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = '#0a0018';
   roundRect(ctx, 6, 6, 162, 92, 0); ctx.fill();
@@ -1219,8 +1224,9 @@ function drawHUD(ctx, W, { score, level, lives, maxLives, flares, multiplier, mu
   ctx.font = `12px ${FONT}`; glow(ctx, C.hud, 10);
   ctx.fillStyle = C.hud; ctx.fillText(score.toLocaleString(), 14, 42);
 
+  const tm = Math.floor(timeS / 60), ts2 = Math.floor(timeS % 60);
   ctx.font = `8px ${FONT}`; ctx.fillStyle = C.hudLevel; glow(ctx, C.hudLevel, 6);
-  ctx.fillText(`LV ${level}`, 14, 58);
+  ctx.fillText(`TIME ${String(tm).padStart(2,'0')}:${String(ts2).padStart(2,'0')}${scoreX2 ? '  x2' : ''}`, 14, 58);
 
   ctx.fillStyle = C.hud; glow(ctx, C.hud, 5);
   ctx.fillText('LIVES', 14, 76);
@@ -1737,15 +1743,16 @@ class Game {
   _doStartGame() {
     SFX.thrustStop(); this._wasThrusting = false;
     if (!this.multiplierEndMs) this.multiplierEndMs = 0;
-    this.score=0; this.level=1; this.tick=0;
+    this.score=0; this.gameTime=0; this.tick=0;
     this.asteroids=[]; this.bullets=[]; this.enemyBullets=[];
     this.rockets=[]; this.playerRockets=[]; this.fireballs=[]; this.particles=[];
     this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[];
     this.coins=[]; this.mysteryPickups=[]; this.greenStars=[];
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
     this.redFighterTimer=0; this.yellowAlienTimer=0; this.orangeRocketTimer=0;
+    this.asteroidSpawnTimer=0; this._lastMusicTier=1;
     this.greenStarTimer=rngInt(60 * 180, 60 * 300);
-    this.levelTransitionCooldown=0;
+    this.runScoreMultiplier=1; // set to 2 if x2 score boost active
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ups = {};
@@ -1768,11 +1775,17 @@ class Game {
       if ((this.upgrades[id] || 0) > 0) {
         ups[id] = 1;
         consumeList.push(id);
-        // Decrement local copy
         this.upgrades[id] = (this.upgrades[id] || 1) - 1;
         if (this.upgrades[id] <= 0) delete this.upgrades[id];
       }
     });
+    // x2 score boost
+    if ((this.upgrades['score_x2'] || 0) > 0) {
+      this.runScoreMultiplier = 2;
+      consumeList.push('score_x2');
+      this.upgrades['score_x2'] = (this.upgrades['score_x2'] || 1) - 1;
+      if (this.upgrades['score_x2'] <= 0) delete this.upgrades['score_x2'];
+    }
     // Consume from DB in background (best-effort, non-blocking)
     if (tid && !OFFLINE_MODE && consumeList.length > 0) {
       consumeList.forEach(id => dbConsumeBoost(tid, id).catch(() => {}));
@@ -1816,8 +1829,15 @@ class Game {
     if (!this.upgrades) this.upgrades = {};
     this.ship = new Ship(this.W/2, this.H/2, ups);
     _updateShieldHUD(this.ship.shieldCharges);
-    this._spawnAsteroids(this.level);
+    // Spawn 3 small asteroids safely away from ship at game start
+    for (let i = 0; i < 3; i++) {
+      const pos = this._findSafeSpawnPoint(40, this.ship, 200);
+      this.asteroids.push(new Asteroid(pos.x, pos.y, 'small', null, 1));
+    }
     this._purgeObjectsNearShip(170);
+    if (this.runScoreMultiplier === 2) {
+      setTimeout(() => new FloatingText(this.W/2, this.H/2 - 40, 'x2 SCORE ACTIVE!', '#ffee00'), 400);
+    }
     this._showScreen('game');
   }
 
@@ -1858,48 +1878,27 @@ class Game {
     this.enemyBullets = this.enemyBullets.filter(e => dist(e, this.ship) > rad + e.radius);
   }
 
-  _spawnAsteroids(level) {
-    // Gradual scaling: 3 at L1, +1/level up to L10, then slower, cap 22
-    const count = level <= 10
-      ? Math.min(2 + level, 12)
-      : Math.min(12 + Math.floor((level - 10) * 0.6), 22);
-    for (let i = 0; i < count; i++) {
-      const avoid = this.ship || { x: this.W / 2, y: this.H / 2 };
-      const pos = this._findSafeSpawnPoint(36, avoid, 170);
-      const x = pos.x, y = pos.y;
-      const roll=Math.random();
-      // Size ramp: very gentle at low levels, harsher later
-      const large = Math.min(0.05 + level * 0.025, 0.45);
-      const med   = Math.min(0.25 + level * 0.03,  0.50);
-      const size  = level <= 2 ? (roll<0.07?'large':roll<0.40?'medium':'small')
-                  : roll < large ? 'large'
-                  : roll < large + med ? 'medium'
-                  : 'small';
-      this.asteroids.push(new Asteroid(x, y, size, null, level));
+  _maintainAsteroids() {
+    // Continuous asteroid spawning — gets denser and larger over time
+    const timeS = this.gameTime / 60; // elapsed seconds
+    const targetCount = Math.min(3 + Math.floor(timeS / 18), 16);
+    const spawnInterval = Math.max(150 - Math.floor(timeS * 0.3), 55);
+    this.asteroidSpawnTimer++;
+    if (this.asteroidSpawnTimer >= spawnInterval && this.asteroids.length < targetCount) {
+      this.asteroidSpawnTimer = 0;
+      const { x, y } = this._edgeSpawn();
+      if (!this.ship || dist({ x, y }, this.ship) > 170) {
+        const diffPct = Math.min(timeS / 240, 1); // ramps to full difficulty at 4 minutes
+        const roll = Math.random();
+        const large = diffPct * 0.42;
+        const med   = 0.18 + diffPct * 0.32;
+        const size  = timeS < 30 ? 'small'
+                    : roll < large ? 'large'
+                    : roll < large + med ? 'medium'
+                    : 'small';
+        this.asteroids.push(new Asteroid(x, y, size, null, 1));
+      }
     }
-  }
-
-  _nextLevel() {
-    this.level++;
-    // Clear residue (bullets, particles, enemies) — keep coins/$/?/green stars across levels
-    this.particles     = [];
-    this.bullets       = [];
-    this.enemyBullets  = [];
-    this.rockets       = [];
-    this.orangeRockets = [];
-    this.playerRockets = [];
-    this.fireballs     = [];
-    this.floatingTexts = [];
-    this.redFighters   = [];
-    this.yellowAliens  = [];
-    // coins, mysteryPickups, greenStars intentionally kept across levels
-    this.pickupSpawnTimer = 0;
-    this.levelTransitionCooldown = 45; // 0.75 sec grace — prevents chain level-skip when holding fire
-    this.ship.spawnProtection = 180; // 3 sec
-    SFX.levelUp();
-    SFX.startGameMusic(this.level);
-    this._spawnAsteroids(this.level);
-    this._purgeObjectsNearShip(190);
   }
 
   // ── Main Loop ──────────────────────────────────────────────────────────────
@@ -1973,31 +1972,46 @@ class Game {
     }
 
     // Spawn enemies
-    // Gradual enemy progression: aliens L5+, orange rockets L7+, red jets L10+
-    const alienInterval = Math.max(1500 - this.level * 20, 650);
+    // ── Time-based difficulty ──────────────────────────────────────────────
+    this.gameTime++;
+    const timeS = this.gameTime / 60; // seconds elapsed
+
+    // Update music tier every ~3 minutes
+    const musicTier = timeS < 180 ? 1 : timeS < 360 ? 2 : timeS < 540 ? 3 : timeS < 720 ? 4 : 5;
+    if (musicTier !== this._lastMusicTier) {
+      this._lastMusicTier = musicTier;
+      SFX.startGameMusic(musicTier * 5);
+    }
+
+    // Maintain asteroid population (continuous spawning from edges)
+    this._maintainAsteroids();
+
+    // Yellow aliens: appear after 90 seconds, one at a time
+    const alienInterval = Math.max(1500 - Math.floor(timeS * 1.5), 650);
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > alienInterval && this.level >= 5) {
+    if (this.yellowAlienTimer > alienInterval && timeS >= 90) {
       this.yellowAlienTimer = 0;
       if (this.yellowAliens.length < 1) {
         const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
     }
-    const redInterval = Math.max(1500 - this.level * 18, 550);
+    // Red fighters: appear after 5 minutes, scale with time
+    const redInterval = Math.max(1500 - Math.floor(timeS * 1.2), 550);
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && this.level >= 10) {
+    if (this.redFighterTimer > redInterval && timeS >= 300) {
       this.redFighterTimer = 0;
-      if (this.redFighters.length < Math.max(1, Math.floor((this.level - 8) / 5))) {
+      if (this.redFighters.length < Math.max(1, Math.floor((timeS - 240) / 90))) {
         const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
-    // Orange homing rockets: start L7, one at a time early, more later
-    const orangeInterval = Math.max(1000 - this.level * 15, 380);
+    // Orange homing rockets: appear after 3 minutes
+    const orangeInterval = Math.max(1000 - Math.floor(timeS * 1.0), 380);
     this.orangeRocketTimer++;
-    if (this.orangeRocketTimer > orangeInterval && this.level >= 7) {
+    if (this.orangeRocketTimer > orangeInterval && timeS >= 180) {
       this.orangeRocketTimer = 0;
-      if (this.orangeRockets.length < 1 + Math.floor((this.level - 7) / 5)) {
+      if (this.orangeRockets.length < 1 + Math.floor((timeS - 150) / 90)) {
         const { x, y } = this._edgeSpawn();
         this.orangeRockets.push(new OrangeHomingRocket(x, y));
       }
@@ -2062,11 +2076,6 @@ class Game {
     }
 
     this._collisions();
-    if (this.levelTransitionCooldown > 0) {
-      this.levelTransitionCooldown--;
-    } else if (this.asteroids.length === 0) {
-      this._nextLevel();
-    }
   }
 
   _edgeSpawn() {
@@ -2278,14 +2287,20 @@ class Game {
       }
     }
 
-    // Red fighters vs asteroids
+    // Red fighters vs asteroids — fighter AND asteroid destroyed on crash
     for (let fi = this.redFighters.length-1; fi >= 0; fi--) {
       const rf = this.redFighters[fi];
-      for (const a of this.asteroids) {
-        if (dist(rf,a) < rf.radius+a.radius) {
-          burst(this.particles, rf.x, rf.y, C.enemyRed, 15, 4, 30);
-          SFX.enemyDie(); this.redFighters.splice(fi,1); break;
-        }
+      let hitAi = -1;
+      for (let ai = 0; ai < this.asteroids.length; ai++) {
+        if (dist(rf, this.asteroids[ai]) < rf.radius + this.asteroids[ai].radius) { hitAi = ai; break; }
+      }
+      if (hitAi >= 0) {
+        const a = this.asteroids[hitAi];
+        const frags = a.split(this.particles);
+        this.asteroids.splice(hitAi, 1, ...frags);
+        this._addScore(a.score);
+        burst(this.particles, rf.x, rf.y, C.enemyRed, 18, 4, 30);
+        SFX.enemyDie(); this.redFighters.splice(fi, 1);
       }
     }
 
@@ -2457,7 +2472,7 @@ class Game {
     new FloatingText(mx, my - 20, label, roll >= 0.94 ? '#ff6600' : '#ff00ff');
   }
 
-  _addScore(pts) { this.score += Math.floor(pts * this.activeMultiplier); }
+  _addScore(pts) { this.score += Math.floor(pts * (this.runScoreMultiplier || 1)); }
 
   // ── Draw ───────────────────────────────────────────────────────────────────
   _draw() {
@@ -2479,7 +2494,7 @@ class Game {
     if (this.ship?.alive) this.ship.draw(ctx);
     drawHUD(ctx, W, {
       score:          this.score,
-      level:          this.level,
+      timeS:          Math.floor((this.gameTime || 0) / 60),
       lives:          this.ship?.lives    ?? 0,
       maxLives:       this.ship?.maxLives ?? 3,
       flares:         this.ship?.flares   ?? 0,
@@ -2487,6 +2502,7 @@ class Game {
       multiplierEndMs:this.multiplierEndMs ?? 0,
       rocketAmmo:     this.ship?.rocketAmmo ?? 0,
       shieldCharges:  this.ship?.shieldCharges ?? 0,
+      scoreX2:        (this.runScoreMultiplier || 1) > 1,
     });
   }
 
@@ -2533,7 +2549,7 @@ class Game {
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (tid && !OFFLINE_MODE) {
       try {
-        const result = await dbSaveScore(tid, rawScore, this.level);
+        const result = await dbSaveScore(tid, effectiveScore, Math.floor(this.gameTime / 3600) + 1);
         if (result) {
           this.userData.shmips = result.totalShmips;
           this.userData.best_score = result.newBestScore;
