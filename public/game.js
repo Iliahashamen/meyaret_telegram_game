@@ -2410,7 +2410,7 @@ class Game {
     const equippedSkin = localStorage.getItem('meyaret_equip_skin') || null;
 
     // Jet info panel
-    const jetNames = { starter:'STARTER JET', plane_hamud:'F2 HAMUD', plane_walla_yofi:'F16 WALLA YOFI', plane_very_scary:'F35 VERY SCARY' };
+    const jetNames = { starter:'STARTER JET', plane_hamud:'F2 HAMUDI', plane_walla_yofi:'F16 KILLAJET', plane_very_scary:'F35 VERY SCARY JET' };
     const jetStats = {
       starter:          '3 LIVES · 1 FLARE',
       plane_hamud:      '3 LIVES · 2 FLARES · 2 ROCKETS',
