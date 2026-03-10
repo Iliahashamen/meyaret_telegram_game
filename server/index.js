@@ -18,6 +18,10 @@ const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Keep the process alive — log unhandled errors instead of crashing
+process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason));
+process.on('uncaughtException',  (err)    => console.error('[uncaughtException]',  err));
+
 // ── Security & Middleware ──────────────────────────────────────────────────────
 // Trust Railway's reverse proxy so express-rate-limit can read X-Forwarded-For
 app.set('trust proxy', 1);
@@ -32,7 +36,16 @@ app.use(cors({
 }));
 app.options('*', cors());
 app.use(express.json());
-app.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
+
+// Rate-limit only API routes — never the Telegram webhook (it delivers in bursts)
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path.startsWith('/bot'),   // skip webhook path
+});
+app.use(apiLimiter);
 
 // ── Static Files ──────────────────────────────────────────────────────────────
 console.log('[server] Serving static from:', PUBLIC_DIR);
