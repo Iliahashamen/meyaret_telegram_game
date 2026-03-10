@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310m';
+import { SFX } from './sounds.js?v=20250310n';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -10,7 +10,7 @@ import {
   dbGetUserUpgrades, dbBuyItem,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
-} from './db.js?v=20250310m';
+} from './db.js?v=20250310n';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -1111,10 +1111,27 @@ class PlayerRocket {
 
   get readyToDetonate() { return !this._dead && this._cooldown <= 0; }
 
-  update(W, H, targets = []) {
+  update(W, H, targets = [], ship = null) {
     if (this._cooldown > 0) this._cooldown--;
-    // Home toward nearest target
-    if (targets.length > 0) {
+
+    // Pick highest-threat target (protects player most)
+    if (targets.length > 0 && ship) {
+      let bestTarget = null, bestScore = -Infinity;
+      for (const t of targets) {
+        const score = _rocketThreatScore(t, ship);
+        if (score > bestScore) { bestScore = score; bestTarget = t; }
+      }
+      if (bestTarget) {
+        const ta = Math.atan2(bestTarget.y - this.y, bestTarget.x - this.x);
+        let da = ta - this.angle;
+        while (da >  Math.PI) da -= TAU;
+        while (da < -Math.PI) da += TAU;
+        this.angle += da * 0.09; // responsive turning
+        this.vx = Math.cos(this.angle) * this.speed;
+        this.vy = Math.sin(this.angle) * this.speed;
+      }
+    } else if (targets.length > 0) {
+      // Fallback: nearest target if ship not available
       let nearestDist = Infinity, nearest = null;
       for (const t of targets) {
         const d = dist(this, t);
@@ -1125,7 +1142,7 @@ class PlayerRocket {
         let da = ta - this.angle;
         while (da >  Math.PI) da -= TAU;
         while (da < -Math.PI) da += TAU;
-        this.angle += da * 0.07;
+        this.angle += da * 0.09;
         this.vx = Math.cos(this.angle) * this.speed;
         this.vy = Math.sin(this.angle) * this.speed;
       }
@@ -1409,6 +1426,37 @@ async function _animateGiftOpen(rewardType) {
   // Phase 3 — second burst + settle (700ms)
   _spawnGiftSparks(sparks, rewardType);
   await new Promise(r => setTimeout(r, 700));
+}
+
+// ── Rocket threat-scoring — higher = intercept this first ─────────────────────
+// Considers: enemy type danger, how close to player, and approach vector
+function _rocketThreatScore(target, ship) {
+  // Base threat by entity type (identified by unique property)
+  let base;
+  if      (target.fuseTime  !== undefined) base = 1200; // OrangeHomingRocket — actively chasing player
+  else if (target.shootRate !== undefined) base =  700; // RedFighter — shoots at player
+  else if (target.maxLife   !== undefined) base =  350; // YellowAlien — fast but fleeting
+  else                                     base =   80; // Asteroid — passive hazard
+
+  // Proximity to player: enemy right on top of player = critical
+  const dPlayer = Math.hypot(target.x - ship.x, target.y - ship.y);
+  const proximityScore = 600 / (dPlayer + 40);
+
+  // Approach vector: is the enemy moving TOWARD the player?
+  let approachScore = 0;
+  const tvx = target.vx ?? 0, tvy = target.vy ?? 0;
+  const tSpd = Math.hypot(tvx, tvy);
+  if (tSpd > 0) {
+    const toPlayerX = ship.x - target.x;
+    const toPlayerY = ship.y - target.y;
+    const pLen = Math.hypot(toPlayerX, toPlayerY);
+    if (pLen > 0) {
+      const dot = (tvx * toPlayerX + tvy * toPlayerY) / (tSpd * pLen);
+      if (dot > 0) approachScore = dot * 500; // closing in on player
+    }
+  }
+
+  return base + proximityScore + approachScore;
 }
 
 // ── Smart rocket final explosion ──────────────────────────────────────────────
@@ -2090,8 +2138,8 @@ class Game {
     this.enemyBullets = this.enemyBullets.filter(b => !b.dead);
     this.rockets.forEach(r => r.update(this.W, this.H));
     this.rockets = this.rockets.filter(r => !r.dead);
-    const _rocketTargets = [...this.asteroids, ...this.redFighters, ...this.yellowAliens, ...this.orangeRockets];
-    this.playerRockets.forEach(r => r.update(this.W, this.H, _rocketTargets));
+    const _rocketTargets = [...this.orangeRockets, ...this.redFighters, ...this.yellowAliens, ...this.asteroids];
+    this.playerRockets.forEach(r => r.update(this.W, this.H, _rocketTargets, this.ship));
     this.playerRockets = this.playerRockets.filter(r => !r.dead);
     this.fireballs.forEach(f => f.update(this.W, this.H));
     // Handle fireball detonations
