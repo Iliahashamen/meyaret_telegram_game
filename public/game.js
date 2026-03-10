@@ -1353,71 +1353,99 @@ function drawGrid(ctx, W, H, tick) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, W, { score, timeS, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2 }) {
-  ctx.globalAlpha = 0.55;
-  ctx.fillStyle = '#0a0018';
-  roundRect(ctx, 6, 6, 162, 92, 0); ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#00ffcc33'; ctx.lineWidth = 1;
-  roundRect(ctx, 6, 6, 162, 92, 0); ctx.stroke();
-
+function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, warnings }) {
   const FONT = '"Press Start 2P", "Courier New", monospace';
+
+  // Build ordered warning list
+  // warnings: { jets, rockets, aliens, asteroids, overdrive, lowLife }
+  const warnLines = [];
+  if (warnings?.overdrive)  warnLines.push({ text: 'BEAST MODE',      col: '#33ff88' });
+  if (warnings?.jets)       warnLines.push({ text: 'JET INCOMING',    col: '#ff3333' });
+  if (warnings?.rockets)    warnLines.push({ text: 'ROCKET INCOMING', col: '#ff6600' });
+  if (warnings?.aliens)     warnLines.push({ text: 'ALIENS!',         col: '#ffee00' });
+  if (warnings?.asteroids)  warnLines.push({ text: 'ASTEROID STORM',  col: '#ff8800' });
+  if (warnings?.lowLife)    warnLines.push({ text: 'LOW LIFE!',       col: '#ff1111' });
+
+  // Panel height grows with warning lines
+  const panelH = 74 + warnLines.length * 15 + (warnLines.length > 0 ? 4 : 0);
+  ctx.globalAlpha = 0.52;
+  ctx.fillStyle = '#080016';
+  roundRect(ctx, 6, 6, 168, panelH, 0); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#00ffcc2a'; ctx.lineWidth = 1;
+  roundRect(ctx, 6, 6, 168, panelH, 0); ctx.stroke();
+
   ctx.textAlign = 'left';
 
-  ctx.font = `8px ${FONT}`; glow(ctx, C.hud, 6);
-  ctx.fillStyle = '#00ffcc88'; ctx.fillText('SCORE', 14, 24);
-  ctx.font = `12px ${FONT}`; glow(ctx, C.hud, 10);
-  ctx.fillStyle = C.hud; ctx.fillText(score.toLocaleString(), 14, 42);
+  // ── SCORE (big) ──
+  ctx.font = `7px ${FONT}`; glow(ctx, C.hud, 4);
+  ctx.fillStyle = '#00ffcc55'; ctx.fillText('SCORE', 14, 20);
+  ctx.font = `15px ${FONT}`; glow(ctx, C.hud, 14);
+  ctx.fillStyle = C.hud;
+  ctx.fillText(score.toLocaleString(), 14, 42);
+  // x2 score badge
+  if (scoreX2) {
+    ctx.font = `7px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', 10);
+    ctx.fillText('x2', 150, 20);
+  }
 
-  const tm = Math.floor(timeS / 60), ts2 = Math.floor(timeS % 60);
-  ctx.font = `8px ${FONT}`; ctx.fillStyle = C.hudLevel; glow(ctx, C.hudLevel, 6);
-  ctx.fillText(`TIME ${String(tm).padStart(2,'0')}:${String(ts2).padStart(2,'0')}${scoreX2 ? '  x2' : ''}`, 14, 58);
-
-  ctx.fillStyle = C.hud; glow(ctx, C.hud, 5);
-  ctx.fillText('LIVES', 14, 76);
-
-  // Draw up to 5 life triangles, "+N" for extras
+  // ── LIVES (triangles) ──
   const MAX_TRI    = 5;
   const displayMax = Math.min(maxLives, MAX_TRI);
+  const lifeBaseY  = 61;
   for (let i = 0; i < displayMax; i++) {
-    const lx = 68 + i * 15, ly = 76;
+    const lx = 14 + i * 14;
     ctx.fillStyle   = i < lives ? C.hud : '#0a0020';
-    ctx.shadowBlur  = i < lives ? 8 : 0;
+    ctx.shadowBlur  = i < lives ? 9 : 0;
     ctx.shadowColor = C.hud;
     ctx.beginPath();
-    ctx.moveTo(lx+4, ly-7); ctx.lineTo(lx+9, ly); ctx.lineTo(lx, ly);
+    ctx.moveTo(lx + 5, lifeBaseY - 8);
+    ctx.lineTo(lx + 11, lifeBaseY + 2);
+    ctx.lineTo(lx,      lifeBaseY + 2);
     ctx.closePath(); ctx.fill();
   }
   if (lives > MAX_TRI) {
     ctx.font = `7px ${FONT}`; ctx.fillStyle = '#ffee00';
     glow(ctx, '#ffee00', 6);
-    ctx.fillText(`+${lives - MAX_TRI}`, 68 + MAX_TRI * 15 + 2, 76);
+    ctx.fillText(`+${lives - MAX_TRI}`, 14 + MAX_TRI * 14 + 4, lifeBaseY);
+  }
+  ctx.shadowBlur = 0;
+
+  // ── WARNINGS (flashing red/colored text) ──
+  const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 240);
+  let wy = 78;
+  for (const w of warnLines) {
+    ctx.font = `7px ${FONT}`;
+    ctx.globalAlpha = w.col === '#33ff88' ? 0.85 : pulse; // beast mode steady, dangers flash
+    glow(ctx, w.col, 12);
+    ctx.fillStyle = w.col;
+    ctx.fillText(w.text, 14, wy);
+    ctx.globalAlpha = 1;
+    wy += 15;
   }
 
-  ctx.shadowBlur = 0; ctx.font = `8px ${FONT}`;
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+
+  // ── RIGHT-SIDE COUNTERS ──
+  const dimAlpha = 0.32;
+  ctx.font = `8px ${FONT}`;
   ctx.textAlign = 'right';
 
-  // Always-visible counters stacked at top-right (dim when zero)
-  const dimAlpha = 0.35;
-
-  // Flare
   ctx.globalAlpha = flares > 0 ? 1 : dimAlpha;
   ctx.fillStyle = C.hudFlare; glow(ctx, C.hudFlare, flares > 0 ? 8 : 2);
   ctx.fillText(`FLARE ${flares}`, W - 10, 24);
 
-  // Rocket
   ctx.globalAlpha = rocketAmmo > 0 ? 1 : dimAlpha;
   ctx.fillStyle = '#ffaa00'; glow(ctx, '#ffaa00', rocketAmmo > 0 ? 8 : 2);
   ctx.fillText(`ROCKET ${rocketAmmo}`, W - 10, 42);
 
-  // Shield
   ctx.globalAlpha = shieldCharges > 0 ? 1 : dimAlpha;
   ctx.fillStyle = '#00aaff'; glow(ctx, '#00aaff', shieldCharges > 0 ? 8 : 2);
   ctx.fillText(`SHIELD ${shieldCharges}`, W - 10, 60);
 
   ctx.globalAlpha = 1;
 
-  // Multiplier with live countdown timer
+  // Multiplier countdown
   if (multiplier > 1) {
     const remainMs  = Math.max(0, (multiplierEndMs || 0) - Date.now());
     const remainMin = Math.floor(remainMs / 60000);
@@ -1425,8 +1453,8 @@ function drawHUD(ctx, W, { score, timeS, lives, maxLives, flares, multiplier, mu
     const timeStr   = remainMs > 0
       ? `${String(remainMin).padStart(2,'0')}:${String(remainSec).padStart(2,'0')}`
       : '';
-    const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 350);
-    ctx.globalAlpha = pulse;
+    const mp = 0.7 + 0.3 * Math.sin(Date.now() / 350);
+    ctx.globalAlpha = mp;
     ctx.font = `9px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', 12);
     ctx.fillText(`${multiplier}x BONUS`, W - 10, 78);
     if (timeStr) {
@@ -2782,10 +2810,10 @@ class Game {
     this.orangeRockets.forEach(or=>or.draw(ctx));
     this.fireballs.forEach(fb=>fb.draw(ctx));
     if (this.ship?.alive) this.ship.draw(ctx);
+    const _lives = this.ship?.lives ?? 0;
     drawHUD(ctx, W, {
       score:          this.score,
-      timeS:          Math.floor((this.gameTime || 0) / 60),
-      lives:          this.ship?.lives    ?? 0,
+      lives:          _lives,
       maxLives:       this.ship?.maxLives ?? 3,
       flares:         this.ship?.flares   ?? 0,
       multiplier:     this.activeMultiplier,
@@ -2793,6 +2821,14 @@ class Game {
       rocketAmmo:     this.ship?.rocketAmmo ?? 0,
       shieldCharges:  this.ship?.shieldCharges ?? 0,
       scoreX2:        (this.runScoreMultiplier || 1) > 1,
+      warnings: {
+        overdrive: this.ship?.isStarOverdrive  || false,
+        jets:      (this.redFighters?.length   || 0) > 0,
+        rockets:   (this.orangeRockets?.length || 0) > 0,
+        aliens:    (this.yellowAliens?.length  || 0) > 0,
+        asteroids: (this.asteroids?.length     || 0) >= 8,
+        lowLife:   _lives === 1,
+      },
     });
   }
 
