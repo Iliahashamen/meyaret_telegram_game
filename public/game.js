@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310g';
+import { SFX } from './sounds.js?v=20250310h';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -11,7 +11,7 @@ import {
   dbSpinStatus, dbDoSpin, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
   SPIN_WHEEL_SEGMENTS,
-} from './db.js?v=20250310g';
+} from './db.js?v=20250310h';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -63,13 +63,13 @@ const C = {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
-  rotSpeed:     0.042,
-  thrustPower:  0.09,
-  friction:     0.965,
-  bulletSpeed:  6,
+  rotSpeed:     0.048,
+  thrustPower:  0.13,
+  friction:     0.970,
+  bulletSpeed:  9,
   bulletLife:   65,
   laserLife:    55,
-  rocketSpeed:  1.0,
+  rocketSpeed:  1.6,
   flareRadius:  85,
   asteroidSizes: { large: 38, medium: 19, small: 9 },
   asteroidScores: { large: 20, medium: 50, small: 100 },
@@ -808,8 +808,8 @@ class Asteroid {
     this.x = x; this.y = y;
     this.size = size;
     this.radius = CFG.asteroidSizes[size];
-    const speedMult = 0.35 + Math.min(level - 1, 15) * 0.035;
-    const baseSpd = size === 'large' ? rng(0.20, 0.45) : size === 'medium' ? rng(0.40, 0.80) : rng(0.65, 1.2);
+    const speedMult = 0.65 + Math.min(level - 1, 15) * 0.035;
+    const baseSpd = size === 'large' ? rng(0.40, 0.80) : size === 'medium' ? rng(0.70, 1.20) : rng(1.10, 1.80);
     const spd = baseSpd * speedMult;
     const ang = angle !== null ? angle : rng(0, TAU);
     this.vx = Math.cos(ang) * spd;
@@ -858,9 +858,9 @@ class RedFighter {
     this.x = x; this.y = y;
     this.vx = 0; this.vy = 0;
     this.angle = 0;
-    this.speed  = 1.2;
+    this.speed  = 1.9;
     this.shootTimer = 0;
-    this.shootRate  = 90;  // ~1.5s between shots in burst
+    this.shootRate  = 70;  // ~1.2s between shots in burst
     this.shotsLeft = 4;    // 4-shot burst
     this.reloadTimer = 0;
     this.reloadTime  = 180; // 3s reload after burst
@@ -872,8 +872,8 @@ class RedFighter {
     this.bobTimer++;
     const dx = ship.x - this.x, dy = ship.y - this.y;
     this.angle = Math.atan2(dy, dx);
-    this.vx += Math.cos(this.angle) * 0.08;
-    this.vy += Math.sin(this.angle) * 0.08;
+    this.vx += Math.cos(this.angle) * 0.13;
+    this.vy += Math.sin(this.angle) * 0.13;
     const spd = Math.hypot(this.vx, this.vy);
     if (spd > this.speed) { this.vx = (this.vx / spd) * this.speed; this.vy = (this.vy / spd) * this.speed; }
     this.x = wrap(this.x + this.vx, 0, W);
@@ -917,8 +917,8 @@ class YellowAlien {
   constructor(x, y) {
     this.x = x; this.y = y;
     const ang = rng(0, TAU);
-    this.vx = Math.cos(ang) * rng(0.8, 1.5);
-    this.vy = Math.sin(ang) * rng(0.8, 1.5);
+    this.vx = Math.cos(ang) * rng(1.4, 2.4);
+    this.vy = Math.sin(ang) * rng(1.4, 2.4);
     this.angle = 0;
     this.lifeTimer = 0; this.maxLife = 180; // 3 seconds then vanish
     this.swoops = 0; this.health = 1; // one-shot
@@ -1107,7 +1107,7 @@ class OrangeHomingRocket {
     this.x = x; this.y = y;
     this.angle = 0;
     this.vx = 0; this.vy = 0;
-    this.speed = 2.2;
+    this.speed = 3.2;
     this.lifeTimer = 0;
     this.fuseTime = 420; // 7 seconds
     this.radius = 9;
@@ -1880,8 +1880,8 @@ class Game {
   _maintainAsteroids() {
     // Continuous asteroid spawning — scattered across the playfield, not just edges
     const timeS = this.gameTime / 60;
-    const targetCount = Math.min(3 + Math.floor(timeS / 18), 16);
-    const spawnInterval = Math.max(150 - Math.floor(timeS * 0.3), 55);
+    const targetCount = Math.min(4 + Math.floor(timeS / 12), 20);
+    const spawnInterval = Math.max(100 - Math.floor(timeS * 0.4), 30);
     this.asteroidSpawnTimer++;
     if (this.asteroidSpawnTimer >= spawnInterval && this.asteroids.length < targetCount) {
       this.asteroidSpawnTimer = 0;
@@ -1984,32 +1984,32 @@ class Game {
     // Maintain asteroid population (continuous spawning from edges)
     this._maintainAsteroids();
 
-    // Yellow aliens: appear after 90 seconds, one at a time
-    const alienInterval = Math.max(1500 - Math.floor(timeS * 1.5), 650);
+    // Yellow aliens: appear after 50 seconds, one at a time
+    const alienInterval = Math.max(1200 - Math.floor(timeS * 1.5), 500);
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > alienInterval && timeS >= 90) {
+    if (this.yellowAlienTimer > alienInterval && timeS >= 50) {
       this.yellowAlienTimer = 0;
       if (this.yellowAliens.length < 1) {
         const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
     }
-    // Red fighters: appear after 5 minutes, scale with time
-    const redInterval = Math.max(1500 - Math.floor(timeS * 1.2), 550);
+    // Red fighters: appear after 3 minutes, scale with time
+    const redInterval = Math.max(1200 - Math.floor(timeS * 1.2), 450);
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && timeS >= 300) {
+    if (this.redFighterTimer > redInterval && timeS >= 180) {
       this.redFighterTimer = 0;
-      if (this.redFighters.length < Math.max(1, Math.floor((timeS - 240) / 90))) {
+      if (this.redFighters.length < Math.max(1, Math.floor((timeS - 150) / 80))) {
         const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
-    // Orange homing rockets: appear after 3 minutes
-    const orangeInterval = Math.max(1000 - Math.floor(timeS * 1.0), 380);
+    // Orange homing rockets: appear after 100 seconds
+    const orangeInterval = Math.max(800 - Math.floor(timeS * 1.0), 300);
     this.orangeRocketTimer++;
-    if (this.orangeRocketTimer > orangeInterval && timeS >= 180) {
+    if (this.orangeRocketTimer > orangeInterval && timeS >= 100) {
       this.orangeRocketTimer = 0;
-      if (this.orangeRockets.length < 1 + Math.floor((timeS - 150) / 90)) {
+      if (this.orangeRockets.length < 1 + Math.floor((timeS - 80) / 80)) {
         const { x, y } = this._edgeSpawn();
         this.orangeRockets.push(new OrangeHomingRocket(x, y));
       }
