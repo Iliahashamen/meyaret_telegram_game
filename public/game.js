@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310k';
+import { SFX } from './sounds.js?v=20250310l';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -10,7 +10,7 @@ import {
   dbGetUserUpgrades, dbBuyItem,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
-} from './db.js?v=20250310k';
+} from './db.js?v=20250310l';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -1071,23 +1071,37 @@ class PlayerRocket {
     this.x = x; this.y = y;
     this.angle = angle;
     this.speed = 3.2;
+    this.smart = smart;
     this.vx = Math.cos(angle) * this.speed;
     this.vy = Math.sin(angle) * this.speed;
-    this.life = 300;
+    this.life = 380;
     this.radius = 5;
+    this.proximityR = 50;              // triggers detonation within this range
+    this.blastR     = smart ? 80 : 65; // explosion damage radius
     this.isPlayerRocket = true;
     this._dead = false;
-    this._chainHits = 0;
-    this._maxChain = smart ? 99 : 3; // smart rocket chains forever
+    this._detonations  = 0;
+    this._maxDets      = smart ? 5 : 2; // smart = 5 kills, normal = 2
+    this._cooldown     = 0;             // frames before next detonation
   }
+
   destroy() { this._dead = true; }
-  // Hit a target — retarget next enemy instead of dying (up to _maxChain kills)
-  chainHit() {
-    this._chainHits++;
-    if (this._chainHits >= this._maxChain) { this._dead = true; return; }
-    this.life = Math.max(this.life, 160); // refresh fuse so it can reach next target
+
+  // After a detonation: continue hunting or expire
+  afterDetonate() {
+    this._detonations++;
+    this._cooldown = 40;
+    if (this._detonations >= this._maxDets) {
+      this._dead = true;
+    } else {
+      this.life = Math.max(this.life, 240); // refresh fuse for next target
+    }
   }
+
+  get readyToDetonate() { return !this._dead && this._cooldown <= 0; }
+
   update(W, H, targets = []) {
+    if (this._cooldown > 0) this._cooldown--;
     // Home toward nearest target
     if (targets.length > 0) {
       let nearestDist = Infinity, nearest = null;
@@ -1109,20 +1123,26 @@ class PlayerRocket {
     this.y = wrap(this.y + this.vy, 0, H);
     this.life--;
   }
+
   draw(ctx) {
+    const col  = this.smart ? '#0077ff' : '#ff6600';
+    const col2 = this.smart ? '#44aaff' : '#ff8800';
+    const col3 = this.smart ? '#aaddff' : '#ffee00';
     ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle + Math.PI / 2);
-    // Pulsing outer aura
     const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 75);
-    ctx.shadowColor = '#ff7700'; ctx.shadowBlur = 30 * pulse;
-    ctx.strokeStyle = `rgba(255,110,0,${0.35 * pulse})`; ctx.lineWidth = 7;
+    ctx.shadowColor = col; ctx.shadowBlur = 32 * pulse;
+    ctx.strokeStyle = this.smart
+      ? `rgba(0,119,255,${0.38 * pulse})`
+      : `rgba(255,110,0,${0.35 * pulse})`;
+    ctx.lineWidth = 7;
     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.stroke();
-    // Core rocket
-    glow(ctx, '#ff6600', 18); ctx.strokeStyle = '#ff8800'; ctx.lineWidth = 2.2;
+    glow(ctx, col, 18); ctx.strokeStyle = col2; ctx.lineWidth = 2.2;
     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.stroke();
-    ctx.strokeStyle = '#ffee00'; glow(ctx, '#ffee00', 12);
+    ctx.strokeStyle = col3; glow(ctx, col3, 12);
     ctx.beginPath(); ctx.moveTo(-2, 4); ctx.lineTo(0, 4 + rng(4, 9)); ctx.lineTo(2, 4); ctx.stroke();
     ctx.restore(); ctx.shadowBlur = 0;
   }
+
   get dead() { return this.life <= 0 || this._dead; }
 }
 
@@ -2206,64 +2226,70 @@ class Game {
       }
     }
 
-    // ── Player rockets vs asteroids ─────────────────────────────────────────
+    // ── Player rockets — proximity detonation ────────────────────────────────
     for (let ri = this.playerRockets.length-1; ri >= 0; ri--) {
       const r = this.playerRockets[ri];
-      if (r.dead) continue;
+      if (!r.readyToDetonate) continue;
+
+      // Find nearest target distance
+      let nearestDist = Infinity;
+      for (const t of [...this.asteroids, ...this.redFighters, ...this.yellowAliens, ...this.orangeRockets]) {
+        const d = dist(r, t) - (t.radius || 0);
+        if (d < nearestDist) nearestDist = d;
+      }
+      if (nearestDist > r.proximityR) continue;
+
+      // DETONATE — blast everything in blastR
+      const blastCol = r.smart ? '#2299ff' : '#ff8800';
+      burst(this.particles, r.x, r.y, blastCol, 28, 5, 50);
+      SFX.rocketExplode();
+
+      // Draw blast ring (via short-lived particle cloud)
+      for (let a = 0; a < 12; a++) {
+        const ang = (a / 12) * TAU;
+        const bx = r.x + Math.cos(ang) * r.blastR * 0.7;
+        const by = r.y + Math.sin(ang) * r.blastR * 0.7;
+        this.particles.push(new Particle(bx, by, blastCol, 1.5, 18));
+      }
+
+      // Asteroids in blast radius
       for (let ai = this.asteroids.length-1; ai >= 0; ai--) {
-        if (dist(r, this.asteroids[ai]) < this.asteroids[ai].radius) {
+        if (dist(r, this.asteroids[ai]) < r.blastR + this.asteroids[ai].radius) {
           const a = this.asteroids[ai];
-          burst(this.particles, a.x, a.y, C.asteroid, 15, 4, 30);
-          SFX.explodeLarge(); this._addScore(a.score * 2);
           const frags = a.split(this.particles);
           this.asteroids.splice(ai, 1, ...frags);
-          r.chainHit(); break;
+          this._addScore(a.score * 2);
         }
       }
-    }
-
-    // ── Player rockets vs red fighters ──────────────────────────────────────
-    for (let ri = this.playerRockets.length-1; ri >= 0; ri--) {
-      const r = this.playerRockets[ri];
-      if (r.dead) continue;
+      // Red fighters in blast radius
       for (let ei = this.redFighters.length-1; ei >= 0; ei--) {
-        if (dist(r, this.redFighters[ei]) < this.redFighters[ei].radius) {
-          burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 20, 5, 35);
+        if (dist(r, this.redFighters[ei]) < r.blastR + this.redFighters[ei].radius) {
+          burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 16, 4, 30);
           SFX.enemyDie(); this._addScore(CFG.enemyRedScore * 2);
-          this.redFighters.splice(ei, 1); r.chainHit();
           if (ship.hasAce) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
-          break;
+          this.redFighters.splice(ei, 1);
         }
       }
-    }
-
-    // ── Player rockets vs yellow aliens ─────────────────────────────────────
-    for (let ri = this.playerRockets.length-1; ri >= 0; ri--) {
-      const r = this.playerRockets[ri];
-      if (r.dead) continue;
+      // Yellow aliens in blast radius
       for (let ei = this.yellowAliens.length-1; ei >= 0; ei--) {
-        if (dist(r, this.yellowAliens[ei]) < this.yellowAliens[ei].radius) {
-          burst(this.particles, this.yellowAliens[ei].x, this.yellowAliens[ei].y, C.enemyYellow, 20, 5, 35);
+        if (dist(r, this.yellowAliens[ei]) < r.blastR + this.yellowAliens[ei].radius) {
+          burst(this.particles, this.yellowAliens[ei].x, this.yellowAliens[ei].y, C.enemyYellow, 16, 4, 30);
           SFX.enemyDie(); this._addScore(CFG.enemyYellowScore * 2);
-          this.yellowAliens.splice(ei, 1); r.chainHit();
           if (ship.hasZepZep) { ship.rocketAmmo++; new FloatingText(ship.x, ship.y-30, '+1 ROCKET! (ZEP)', '#ffee00'); }
-          break;
+          this.yellowAliens.splice(ei, 1);
         }
       }
-    }
-
-    // ── Player rockets vs orange homing rockets ──────────────────────────────
-    for (let ri = this.playerRockets.length-1; ri >= 0; ri--) {
-      const r = this.playerRockets[ri];
-      if (r.dead) continue;
+      // Orange homing rockets in blast radius
       for (let ei = this.orangeRockets.length-1; ei >= 0; ei--) {
-        if (dist(r, this.orangeRockets[ei]) < this.orangeRockets[ei].radius + r.radius) {
-          burst(this.particles, this.orangeRockets[ei].x, this.orangeRockets[ei].y, '#ff7700', 18, 4, 35);
-          SFX.rocketExplode(); this._addScore(150);
+        if (dist(r, this.orangeRockets[ei]) < r.blastR + this.orangeRockets[ei].radius) {
+          burst(this.particles, this.orangeRockets[ei].x, this.orangeRockets[ei].y, '#ff7700', 12, 3, 25);
+          this._addScore(150);
           this.orangeRockets[ei].dead = true;
-          this.orangeRockets.splice(ei, 1); r.chainHit(); break;
+          this.orangeRockets.splice(ei, 1);
         }
       }
+
+      r.afterDetonate();
     }
 
     // ── Asteroids vs ship ───────────────────────────────────────────────────
