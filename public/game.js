@@ -2,7 +2,7 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310o';
+import { SFX } from './sounds.js?v=20250310p';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
@@ -10,7 +10,7 @@ import {
   dbGetUserUpgrades, dbBuyItem,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
   dbDevReset,
-} from './db.js?v=20250310o';
+} from './db.js?v=20250310p';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -857,7 +857,7 @@ class RedFighter {
     this.x = x; this.y = y;
     this.vx = 0; this.vy = 0;
     this.angle = 0;
-    this.speed  = 1.9;
+    this.speed  = 1.2;
     this.shootTimer = 0;
     this.shootRate  = 70;  // ~1.2s between shots in burst
     this.shotsLeft = 4;    // 4-shot burst
@@ -1180,7 +1180,7 @@ class OrangeHomingRocket {
     this.x = x; this.y = y;
     this.angle = 0;
     this.vx = 0; this.vy = 0;
-    this.speed = 3.2;
+    this.speed = 1.8;
     this.lifeTimer = 0;
     this.fuseTime = 420; // 7 seconds
     this.radius = 9;
@@ -1993,14 +1993,24 @@ class Game {
   }
 
   _maintainAsteroids() {
-    // Continuous asteroid spawning — scattered across the playfield, not just edges
     const timeS = this.gameTime / 60;
-    const targetCount = Math.min(4 + Math.floor(timeS / 12), 20);
+
+    // During dogfight (red fighters or homing rockets active) keep the field sparse —
+    // just enough rocks to use as cover, not so many it becomes chaos
+    const dogfight = (this.redFighters?.length > 0) || (this.orangeRockets?.length > 0);
+    const targetCount = dogfight
+      ? 3                                                         // dogfight: 3 rocks max
+      : Math.min(4 + Math.floor(timeS / 12), 20);                // normal ramp
+
+    // Also cull excess asteroids immediately when switching into dogfight mode
+    if (dogfight && this.asteroids.length > 4) {
+      this.asteroids.splice(4); // trim down to 4 quickly
+    }
+
     const spawnInterval = Math.max(100 - Math.floor(timeS * 0.4), 30);
     this.asteroidSpawnTimer++;
     if (this.asteroidSpawnTimer >= spawnInterval && this.asteroids.length < targetCount) {
       this.asteroidSpawnTimer = 0;
-      // Spawn anywhere safe in the playfield (not just edges)
       const pos = this._findSafeSpawnPoint(60, this.ship, 180);
       const diffPct = Math.min(timeS / 240, 1);
       const roll = Math.random();
