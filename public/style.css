@@ -411,15 +411,14 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 /* ── GAME CANVAS ──────────────────────────────────────────── */
 #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 10; }
 
-/* Shield button */
+/* Shield button color */
 .ctrl-shield-btn {
   background: radial-gradient(circle, rgba(0,170,255,0.16) 0%, transparent 100%);
-  border: 2px solid #00aaff88;
-  color: #00aaff;
+  border: 2px solid #00aaff88; color: #00aaff;
   box-shadow: 0 0 8px #00aaff44;
 }
 .ctrl-shield-btn:active { background: rgba(0,120,220,0.35); box-shadow: 0 0 20px #00aaff; }
-/* Flare button */
+/* Flare button color */
 .ctrl-flare-btn {
   background: radial-gradient(circle, rgba(255,102,0,0.16) 0%, transparent 100%);
   border: 2px solid var(--orange); color: var(--orange);
@@ -445,40 +444,67 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   display: flex; flex-direction: column-reverse; align-items: center; gap: 14px;
   pointer-events: all;
 }
-/* Right panel: absolute-positioned buttons in user-sketch layout */
+/* Right panel: absolute-positioned circular buttons */
 #ctrl-right {
   position: relative;
-  width: 170px;
-  height: 240px;
+  width: 160px;
+  height: 250px;
   flex-shrink: 0;
-  pointer-events: none; /* children handle their own events */
+  pointer-events: none;
 }
 
-/* Common base for all absolutely-placed buttons */
+/* Base for every circle button */
 .ctrl-abs {
   position: absolute;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font); font-size: 8px; letter-spacing: 0px;
+  overflow: hidden;                /* keep text clipped inside circle */
+  font-family: var(--font);
+  line-height: 1;
   touch-action: none; user-select: none; -webkit-user-select: none;
   cursor: pointer; transition: transform 0.08s;
   pointer-events: all;
+  box-sizing: border-box;
 }
-.ctrl-abs:active { transform: scale(0.88); }
+.ctrl-abs:active { transform: scale(0.88) !important; }
 
-/* Individual positions (origin: top-left of #ctrl-right) */
-/* SHOOT — big, right-center */
-#ctrl-fire   { width: 80px; height: 80px; right: 0; top: 50%; transform: translateY(-50%); }
-#ctrl-fire:active { transform: translateY(-50%) scale(0.88); }
-/* FLARE — top-right */
-#ctrl-flare  { width: 50px; height: 50px; right: 6px; top: 4px; }
+/*
+  Layout matching sketch:
+    [SH]        [F]
+         [S big]
+    [R]
+              [T]
+*/
+/* SHOOT — large, right side, vertically centered */
+#ctrl-fire {
+  width: 82px; height: 82px;
+  right: 0; top: 50%; transform: translateY(-50%);
+  font-size: 11px; letter-spacing: 1px;
+}
+/* FLARE — top-right, above SHOOT */
+#ctrl-flare {
+  width: 52px; height: 52px;
+  right: 14px; top: 8px;
+  font-size: 9px; letter-spacing: 0px;
+}
 /* SHIELD — top-left */
-#ctrl-shield { width: 50px; height: 50px; left: 6px; top: 4px; }
-/* ROCKET — left, vertically between shield and center of shoot */
-#ctrl-rocket { width: 55px; height: 55px; left: 0; top: 50%; margin-top: -12px; transform: translateY(-50%); }
-#ctrl-rocket:active { transform: translateY(-50%) scale(0.88); }
+#ctrl-shield {
+  width: 52px; height: 52px;
+  left: 6px; top: 8px;
+  font-size: 8px; letter-spacing: 0px;
+}
+/* ROCKET — left side, between shield top and shoot center */
+#ctrl-rocket {
+  width: 58px; height: 58px;
+  left: 0; top: 50%; transform: translateY(-60%);
+  font-size: 9px; letter-spacing: 0px;
+}
 /* THRUST — bottom-right */
-#ctrl-thrust { width: 62px; height: 62px; right: 0; bottom: 0; }
+#ctrl-thrust {
+  width: 64px; height: 64px;
+  right: 0; bottom: 4px;
+  font-size: 9px; letter-spacing: 0px;
+}
 
 /* Virtual Joystick */
 #vjoy-base {
@@ -506,15 +532,13 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 }
 .ctrl-round:active { transform: scale(0.88); }
 
+/* Button color themes — no width/height here, set per-id above */
 .ctrl-fire-btn {
-  width: 68px; height: 68px;
   background: radial-gradient(circle, rgba(0,255,204,0.14) 0%, transparent 100%);
   border: 2px solid var(--cyan); color: var(--cyan);
   box-shadow: 0 0 14px #00ffcc55, 0 0 0 3px #00ffcc22;
 }
 .ctrl-fire-btn:active { background: rgba(0,255,204,0.22); box-shadow: 0 0 28px #00ffcc, 0 0 0 3px #00ffcc44; }
-
-/* flare styles now handled by .ctrl-flare-btn class */
 
 .ctrl-thrust-btn {
   background: radial-gradient(circle, rgba(0,160,255,0.16) 0%, transparent 100%);
@@ -523,7 +547,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 .ctrl-thrust-btn:active { background: rgba(56,185,255,0.28); box-shadow: 0 0 24px #38b9ff; }
 
 .ctrl-rocket-btn {
-  width: 48px; height: 48px;
   background: radial-gradient(circle, rgba(255,238,0,0.16) 0%, transparent 100%);
   border: 2px solid var(--yellow); color: var(--yellow);
   box-shadow: 0 0 10px #ffee0055;
@@ -720,11 +743,13 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   }
   #vjoy-base { width: 100px; height: 100px; }
   #vjoy-knob { width: 40px; height: 40px; }
-  /* Scale down the abs-positioned right panel in landscape */
-  #ctrl-right { width: 130px; height: 185px; }
-  #ctrl-fire   { width: 62px; height: 62px; font-size: 7px; }
-  #ctrl-flare  { width: 40px; height: 40px; font-size: 6px; }
-  #ctrl-shield { width: 40px; height: 40px; font-size: 5px; }
-  #ctrl-rocket { width: 44px; height: 44px; font-size: 6px; }
-  #ctrl-thrust { width: 50px; height: 50px; font-size: 6px; }
+  /* Scale down right panel in landscape */
+  #ctrl-right  { width: 120px; height: 190px; }
+  #ctrl-fire   { width: 60px; height: 60px; font-size: 8px; right: 0; }
+  #ctrl-flare  { width: 40px; height: 40px; font-size: 7px; right: 8px; top: 4px; }
+  #ctrl-shield { width: 40px; height: 40px; font-size: 6px; left: 4px; top: 4px; }
+  #ctrl-rocket { width: 44px; height: 44px; font-size: 7px; left: 0; }
+  #ctrl-thrust { width: 48px; height: 48px; font-size: 7px; right: 0; bottom: 2px; }
+  .ctrl-flare-btn  { width: unset; height: unset; }
+  .ctrl-shield-btn { width: unset; height: unset; }
 }
