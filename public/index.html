@@ -114,10 +114,10 @@
     <button id="arsenal-open-store" class="btn-primary">OPEN STORE</button>
   </div>
 
-  <!-- Daily Gift Screen -->
+  <!-- Gift Screen -->
   <div id="spin-screen" class="screen hidden">
     <button class="back-btn" data-back="menu">BACK</button>
-    <div class="screen-title">DAILY GIFT</div>
+    <div class="screen-title">GIFT BOX</div>
     <div id="gift-box-area">
       <div id="gift-box" class="gift-idle">
         <div id="gift-lid"></div>
@@ -161,16 +161,16 @@
 
   <!-- Mobile Controls Overlay -->
   <div id="controls-overlay" class="hidden">
-    <!-- Left: joystick + flare + shield -->
+    <!-- Left: joystick only -->
     <div id="ctrl-left">
       <div id="vjoy-base">
         <div id="vjoy-knob"></div>
       </div>
-      <button class="ctrl-round" id="ctrl-flare">FLARE</button>
-      <button id="ctrl-shield" class="ctrl-shield-btn">SHLD <span id="shield-count">0</span></button>
     </div>
-    <!-- Right: ROCKET / SHOOT / THRUST -->
+    <!-- Right: all action buttons stacked -->
     <div id="ctrl-right">
+      <button id="ctrl-shield" class="ctrl-round ctrl-shield-btn">SHLD</button>
+      <button class="ctrl-round ctrl-flare-btn" id="ctrl-flare">FLARE</button>
       <button class="ctrl-round ctrl-rocket-btn" id="ctrl-rocket">ROCKET</button>
       <button class="ctrl-round ctrl-fire-btn"   id="ctrl-fire">SHOOT</button>
       <button class="ctrl-round ctrl-thrust-btn" id="ctrl-thrust">THRUST</button>
@@ -187,7 +187,7 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="sounds.js?v=20250310p"></script>
-  <script type="module" src="game.js?v=20260309c"></script>
+  <script type="module" src="sounds.js?v=20260311a"></script>
+  <script type="module" src="game.js?v=20260311a"></script>
 </body>
 </html>

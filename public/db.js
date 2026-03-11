@@ -30,16 +30,17 @@ async function supa(path, opts = {}) {
 // 4 boosts · 12 upgrades · 10 skins · 3 planes (starter is free/default)
 export const CATALOG = [
   // ── Boosts (per-run, max 1 applied per game) ─────────────────────────────
-  { id: 'extra_life',   name: 'Extra Life',   category: 'boost', cost: 10,  description: '+1 life for one run (max 1/game)',    stackable: true },
-  { id: 'extra_flare',  name: 'Extra Flare',  category: 'boost', cost: 5,   description: '+1 flare for one run (max 1/game)',   stackable: true },
-  { id: 'extra_shield', name: 'Run Shield',   category: 'boost', cost: 10,  description: '1 shield charge for one run',         stackable: true },
-  { id: 'extra_rocket', name: 'Run Rocket',   category: 'boost', cost: 15,  description: '+1 rocket for one run (max 1/game)',  stackable: true },
-  { id: 'score_x2',     name: 'SCORE x2',     category: 'boost', cost: 80,  description: 'Double all score for one run',        stackable: true },
+  { id: 'extra_life',   name: 'Extra Life',   category: 'boost', cost: 10,  description: '+1 life for your next run',    stackable: true },
+  { id: 'extra_flare',  name: 'Extra Flare',  category: 'boost', cost: 5,   description: '+1 flare for your next run',   stackable: true },
+  { id: 'extra_shield', name: 'Run Shield',   category: 'boost', cost: 10,  description: '1 shield charge for your next run',         stackable: true },
+  { id: 'extra_rocket', name: 'Run Rocket',   category: 'boost', cost: 15,  description: '+1 rocket for your next run',  stackable: true },
+  { id: 'score_x2',     name: 'SCORE x2',     category: 'upgrade', cost: 1500, description: 'All score doubled every run (stacks with x3)' },
+  { id: 'score_x3',     name: 'SCORE x3',     category: 'upgrade', cost: 4000, description: 'All score tripled every run (stacks with x2 for x6)' },
 
   // ── Upgrades (permanent — always active once owned) ───────────────────────
   { id: 'magen',          name: 'MAGEN',          category: 'upgrade', cost: 800,  description: 'Always start every run with a shield charge' },
   { id: 'pew_pew_15',     name: 'PEW PEW 1.5',    category: 'upgrade', cost: 600,  description: 'Fire rate × 1.5' },
-  { id: 'pew_pew_3',      name: 'PEW PEW 3',      category: 'upgrade', cost: 1500, description: 'Fire rate × 3 (overrides 1.5)' },
+  { id: 'pew_pew_3',      name: 'PEW PEW 3',      category: 'upgrade', cost: 1500, description: 'Fire rate × 3 (stacks with 1.5 for ×4.5)' },
   { id: 'jew_method',     name: 'JEW METHOD',      category: 'upgrade', cost: 900,  description: '$ and ? fly toward you (magnet)' },
   { id: 'kurwa_raketa',   name: 'KURWA RAKETA',    category: 'upgrade', cost: 1200, description: '+2 rockets every run' },
   { id: 'ace_upgrade',    name: 'ACE',             category: 'upgrade', cost: 1800, description: '+1 life each time you destroy a jet' },
@@ -47,7 +48,7 @@ export const CATALOG = [
   { id: 'shplit',         name: 'SHPLIT',          category: 'upgrade', cost: 1000, description: 'Shoot 2 parallel lines from both sides' },
   { id: 'tripple_threat', name: 'TRIPPLE THREAT',  category: 'upgrade', cost: 1600, description: 'Shoot in 3 spread directions' },
   { id: 'lazer_pew',      name: 'LAZER PEW',       category: 'upgrade', cost: 2000, description: 'Replace bullets with laser beams' },
-  { id: 'smart_rocket',   name: 'SMART ROCKET',    category: 'upgrade', cost: 2200, description: 'Your rocket flies until it hits something' },
+  { id: 'smart_rocket',   name: 'SMART ROCKET',    category: 'upgrade', cost: 2200, description: 'Blue rocket that pierces and kills 5 targets before exploding' },
   { id: 'collector',      name: 'COLLECTOR',       category: 'upgrade', cost: 1100, description: 'Shoot $ or ? to collect them from range' },
 
   // ── Skins (10 — color palette for any jet) ────────────────────────────────
@@ -64,26 +65,31 @@ export const CATALOG = [
   { id: 'skin_karamba',       name: 'KARAMBA',                  category: 'skin', cost: 420, description: 'Hot coral meets electric orange',      color: '#ff2255', accent: '#ff9900' },
   { id: 'skin_zoink',         name: 'ZOINK',                    category: 'skin', cost: 380, description: 'Glitchy electric cyan-green',          color: '#00eeff', accent: '#00ff88' },
   { id: 'skin_silver_surfer', name: 'SILVER SURFER',            category: 'skin', cost: 450, description: 'Silver-blue chrome with icy glow',    color: '#8ab4d4', accent: '#ddeeff' },
+  { id: 'skin_neon_dream',    name: 'NEON DREAM',               category: 'skin', cost: 550, description: 'Vivid magenta with electric mint',    color: '#ff00cc', accent: '#00ffaa' },
+  { id: 'skin_desert_storm',  name: 'DESERT STORM',             category: 'skin', cost: 480, description: 'Sandy gold with warm amber glow',     color: '#d4a843', accent: '#ff8844' },
 
   // ── Jets (3 purchasable — Starter is always available for free) ───────────
   { id: 'plane_hamud',      name: 'HAMUDI',         category: 'plane', cost: 3000,
-    description: '3 lives · 2 flares · 2 rockets · Wings', lives: 3, flares: 2, rockets: 2 },
+    description: '3 lives · 2 flares · 2 rockets', lives: 3, flares: 2, rockets: 2 },
   { id: 'plane_walla_yofi', name: 'KILLAJET',        category: 'plane', cost: 6500,
     description: '3 lives · 3 flares · 3 rockets · Shield · ×1.5 fire', lives: 3, flares: 3, rockets: 3, shield: true, rapidFire: true },
   { id: 'plane_very_scary', name: 'VERY SCARY JET',  category: 'plane', cost: 11000,
-    description: '4 lives · 3 flares · 4 rockets · Shield', lives: 4, flares: 3, rockets: 4, shield: true },
+    description: '4 lives · 4 flares · 4 rockets · 2 Shields', lives: 4, flares: 4, rockets: 4, shield: true },
 ];
 
 // ── Spin Wheel — 13 segments: shmips 5-30 + one-time boosts, every 6h ────────
 // ── Daily Gift reward table ────────────────────────────────────────────────────
 const GIFT_REWARDS = [
-  { id: 'cash_10', weight: 30, type: 'shmips',      value: 10 },
-  { id: 'cash_20', weight: 25, type: 'shmips',      value: 20 },
-  { id: 'cash_30', weight: 18, type: 'shmips',      value: 30 },
-  { id: 'cash_40', weight: 10, type: 'shmips',      value: 40 },
-  { id: 'cash_50', weight: 6,  type: 'shmips',      value: 50 },
-  { id: 'boost',   weight: 11, type: 'boost_grant'            },
-  { id: 'skin',    weight: 7,  type: 'skin_grant'             },
+  { id: 'cash_10',  weight: 28, type: 'shmips',      value: 10 },
+  { id: 'cash_20',  weight: 22, type: 'shmips',      value: 20 },
+  { id: 'cash_30',  weight: 16, type: 'shmips',      value: 30 },
+  { id: 'cash_40',  weight: 8,  type: 'shmips',      value: 40 },
+  { id: 'cash_50',  weight: 5,  type: 'shmips',      value: 50 },
+  { id: 'cash_100', weight: 3,  type: 'shmips',      value: 100 },
+  { id: 'cash_200', weight: 2,  type: 'shmips',      value: 200 },
+  { id: 'cash_300', weight: 1,  type: 'shmips',      value: 300 },
+  { id: 'boost',    weight: 9,  type: 'boost_grant'             },
+  { id: 'skin',     weight: 6,  type: 'skin_grant'              },
 ];
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;  // 4 hours (applies to everyone)
 const ADMIN_TID = '1357754255';

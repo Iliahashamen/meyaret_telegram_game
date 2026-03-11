@@ -412,22 +412,23 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 10; }
 
 /* ── SHIELD HUD (top-left, below score box) ───────────────── */
-/* Inline shield button sits above flare in ctrl-left */
+/* Shield button in right column */
 .ctrl-shield-btn {
-  width: 52px; height: 52px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(circle, rgba(0,170,255,0.18) 0%, transparent 100%);
+  width: 48px; height: 48px;
+  background: radial-gradient(circle, rgba(0,170,255,0.16) 0%, transparent 100%);
   border: 2px solid #00aaff88;
   color: #00aaff;
-  font-family: var(--font);
-  font-size: 6px; letter-spacing: 0px;
-  touch-action: none; user-select: none; -webkit-user-select: none;
-  cursor: pointer; transition: transform 0.08s;
   box-shadow: 0 0 8px #00aaff44;
-  pointer-events: all;
 }
-.ctrl-shield-btn:active { transform: scale(0.88); background: rgba(0,120,220,0.35); box-shadow: 0 0 20px #00aaff; }
+.ctrl-shield-btn:active { background: rgba(0,120,220,0.35); box-shadow: 0 0 20px #00aaff; }
+/* Flare button in right column */
+.ctrl-flare-btn {
+  width: 48px; height: 48px;
+  background: radial-gradient(circle, rgba(255,102,0,0.16) 0%, transparent 100%);
+  border: 2px solid var(--orange); color: var(--orange);
+  box-shadow: 0 0 10px #ff660055;
+}
+.ctrl-flare-btn:active { background: rgba(255,102,0,0.28); box-shadow: 0 0 24px #ff6600; }
 
 /* ── MOBILE CONTROLS ──────────────────────────────────────── */
 #controls-overlay {
@@ -447,7 +448,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   display: flex; align-items: center; pointer-events: all;
 }
 #ctrl-left  { flex-direction: column-reverse; align-items: center; gap: 14px; }
-#ctrl-right { flex-direction: column; align-items: center; gap: 12px; }
+#ctrl-right { flex-direction: column; align-items: center; gap: 7px; }
 
 /* Virtual Joystick */
 #vjoy-base {
@@ -476,23 +477,17 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 .ctrl-round:active { transform: scale(0.88); }
 
 .ctrl-fire-btn {
-  width: 82px; height: 82px;
+  width: 68px; height: 68px;
   background: radial-gradient(circle, rgba(0,255,204,0.14) 0%, transparent 100%);
   border: 2px solid var(--cyan); color: var(--cyan);
   box-shadow: 0 0 14px #00ffcc55, 0 0 0 3px #00ffcc22;
 }
 .ctrl-fire-btn:active { background: rgba(0,255,204,0.22); box-shadow: 0 0 28px #00ffcc, 0 0 0 3px #00ffcc44; }
 
-#ctrl-flare {
-  width: 64px; height: 64px;
-  background: radial-gradient(circle, rgba(255,102,0,0.16) 0%, transparent 100%);
-  border: 2px solid var(--orange); color: var(--orange);
-  box-shadow: 0 0 10px #ff660055;
-}
-#ctrl-flare:active { background: rgba(255,102,0,0.28); box-shadow: 0 0 24px #ff6600; }
+/* flare styles now handled by .ctrl-flare-btn class */
 
 #ctrl-thrust {
-  width: 72px; height: 72px;
+  width: 60px; height: 60px;
 }
 .ctrl-thrust-btn {
   background: radial-gradient(circle, rgba(0,160,255,0.16) 0%, transparent 100%);
@@ -501,7 +496,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 .ctrl-thrust-btn:active { background: rgba(56,185,255,0.28); box-shadow: 0 0 24px #38b9ff; }
 
 .ctrl-rocket-btn {
-  width: 60px; height: 60px;
+  width: 48px; height: 48px;
   background: radial-gradient(circle, rgba(255,238,0,0.16) 0%, transparent 100%);
   border: 2px solid var(--yellow); color: var(--yellow);
   box-shadow: 0 0 10px #ffee0055;
@@ -653,3 +648,20 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 .ars-equip-area::-webkit-scrollbar { width: 3px; }
 .ars-equip-area::-webkit-scrollbar-track { background: transparent; }
 .ars-equip-area::-webkit-scrollbar-thumb { background: var(--magenta); }
+
+/* ── LANDSCAPE MODE ──────────────────────────────────────── */
+@media (orientation: landscape) {
+  #controls-overlay {
+    height: calc(180px + var(--safe-bottom));
+    padding-bottom: calc(4px + var(--safe-bottom));
+  }
+  #vjoy-base { width: 100px; height: 100px; }
+  #vjoy-knob { width: 40px; height: 40px; }
+  #ctrl-right { gap: 4px; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-end; max-width: 200px; }
+  .ctrl-fire-btn   { width: 58px; height: 58px; font-size: 7px; }
+  .ctrl-thrust-btn { width: 50px; height: 50px; font-size: 6px; }
+  .ctrl-rocket-btn { width: 40px; height: 40px; font-size: 6px; }
+  .ctrl-flare-btn  { width: 40px; height: 40px; font-size: 6px; }
+  .ctrl-shield-btn { width: 40px; height: 40px; font-size: 5px; }
+  #ctrl-thrust { width: 50px; height: 50px; }
+}

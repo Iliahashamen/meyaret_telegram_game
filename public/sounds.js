@@ -420,6 +420,23 @@ export const SFX = {
     });
   },
 
+  // ── Shield break — glass shatter ─────────────────────────────────────────
+  shieldBreak() {
+    if (this.muted) return;
+    const t = _now();
+    const flt = _filter('highpass', 1200, _master);
+    const g = _gain(0.22, flt);
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    const ns = _noise(0.45, g);
+    ns.start(t); ns.stop(t + 0.45);
+    const g2 = _gain(0.08);
+    const o = _osc('square', 2200, g2);
+    g2.gain.setValueAtTime(0.08, t);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    o.start(t); o.stop(t + 0.15);
+  },
+
   // ── Player rocket launch ──────────────────────────────────────────────────
   rocketFire() {
     if (this.muted) return;

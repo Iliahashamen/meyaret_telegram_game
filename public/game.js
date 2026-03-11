@@ -133,6 +133,9 @@ function burst(particles, x, y, color, count = 12, speed = 3, life = 30) {
 
 class FloatingText {
   constructor(x, y, text, color = '#ffdd00') {
+    // Limit DOM float-text elements to prevent lag
+    const existing = document.querySelectorAll('.float-text');
+    if (existing.length > 15) existing[0].remove();
     this.el = document.createElement('div');
     this.el.className = 'float-text';
     this.el.textContent = text;
@@ -164,13 +167,13 @@ class Ship {
     this.lives    = this.maxLives;
 
     // Flares
-    const baseFlares = { starter: 1, plane_hamud: 2, plane_walla_yofi: 3, plane_very_scary: 3 }[this.jetType] || 1;
+    const baseFlares = { starter: 1, plane_hamud: 2, plane_walla_yofi: 3, plane_very_scary: 4 }[this.jetType] || 1;
     this.maxFlares = baseFlares + Math.min(upgrades.extra_flare || 0, 1);
     this.flares    = this.maxFlares;
 
     // Shield charges
     // KILLAJET + VERY SCARY JET start with one shield; MAGEN grants an extra backup.
-    const jetShieldBase = (this.jetType === 'plane_walla_yofi' || this.jetType === 'plane_very_scary') ? 1 : 0;
+    const jetShieldBase = this.jetType === 'plane_very_scary' ? 2 : (this.jetType === 'plane_walla_yofi' ? 1 : 0);
     this.shieldCharges = jetShieldBase + (upgrades.magen ? 1 : 0) + Math.min(upgrades.extra_shield || 0, 1);
     this.shieldUp      = false; // must be deployed manually
 
@@ -224,8 +227,10 @@ class Ship {
     this.tempRapidUntil      = 0;
     this.tempPowerBoostUntil = 0;
     this.tempStarUntil       = 0;
+    this.tempSuperBeamUntil  = 0;
     this.starShieldLayers    = 0;
     this.fireballReady       = false;
+    this.superRaketaReady    = false;
     this.spawnProtection     = 180; // 3 seconds at 60fps — immune to damage on spawn
     this.bobTimer = 0;
   }
@@ -538,6 +543,7 @@ class Ship {
   get isStarOverdrive() { return this.tempStarUntil > 0; }
   get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0; }
   get isPinkBeam()    { return this.tempPinkBeamUntil > 0; }
+  get isSuperBeam()   { return this.tempSuperBeamUntil > 0; }
   get effectiveFireRate() {
     if (this.isStarOverdrive) return Math.max(Math.floor(this.fireRate / 2), 2);
     if (this.tempRapidUntil > 0) return Math.max(Math.floor(this.fireRate / 3), 2);
@@ -546,6 +552,17 @@ class Ship {
 
   fire(bullets, fireballs, megaRaketas) {
     if (!this.canFire()) return;
+    // Super Raketa — fires a green rocket that splits into 6 homing minis
+    if (this.superRaketaReady && megaRaketas) {
+      this.superRaketaReady = false;
+      this.fireCooldown = 20;
+      const nose = { x: this.x + Math.cos(this.angle) * 20, y: this.y + Math.sin(this.angle) * 20 };
+      const sr = new MegaRaketa(nose.x, nose.y, this.angle);
+      sr._isSuperRaketa = true; // flag for green visuals + 6 minis
+      megaRaketas.push(sr);
+      SFX.rocketFire();
+      return;
+    }
     // Fireball overrides everything — consume it on next shot
     if (this.fireballReady) {
       this.fireballReady = false;
@@ -557,6 +574,13 @@ class Ship {
     }
     this.fireCooldown = this.effectiveFireRate;
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
+    // Super Beam — straight devastating beam from ? pickup (laser player only)
+    if (this.isSuperBeam) {
+      this.fireCooldown = 6; // very fast continuous beam
+      bullets.push(new SuperBeam(nose.x, nose.y, this.angle));
+      SFX.laser();
+      return;
+    }
     // Star overdrive: MEGA RAKETA — big rocket that splits into 7 mini homing rockets
     // Override cooldown so rockets fire ~once per second regardless of fire upgrades
     if (this.isStarOverdrive && megaRaketas) {
@@ -678,6 +702,7 @@ class Ship {
       this.shieldUp = false;
       this.invincible = true;
       this.invTimer = 60;
+      SFX.shieldBreak();
       return false;
     }
     burst(particles, this.x, this.y, this.golden ? C.golden : this.color, 20, 4, 40);
@@ -714,6 +739,45 @@ class Bullet {
     glow(ctx, col, 10);
     ctx.fillStyle = col;
     ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  get dead() { return this.life <= 0; }
+}
+
+// ── Super Beam — straight line across entire screen, kills everything in 1 hit ─
+class SuperBeam {
+  constructor(x, y, angle) {
+    this.x = x; this.y = y;
+    this.angle = angle;
+    this.speed = 26;
+    this.vx = Math.cos(angle) * this.speed;
+    this.vy = Math.sin(angle) * this.speed;
+    this.life = 70;
+    this.radius = 10;
+    this.isSuperBeam = true;
+  }
+  update(W, H) {
+    this.x = wrap(this.x + this.vx, 0, W);
+    this.y = wrap(this.y + this.vy, 0, H);
+    this.life--;
+  }
+  draw(ctx) {
+    const p = 0.6 + 0.4 * Math.sin(Date.now() / 55);
+    const len = 400;
+    const ex = this.x - Math.cos(this.angle) * len;
+    const ey = this.y - Math.sin(this.angle) * len;
+    // Outer glow
+    glow(ctx, '#ff2200', 28 * p);
+    ctx.strokeStyle = `rgba(255,40,0,${0.4 * p})`; ctx.lineWidth = 18;
+    ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(ex, ey); ctx.stroke();
+    // Core beam
+    glow(ctx, '#ff4400', 16);
+    ctx.strokeStyle = '#ff4400'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(ex, ey); ctx.stroke();
+    // White-hot center
+    glow(ctx, '#ffffff', 8);
+    ctx.strokeStyle = '#ffffffcc'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(ex, ey); ctx.stroke();
     ctx.shadowBlur = 0;
   }
   get dead() { return this.life <= 0; }
@@ -1244,23 +1308,20 @@ class MegaRaketa {
     if (this.life <= 0) this.dead = true; // game loop handles split on death
   }
   draw(ctx) {
+    const green = this._isSuperRaketa;
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle + Math.PI / 2);
     const p = 0.7 + 0.3 * Math.sin(Date.now() / 45);
-    ctx.shadowColor = '#ff2200'; ctx.shadowBlur = 34 * p;
-    // outer glow shell
-    ctx.strokeStyle = `rgba(255,60,0,${0.45 * p})`; ctx.lineWidth = 9;
+    ctx.shadowColor = green ? '#00ff44' : '#ff2200'; ctx.shadowBlur = 34 * p;
+    ctx.strokeStyle = green ? `rgba(0,255,80,${0.45*p})` : `rgba(255,60,0,${0.45 * p})`; ctx.lineWidth = 9;
     ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(7,9); ctx.lineTo(-7,9); ctx.closePath(); ctx.stroke();
-    // body
-    ctx.strokeStyle = '#ff3300'; ctx.lineWidth = 3.5;
+    ctx.strokeStyle = green ? '#00ff44' : '#ff3300'; ctx.lineWidth = 3.5;
     ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(7,9); ctx.lineTo(-7,9); ctx.closePath(); ctx.stroke();
-    // hot core
-    ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 12;
-    ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = 1.5;
+    ctx.shadowColor = green ? '#ccff00' : '#ffaa00'; ctx.shadowBlur = 12;
+    ctx.strokeStyle = green ? '#ccff00' : '#ffcc00'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(7,9); ctx.lineTo(-7,9); ctx.closePath(); ctx.stroke();
-    // exhaust trail
-    ctx.strokeStyle = '#ff8800';
+    ctx.strokeStyle = green ? '#00ff88' : '#ff8800';
     ctx.beginPath(); ctx.moveTo(-4,9); ctx.lineTo(0, 9 + rng(10,20)); ctx.lineTo(4,9); ctx.stroke();
     ctx.restore(); ctx.shadowBlur = 0;
   }
@@ -1409,31 +1470,33 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
     ctx.fillText('x2', 150, 20);
   }
 
-  // ── LIVES — "LIFE : ▲▲▲" ──
-  const MAX_TRI    = 5;
-  const displayMax = Math.min(maxLives, MAX_TRI);
-  const lifeBaseY  = 63;
-  // "LIFE :" label
+  // ── LIVES — "LIFE :" + always 5 triangles, fill light blue for current lives ──
+  const MAX_TRI   = 5;
+  const lifeBaseY = 63;
   ctx.font = `7px ${FONT}`; glow(ctx, C.hud, 5);
   ctx.fillStyle = '#00ffcc88';
   ctx.fillText('LIFE :', 14, lifeBaseY);
-  // triangles, starting after the label
   const triStartX = 62;
-  for (let i = 0; i < displayMax; i++) {
+  for (let i = 0; i < MAX_TRI; i++) {
     const lx = triStartX + i * 14;
-    ctx.fillStyle   = i < lives ? C.hud : '#0a0020';
-    ctx.shadowBlur  = i < lives ? 9 : 0;
-    ctx.shadowColor = C.hud;
+    const alive = i < lives;
+    ctx.fillStyle   = alive ? '#44ccff' : '#111133';
+    ctx.shadowBlur  = alive ? 10 : 0;
+    ctx.shadowColor = '#44ccff';
     ctx.beginPath();
     ctx.moveTo(lx + 5, lifeBaseY - 8);
     ctx.lineTo(lx + 11, lifeBaseY + 2);
     ctx.lineTo(lx,      lifeBaseY + 2);
     ctx.closePath(); ctx.fill();
-  }
-  if (lives > MAX_TRI) {
-    ctx.font = `7px ${FONT}`; ctx.fillStyle = '#ffee00';
-    glow(ctx, '#ffee00', 6);
-    ctx.fillText(`+${lives - MAX_TRI}`, triStartX + MAX_TRI * 14 + 2, lifeBaseY);
+    // dim border for empty triangles
+    if (!alive) {
+      ctx.strokeStyle = '#222255'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(lx + 5, lifeBaseY - 8);
+      ctx.lineTo(lx + 11, lifeBaseY + 2);
+      ctx.lineTo(lx,      lifeBaseY + 2);
+      ctx.closePath(); ctx.stroke();
+    }
   }
   ctx.shadowBlur = 0;
 
@@ -1467,7 +1530,7 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
 
   ctx.globalAlpha = shieldCharges > 0 ? 1 : dimAlpha;
   ctx.fillStyle = '#00aaff'; glow(ctx, '#00aaff', shieldCharges > 0 ? 8 : 2);
-  ctx.fillText(`SHIELD ${shieldCharges}`, W - 10, 60);
+  ctx.fillText(`SHLD ${shieldCharges}`, W - 10, 60);
 
   ctx.globalAlpha = 1;
 
@@ -1495,10 +1558,11 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
 
 // Shield HUD DOM element updater (for mobile shield button)
 function _updateShieldHUD(charges) {
-  const el = document.getElementById('shield-count');
-  if (el) el.textContent = charges;
   const btn = document.getElementById('ctrl-shield');
-  if (btn) btn.style.opacity = charges > 0 ? '1' : '0.35';
+  if (btn) {
+    btn.textContent = `SHLD ${charges}`;
+    btn.style.opacity = charges > 0 ? '1' : '0.35';
+  }
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -1538,20 +1602,34 @@ async function _animateGiftOpen(rewardType) {
   const lid   = document.getElementById('gift-lid');
   const sparks = document.getElementById('gift-sparks');
   if (!box) return;
-  // Phase 1 — shake (600ms)
+  // Phase 1 — gentle float wobble (400ms)
   box.classList.remove('gift-idle');
+  box.style.transition = 'transform 0.4s'; box.style.transform = 'scale(1.06)';
+  await new Promise(r => setTimeout(r, 400));
+  // Phase 2 — intense shake (800ms)
+  box.style.transform = ''; box.style.transition = '';
   box.classList.add('gift-shake');
-  await new Promise(r => setTimeout(r, 600));
+  SFX.spinTick && SFX.spinTick();
+  await new Promise(r => setTimeout(r, 400));
   box.classList.remove('gift-shake');
-  // Phase 2 — lid flies off + first burst (900ms)
+  box.classList.add('gift-shake');
+  await new Promise(r => setTimeout(r, 500));
+  box.classList.remove('gift-shake');
+  // Phase 3 — lid flies off + spark burst cascade (1200ms)
   lid.classList.add('gift-lid-open');
   _spawnGiftSparks(sparks, rewardType);
+  SFX.rocketExplode && SFX.rocketExplode();
+  await new Promise(r => setTimeout(r, 300));
+  _spawnGiftSparks(sparks, rewardType);
+  await new Promise(r => setTimeout(r, 300));
+  _spawnGiftSparks(sparks, rewardType);
+  await new Promise(r => setTimeout(r, 400));
+  // Phase 4 — glow pulse on body + final burst
+  box.style.filter = 'brightness(1.8) drop-shadow(0 0 20px #ff0077)';
+  _spawnGiftSparks(sparks, rewardType);
+  _spawnGiftSparks(sparks, rewardType);
   await new Promise(r => setTimeout(r, 600));
-  _spawnGiftSparks(sparks, rewardType);
-  await new Promise(r => setTimeout(r, 700));
-  // Phase 3 — second burst + settle (700ms)
-  _spawnGiftSparks(sparks, rewardType);
-  await new Promise(r => setTimeout(r, 700));
+  box.style.filter = '';
 }
 
 // ── Rocket threat-scoring — higher = intercept this first ─────────────────────
@@ -2016,13 +2094,6 @@ class Game {
         if (this.upgrades[id] <= 0) delete this.upgrades[id];
       }
     });
-    // x2 score boost
-    if ((this.upgrades['score_x2'] || 0) > 0) {
-      this.runScoreMultiplier = 2;
-      consumeList.push('score_x2');
-      this.upgrades['score_x2'] = (this.upgrades['score_x2'] || 1) - 1;
-      if (this.upgrades['score_x2'] <= 0) delete this.upgrades['score_x2'];
-    }
     // Consume from DB in background (best-effort, non-blocking)
     if (tid && !OFFLINE_MODE && consumeList.length > 0) {
       consumeList.forEach(id => dbConsumeBoost(tid, id).catch(() => {}));
@@ -2031,9 +2102,14 @@ class Game {
     // ── Permanent upgrades ────────────────────────────────────────────────
     ['magen','pew_pew_15','pew_pew_3','jew_method','kurwa_raketa',
      'ace_upgrade','zep_zep_zep','shplit','tripple_threat','lazer_pew',
-     'smart_rocket','collector'].forEach(id => {
+     'smart_rocket','collector','score_x2','score_x3'].forEach(id => {
       if (this.upgrades[id]) ups[id] = 1;
     });
+    // Score multiplier: x2 and x3 are permanent, stack to x6
+    let mult = 1;
+    if (ups.score_x2) mult *= 2;
+    if (ups.score_x3) mult *= 3;
+    this.runScoreMultiplier = mult;
 
     // ── Skin color ────────────────────────────────────────────────────────
     const skinColors = {
@@ -2050,6 +2126,8 @@ class Game {
       skin_karamba:       { color:'#ff2255', accent:'#ff9900' },
       skin_zoink:         { color:'#00eeff', accent:'#00ff88' },
       skin_silver_surfer: { color:'#8ab4d4', accent:'#ddeeff' },
+      skin_neon_dream:    { color:'#ff00cc', accent:'#00ffaa' },
+      skin_desert_storm:  { color:'#d4a843', accent:'#ff8844' },
     };
 
     if (equippedSkin && this.upgrades[equippedSkin] && skinColors[equippedSkin]) {
@@ -2066,16 +2144,24 @@ class Game {
     if (!this.upgrades) this.upgrades = {};
     this.ship = new Ship(this.W/2, this.H/2, ups);
     _updateShieldHUD(this.ship.shieldCharges);
-    // Spawn 3 small asteroids safely away from ship at game start
-    for (let i = 0; i < 3; i++) {
-      const pos = this._findSafeSpawnPoint(40, this.ship, 200);
-      this.asteroids.push(new Asteroid(pos.x, pos.y, 'small', null, 1));
-    }
-    this._purgeObjectsNearShip(240); // extra-generous clearance on game start
-    if (this.runScoreMultiplier === 2) {
-      setTimeout(() => new FloatingText(this.W/2, this.H/2 - 40, 'x2 SCORE ACTIVE!', '#ffee00'), 400);
-    }
+    // No entities spawned yet — 2-second grace period
+    this._purgeObjectsNearShip(9999); // wipe everything
+    this._spawnFrozen = true; // blocks _maintainAsteroids + enemy spawns
+    const nick = this.userData?.nickname || 'PILOT';
     this._showScreen('game');
+    // Good luck message
+    setTimeout(() => new FloatingText(this.W/2, this.H/2 - 40, `GOOD LUCK ${nick}`, '#33ff88'), 200);
+    if (this.runScoreMultiplier >= 2) {
+      setTimeout(() => new FloatingText(this.W/2, this.H/2 - 10, `x${this.runScoreMultiplier} SCORE ACTIVE!`, '#ffee00'), 600);
+    }
+    // After 2s, unfreeze spawns and seed a few small asteroids
+    setTimeout(() => {
+      this._spawnFrozen = false;
+      for (let i = 0; i < 3; i++) {
+        const pos = this._findSafeSpawnPoint(40, this.ship, 200);
+        this.asteroids.push(new Asteroid(pos.x, pos.y, 'small', null, 1));
+      }
+    }, 2000);
   }
 
   _getNoSpawnRects() {
@@ -2205,6 +2291,7 @@ class Game {
     if (this.ship.tempRapidUntil > 0)      this.ship.tempRapidUntil--;
     if (this.ship.tempPowerBoostUntil > 0) this.ship.tempPowerBoostUntil--;
     if (this.ship.tempStarUntil > 0)       this.ship.tempStarUntil--;
+    if (this.ship.tempSuperBeamUntil > 0) this.ship.tempSuperBeamUntil--;
 
     // JEW METHOD: magnet — strong pull with non-linear falloff
     if (this.ship.hasMagnet) {
@@ -2234,8 +2321,11 @@ class Game {
     }
 
     // Maintain asteroid population (continuous spawning from edges)
-    this._maintainAsteroids();
+    if (!this._spawnFrozen) this._maintainAsteroids();
 
+    // Skip enemy spawns during spawn-freeze grace period
+    if (this._spawnFrozen) { /* no spawns */ }
+    else {
     // Yellow aliens: appear after 50 seconds, one at a time
     const alienInterval = Math.max(1200 - Math.floor(timeS * 1.5), 500);
     this.yellowAlienTimer++;
@@ -2266,6 +2356,7 @@ class Game {
         this.orangeRockets.push(new OrangeHomingRocket(x, y));
       }
     }
+    } // end spawn-freeze guard
 
     // Update entities
     this.asteroids.forEach(a => a.update(this.W, this.H));
@@ -2283,10 +2374,12 @@ class Game {
     for (let mi = this.megaRaketas.length - 1; mi >= 0; mi--) {
       if (this.megaRaketas[mi].dead) {
         const mr = this.megaRaketas[mi];
-        burst(this.particles, mr.x, mr.y, '#ff4400', 18, 4, 28);
-        // Fan 7 mini rockets evenly around the forward direction
-        for (let j = 0; j < 7; j++) {
-          const ang = mr.angle + (j - 3) * 0.38 + (Math.random() - 0.5) * 0.1;
+        const isSR = mr._isSuperRaketa;
+        const miniCount = isSR ? 6 : 7;
+        burst(this.particles, mr.x, mr.y, isSR ? '#00ff44' : '#ff4400', 18, 4, 28);
+        for (let j = 0; j < miniCount; j++) {
+          const spread = miniCount === 6 ? (j - 2.5) * 0.42 : (j - 3) * 0.38;
+          const ang = mr.angle + spread + (Math.random() - 0.5) * 0.1;
           this.playerRockets.push(new PlayerRocket(mr.x, mr.y, ang, false, true));
         }
         this.megaRaketas.splice(mi, 1);
@@ -2303,11 +2396,23 @@ class Game {
     }
     this.particles.forEach(p => p.update());
     this.particles = this.particles.filter(p => !p.dead);
+    // Performance cap: max 250 particles to prevent lag on older devices
+    if (this.particles.length > 250) this.particles.splice(0, this.particles.length - 250);
     this.redFighters.forEach(rf => rf.update(this.ship, this.enemyBullets, this.W, this.H, this.particles));
     this.redFighters = this.redFighters.filter(rf => !rf.dead);
     this.yellowAliens.forEach(ya => ya.update(this.rockets, this.W, this.H, this.particles));
     this.yellowAliens = this.yellowAliens.filter(ya => !ya.dead);
     this.orangeRockets.forEach(or => or.update(this.ship, this.W, this.H, this.particles));
+    // Auto-flare: if player has flares and an orange rocket is dangerously close, auto-deploy
+    if (this.ship.flares > 0 && this.orangeRockets.length > 0) {
+      const autoFlareR = 80;
+      for (const or of this.orangeRockets) {
+        if (dist(or, this.ship) < autoFlareR) {
+          this.ship.useFlare(this.rockets, this.particles, this.orangeRockets);
+          break;
+        }
+      }
+    }
     this.orangeRockets = this.orangeRockets.filter(or => !or.dead);
     this.coins.forEach(c => c.update());
     this.coins = this.coins.filter(c => !c.dead);
@@ -2411,6 +2516,40 @@ class Game {
         const{x,y} = this.mysteryPickups[mi];
         this._applyMysteryReward(x, y);
         this.mysteryPickups.splice(mi, 1);
+      }
+    }
+
+    // ── Super Beam — pierces and insta-kills everything ─────────────────────
+    for (let bi = this.bullets.length - 1; bi >= 0; bi--) {
+      const b = this.bullets[bi];
+      if (!b.isSuperBeam) continue;
+      for (let ai = this.asteroids.length-1; ai >= 0; ai--) {
+        if (dist(b, this.asteroids[ai]) < b.radius + this.asteroids[ai].radius) {
+          burst(this.particles, this.asteroids[ai].x, this.asteroids[ai].y, C.asteroid, 14, 4, 30);
+          this._addScore(this.asteroids[ai].score * 2); this.asteroids.splice(ai, 1);
+        }
+      }
+      for (let ei = this.redFighters.length-1; ei >= 0; ei--) {
+        if (dist(b, this.redFighters[ei]) < b.radius + this.redFighters[ei].radius) {
+          burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 18, 5, 35);
+          SFX.enemyDie(); this._addScore(CFG.enemyRedScore * 2);
+          if (ship.hasAce && ship.lives < 5) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
+          this.redFighters.splice(ei, 1);
+        }
+      }
+      for (let ei = this.yellowAliens.length-1; ei >= 0; ei--) {
+        if (dist(b, this.yellowAliens[ei]) < b.radius + this.yellowAliens[ei].radius) {
+          burst(this.particles, this.yellowAliens[ei].x, this.yellowAliens[ei].y, C.enemyYellow, 14, 4, 30);
+          SFX.enemyDie(); this._addScore(CFG.enemyYellowScore * 2);
+          if (ship.hasZepZep) { ship.rocketAmmo++; new FloatingText(ship.x, ship.y-30, '+1 ROCKET! (ZEP)', '#ffee00'); }
+          this.yellowAliens.splice(ei, 1);
+        }
+      }
+      for (let ei = this.orangeRockets.length-1; ei >= 0; ei--) {
+        if (dist(b, this.orangeRockets[ei]) < b.radius + this.orangeRockets[ei].radius) {
+          burst(this.particles, this.orangeRockets[ei].x, this.orangeRockets[ei].y, '#ff7700', 10, 3, 22);
+          this._addScore(150); this.orangeRockets[ei].dead = true; this.orangeRockets.splice(ei, 1);
+        }
       }
     }
 
@@ -2796,15 +2935,16 @@ class Game {
     let label;
     if      (roll < 0.16) { ship.tempRapidUntil    = 900;                          label = 'RAPID FIRE!'; }
     else if (roll < 0.32) {
-      if (ship.hasLaser) { ship.tempPinkBeamUntil = 1200; label = 'SUPER LASER!'; }
+      if (ship.hasLaser) { ship.tempSuperBeamUntil = 240; label = 'SUPER BEAM!'; }
       else               { ship.tempLaserUntil    = 1200; label = 'LASER!'; }
     }
     else if (roll < 0.44) { if (ship.lives < 5) { ship.lives++; label = '+1 LIFE!'; } else { label = 'FULL LIVES!'; } }
     else if (roll < 0.56) { ship.shieldCharges++; _updateShieldHUD(ship.shieldCharges); label = '+1 SHIELD!'; }
     else if (roll < 0.68) { ship.flares = Math.min(ship.flares+1, 9);              label = '+1 FLARE!'; }
     else if (roll < 0.82) { ship.rocketAmmo++;                                     label = '+1 ROCKET!'; }
-    else if (roll < 0.95) { ship.tempPowerBoostUntil = 1200;                       label = '2X DAMAGE!'; }
-    else                  { ship.fireballReady = true;                             label = 'FIREBALL READY!'; }
+    else if (roll < 0.88) { ship.tempPowerBoostUntil = 1200;                       label = '2X DAMAGE!'; }
+    else if (roll < 0.94) { ship.fireballReady = true;                             label = 'FIREBALL READY!'; }
+    else                  { ship.superRaketaReady = true;                          label = 'SUPER RAKETA!'; }
     SFX.mysteryPickup();
     burst(this.particles, mx, my, '#aa00ff', 12, 3, 25);
     new FloatingText(mx, my - 20, label, roll >= 0.94 ? '#ff6600' : '#ff00ff');
@@ -3018,37 +3158,39 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h2">HUD — READING THE SCREEN</span>
-          <div class="guide-row"><b>Top-left</b> — Your score and elapsed time (MM:SS). A small x2 badge appears when the score boost is active.</div>
-          <div class="guide-row"><b>Below score</b> — LIVES triangles (max 5 shown, extras listed as +N).</div>
-          <div class="guide-row"><b>Top-right</b> — Three always-visible counters: FLARE / ROCKET / SHIELD. They dim to grey when empty.</div>
+          <div class="guide-row"><b>Top-left</b> — Big score display. Below it: LIFE bar (5 triangles, filled light blue for current lives).</div>
+          <div class="guide-row"><b>Below lives</b> — Warning banners flash in color: JET INCOMING, ROCKET INCOMING, ALIENS!, ASTEROID STORM, LOW LIFE!, BEAST MODE.</div>
+          <div class="guide-row"><b>Top-right</b> — Counters: FLARE / ROCKET / SHLD. Dim when empty.</div>
         </div>`,
 
       controls: `
         <div class="guide-section">
-          <span class="guide-h1">JOYSTICK (LEFT SIDE)</span>
-          <div class="guide-row">Push in any direction to rotate and thrust your jet toward that direction. Release to coast with momentum. The jet always points where the joystick is pointing.</div>
+          <span class="guide-h1">JOYSTICK (LEFT)</span>
+          <div class="guide-row">Push in any direction to aim your jet. The jet faces wherever the joystick points. Release to coast.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h1">SHOOT BUTTON</span>
-          <div class="guide-row">Large button, bottom-right. Hold it down to fire continuously. Fire rate depends on your jet type and purchased upgrades. What it shoots depends on your weapons:</div>
-          <div class="guide-row"><b>Standard</b> — Fast red bullets, straight ahead.</div>
-          <div class="guide-row"><b>SHPLIT upgrade</b> — Two parallel bullet lines from each side of the jet.</div>
-          <div class="guide-row"><b>TRIPPLE THREAT upgrade</b> — Three spread bullets covering a wide cone.</div>
-          <div class="guide-row"><b>LAZER PEW upgrade</b> — Continuous pink laser beams instead of bullets. Long range.</div>
-          <div class="guide-row"><b>LAZER + TRIPPLE</b> — Three pink lasers simultaneously. Maximum coverage.</div>
-          <div class="guide-row"><b>? Rapid Fire pickup</b> — Temporarily triples your fire rate for a few seconds.</div>
+          <span class="guide-h1">THRUST</span>
+          <div class="guide-row">Hold to accelerate in the direction you're aiming. Release to drift with momentum.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h1">ROCKET BUTTON</span>
-          <div class="guide-row">Launches a glowing orange homing missile from your jet. It auto-tracks the nearest enemy and chases it until impact or timeout. Ammo shown top-right. The SMART ROCKET upgrade makes it fly until it hits something.</div>
+          <span class="guide-h1">SHOOT</span>
+          <div class="guide-row">Hold to fire continuously. What it shoots depends on your weapons:</div>
+          <div class="guide-row"><b>Standard</b> — Fast red bullets.</div>
+          <div class="guide-row"><b>SHPLIT</b> — Two parallel bullet lines.</div>
+          <div class="guide-row"><b>TRIPPLE THREAT</b> — Three spread directions.</div>
+          <div class="guide-row"><b>LAZER PEW</b> — Laser beams. Add TRIPPLE for 3 lasers.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h1">FLARE BUTTON</span>
-          <div class="guide-row">Releases decoy flares behind your jet with a sparkle animation. <b>Instantly destroys any Orange Homing Rocket</b> that is chasing you. Limited ammo shown top-right. If you have none, the button shows NO FLARES.</div>
+          <span class="guide-h1">ROCKET</span>
+          <div class="guide-row">Fires a homing rocket that tracks the most dangerous enemy and detonates on proximity. Small blast can hit nearby targets. SMART ROCKET upgrade makes it blue — pierces 5 targets then explodes.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h1">SHIELD BUTTON</span>
-          <div class="guide-row">Activates a force field around your jet that blocks all damage for a moment. One charge consumed per use. Charges shown top-right. The MAGEN upgrade gives you a free charge at the start of every run.</div>
+          <span class="guide-h1">FLARE</span>
+          <div class="guide-row">Destroys all active Orange Homing Rockets. Also auto-deploys if a rocket gets dangerously close.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">SHIELD</span>
+          <div class="guide-row">Blocks next hit. Emits a shatter sound when consumed. Charges shown top-right as SHLD.</div>
         </div>`,
 
       enemies: `
@@ -3063,20 +3205,20 @@ class Game {
         <div class="guide-section">
           <span class="guide-h1">RED FIGHTER JET <span class="guide-tag danger">3 MIN+</span></span>
           <div class="guide-row">A hostile red jet that locks onto your position and gives chase. Has <b>3 HP</b> — takes 3 hits to destroy.</div>
-          <div class="guide-row"><b>Combat:</b> Fires a 4-shot burst at you, then reloads for 3 seconds before firing again. Its shots are fast and aimed directly at where you are.</div>
+          <div class="guide-row"><b>Combat:</b> Fires 6 shots at you, then turns around and flees off-screen. Its shots are fast and aimed directly at where you are.</div>
           <div class="guide-row"><b>Ramming:</b> If it collides with an asteroid, both the fighter and the asteroid are destroyed at once.</div>
           <div class="guide-row">Worth <span class="guide-cost">200 pts</span>. The ACE upgrade gives you +1 life for every fighter you kill.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">YELLOW ALIEN <span class="guide-tag rare">RARE</span> <span class="guide-tag danger">50 SEC+</span></span>
           <div class="guide-row">A bright yellow entity that zips across the screen at speed. Rare — spawns occasionally. <b>Passes through asteroids</b> without interacting with them.</div>
-          <div class="guide-row">It only exists for <b>3 seconds</b> before vanishing on its own. One shot to kill.</div>
+          <div class="guide-row">Stays on screen until you kill it. One shot to destroy.</div>
           <div class="guide-row">Worth a huge <span class="guide-cost">1,000 pts</span> — the highest score of any single enemy. The ZEP ZEP ZEP upgrade gives you +1 rocket for every alien killed.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">ORANGE HOMING ROCKET <span class="guide-tag danger">100 SEC+</span></span>
-          <div class="guide-row">An orange rocket that launches from the screen edge, locks onto your position, and pursues you for up to <b>7 seconds</b>. After that it detonates in a blast regardless of where it is.</div>
-          <div class="guide-row"><b>Counter:</b> Deploy a FLARE — the rocket homes onto the flare instead and explodes harmlessly.</div>
+          <div class="guide-row">An orange rocket that launches from the screen edge, locks onto your position, and pursues you for up to <b>5 seconds</b>. After that it detonates in a blast regardless of where it is.</div>
+          <div class="guide-row"><b>Counter:</b> Deploy a FLARE — the rocket is destroyed. Flares also auto-deploy if the rocket gets dangerously close.</div>
           <div class="guide-row"><b>Asteroid kill:</b> It will also die if it collides with an asteroid.</div>
           <div class="guide-row">Gets more frequent and slightly faster as your game time increases. Multiple can be active at once late-game.</div>
         </div>`,
@@ -3133,6 +3275,14 @@ class Game {
         <div class="guide-section">
           <span class="guide-h2">COLLECTOR <span class="guide-cost">1,100 $$</span></span>
           <div class="guide-row">Shoot at distant coins or mystery boxes to collect them without flying over them. Great for grabbing pickups that are near enemies or far away.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">SCORE x2 <span class="guide-cost">1,500 $$</span></span>
+          <div class="guide-row">All score is doubled every run, permanently. Stacks with x3 for a combined <b>x6 multiplier</b>.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">SCORE x3 <span class="guide-cost">4,000 $$</span></span>
+          <div class="guide-row">All score is tripled every run, permanently. Stacks with x2 for a combined <b>x6 multiplier</b>.</div>
         </div>`,
 
       gear: `
@@ -3140,9 +3290,9 @@ class Game {
           <span class="guide-h1">JETS</span>
           <div class="guide-row">Buy in STORE > JETS. Equip in ARSENAL. Your jet determines starting lives, flares, rockets and special abilities.</div>
           <div class="guide-row" style="margin-top:8px"><b>STARTER JET</b> <span class="guide-tag good">FREE</span><br>2 lives · 1 flare. Clean and simple. Perfect for learning the game.</div>
-          <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">3,000 $$</span><br>3 lives · 2 flares · 2 rockets. Bigger wings, better loadout. An honest upgrade from Starter.</div>
+          <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">3,000 $$</span><br>3 lives · 2 flares · 2 rockets. Better loadout. An honest upgrade from Starter.</div>
           <div class="guide-row"><b>KILLAJET</b> <span class="guide-cost">6,500 $$</span><br>3 lives · 3 flares · 3 rockets · starts with SHIELD · ×1.5 fire rate. The aggressive choice. Fires faster than anything and starts shielded.</div>
-          <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">11,000 $$</span><br>4 lives · 3 flares · 4 rockets · starts with SHIELD. The tank. Maximum survivability, most ammo, best for long survival runs.</div>
+          <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">11,000 $$</span><br>4 lives · 4 flares · 4 rockets · 2 shields. The tank. Maximum survivability, most ammo, best for long survival runs.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">SKINS</span>
@@ -3156,31 +3306,32 @@ class Game {
           <div class="guide-row"><b>Extra Flare</b> <span class="guide-cost">5 $$</span> — +1 flare for that run.</div>
           <div class="guide-row"><b>Run Shield</b> <span class="guide-cost">10 $$</span> — 1 shield charge for that run.</div>
           <div class="guide-row"><b>Run Rocket</b> <span class="guide-cost">15 $$</span> — +1 rocket for that run.</div>
-          <div class="guide-row"><b>SCORE x2</b> <span class="guide-cost">80 $$</span> — Every point earned is doubled in real-time for the entire run. A small x2 badge appears on the HUD. Best used on a serious score attempt.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">MYSTERY BOX ?</span>
           <div class="guide-row">White glowing boxes that spawn from destroyed asteroids or appear randomly. Fly through them to collect (or shoot them with COLLECTOR upgrade). Random reward each time:</div>
           <div class="guide-row">• Rapid Fire x3 — triples your fire rate briefly</div>
-          <div class="guide-row">• Laser beam — temporary pink laser</div>
-          <div class="guide-row">• Super Laser — if you already have a laser, makes it a larger pink beam</div>
+          <div class="guide-row">• Laser beam — temporary laser</div>
+          <div class="guide-row">• <span class="guide-tag rare">RARE</span> SUPER BEAM — if you already have LAZER PEW, fires a devastating straight-line red beam that pierces and kills everything it touches for 4 seconds</div>
           <div class="guide-row">• Extra Life — +1 life immediately</div>
           <div class="guide-row">• Shield charge — instant shield</div>
           <div class="guide-row">• Flare — +1 flare ammo</div>
           <div class="guide-row">• Rocket — +1 rocket ammo</div>
           <div class="guide-row">• Double Damage — your next few shots one-shot anything</div>
-          <div class="guide-row">• <span class="guide-tag rare">RARE</span> FIREBALL — a single massive shot. You see "FIREBALL READY" — press SHOOT and a giant ball erupts, then detonates into fragments that destroy everything nearby.</div>
+          <div class="guide-row">• <span class="guide-tag rare">RARE</span> FIREBALL — "FIREBALL READY" appears. Next shot fires a giant ball that detonates into fragments destroying everything on screen.</div>
+          <div class="guide-row">• <span class="guide-tag rare">RARE</span> SUPER RAKETA — "SUPER RAKETA!" appears. Next shot fires a glowing green rocket that splits into 6 homing mini-rockets that search and destroy targets.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">GREEN STAR <span class="guide-tag rare">VERY RARE</span></span>
-          <div class="guide-row">A rare green glowing star pickup. Grants <b>10 seconds of OVERDRIVE</b>: your jet glows bright green, gains a 2-layer green shield, fires purple laser beams, and your fire rate doubles. The most powerful temporary state in the game.</div>
+          <div class="guide-row">A rare green glowing star pickup. Grants <b>10 seconds of OVERDRIVE</b>: your jet glows bright green, gains a 2-layer green shield, fires MEGA RAKETA rockets (big red rockets that split into 7 homing minis), and your fire rate doubles. The most powerful temporary state in the game.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h1">DAILY GIFT</span>
-          <div class="guide-row">Tap GIFT in the main menu. Available every <b>4 hours</b> for everyone. A mystery box animates open, then a glowing reward is revealed:</div>
-          <div class="guide-row">• 10–50 shmips (most common)</div>
+          <span class="guide-h1">GIFT BOX</span>
+          <div class="guide-row">Tap GIFT in the main menu. Available every <b>4 hours</b>. A mystery box animates open, then a glowing reward is revealed:</div>
+          <div class="guide-row">• 10–50 shmips (common)</div>
+          <div class="guide-row">• <span class="guide-tag rare">RARE</span> 100–300 shmips jackpot</div>
           <div class="guide-row">• A random one-run boost</div>
-          <div class="guide-row">• <span class="guide-tag rare">7% chance</span> A random skin — if you already own it, you get its full shmip value instead.</div>
+          <div class="guide-row">• <span class="guide-tag rare">6% chance</span> A random skin — if you already own it, you get its full shmip value instead.</div>
         </div>`,
 
       tips: `
@@ -3511,16 +3662,20 @@ class Game {
   }
 
   async _buyItem(item) {
+    if (this._buyingInProgress) return; // debounce — ignore taps while purchasing
+    this._buyingInProgress = true;
     const msg = document.getElementById('store-msg');
     if (OFFLINE_MODE) {
-      msg.textContent = 'OFFLINE — CONNECT VIA TELEGRAM TO PURCHASE.';
+      msg.textContent = 'CONNECT VIA TELEGRAM TO PURCHASE.';
       msg.className = 'store-msg fail'; msg.classList.remove('hidden');
-      setTimeout(() => msg.classList.add('hidden'), 3000); return;
+      setTimeout(() => msg.classList.add('hidden'), 3000);
+      this._buyingInProgress = false; return;
     }
     const tid = TG_USER?.id || this.userData?.telegram_id;
-    if (!tid) { msg.textContent = 'NOT LOGGED IN.'; msg.className = 'store-msg fail'; msg.classList.remove('hidden'); return; }
+    if (!tid) { this._buyingInProgress = false; return; }
     try {
       SFX.btnClick();
+      msg.textContent = 'PURCHASING...'; msg.className = 'store-msg'; msg.classList.remove('hidden');
       const{newBalance} = await dbBuyItem(tid, item.id);
       this.userData.shmips = newBalance;
       this.upgrades[item.id] = (this.upgrades[item.id]||0) + 1;
@@ -3530,9 +3685,10 @@ class Game {
       setTimeout(() => msg.classList.add('hidden'), 3000);
       this._renderStoreTab(document.querySelector('.tab-btn.active')?.dataset.tab || 'boost');
     } catch(e) {
-      msg.textContent = e.message || 'PURCHASE FAILED.'; msg.className = 'store-msg fail'; msg.classList.remove('hidden');
+      msg.textContent = 'NOT ENOUGH SHMIPS'; msg.className = 'store-msg fail'; msg.classList.remove('hidden');
       setTimeout(() => msg.classList.add('hidden'), 3000);
     }
+    this._buyingInProgress = false;
   }
 }
 
