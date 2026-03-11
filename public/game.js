@@ -2149,10 +2149,10 @@ class Game {
     this._spawnFrozen = true; // blocks _maintainAsteroids + enemy spawns
     const nick = this.userData?.nickname || 'PILOT';
     this._showScreen('game');
-    // Good luck message
-    setTimeout(() => new FloatingText(this.W/2, this.H/2 - 40, `GOOD LUCK ${nick}`, '#33ff88'), 200);
+    // Big centered "Good Luck" splash for 2 seconds
+    this._showGoodLuckSplash(nick);
     if (this.runScoreMultiplier >= 2) {
-      setTimeout(() => new FloatingText(this.W/2, this.H/2 - 10, `x${this.runScoreMultiplier} SCORE ACTIVE!`, '#ffee00'), 600);
+      setTimeout(() => new FloatingText(this.W/2, this.H/2, `x${this.runScoreMultiplier} SCORE ACTIVE!`, '#ffee00'), 1200);
     }
     // After 2s, unfreeze spawns and seed a few small asteroids
     setTimeout(() => {
@@ -2162,6 +2162,17 @@ class Game {
         this.asteroids.push(new Asteroid(pos.x, pos.y, 'small', null, 1));
       }
     }, 2000);
+  }
+
+  _showGoodLuckSplash(nick) {
+    const el = document.getElementById('goodluck-splash');
+    if (!el) return;
+    el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;">
+      <div class="gl-text">GOOD LUCK</div>
+      <div class="gl-sub">${nick}</div>
+    </div>`;
+    el.classList.remove('hidden');
+    setTimeout(() => { el.classList.add('hidden'); el.innerHTML = ''; }, 2000);
   }
 
   _getNoSpawnRects() {

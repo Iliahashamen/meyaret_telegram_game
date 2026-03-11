@@ -159,6 +159,9 @@
   <!-- Game Canvas -->
   <canvas id="game-canvas"></canvas>
 
+  <!-- Good Luck Splash (centered, shown for 2s on game start) -->
+  <div id="goodluck-splash" class="goodluck-splash hidden"></div>
+
   <!-- Mobile Controls Overlay -->
   <div id="controls-overlay" class="hidden">
     <!-- Left: joystick only -->
@@ -167,13 +170,19 @@
         <div id="vjoy-knob"></div>
       </div>
     </div>
-    <!-- Right: all action buttons stacked -->
+    <!-- Right: absolute-positioned panel matching user sketch
+         Layout:
+           [SHLD]    [FLARE]
+                  [SHOOT big]
+           [ROCKET]
+                  [THRUST]
+    -->
     <div id="ctrl-right">
-      <button id="ctrl-shield" class="ctrl-round ctrl-shield-btn">SHLD</button>
-      <button class="ctrl-round ctrl-flare-btn" id="ctrl-flare">FLARE</button>
-      <button class="ctrl-round ctrl-rocket-btn" id="ctrl-rocket">ROCKET</button>
-      <button class="ctrl-round ctrl-fire-btn"   id="ctrl-fire">SHOOT</button>
-      <button class="ctrl-round ctrl-thrust-btn" id="ctrl-thrust">THRUST</button>
+      <button id="ctrl-shield" class="ctrl-abs ctrl-shield-btn">SHLD</button>
+      <button id="ctrl-flare"  class="ctrl-abs ctrl-flare-btn">FLARE</button>
+      <button id="ctrl-fire"   class="ctrl-abs ctrl-fire-btn">SHOOT</button>
+      <button id="ctrl-rocket" class="ctrl-abs ctrl-rocket-btn">ROCKET</button>
+      <button id="ctrl-thrust" class="ctrl-abs ctrl-thrust-btn">THRUST</button>
     </div>
   </div>
 
@@ -187,7 +196,7 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="sounds.js?v=20260311a"></script>
-  <script type="module" src="game.js?v=20260311a"></script>
+  <script type="module" src="sounds.js?v=20260311b"></script>
+  <script type="module" src="game.js?v=20260311b"></script>
 </body>
 </html>
