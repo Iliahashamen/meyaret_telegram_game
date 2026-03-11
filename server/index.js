@@ -77,13 +77,28 @@ async function setMenuButton() {
   }
 }
 
-// /start — play button only
+// /start — welcome new players with guide + Instagram promo
 bot.command('start', async (ctx) => {
-  await ctx.reply('*MEYARET*', {
+  const welcomeMsg =
+`🚀 *WELCOME TO MEYARET!*
+
+Survive endless waves of asteroids, jets & rockets — shoot, dodge, collect upgrades and climb the leaderboard. Use flares to counter homing rockets and grab the green star for chaos mode!
+
+📸 *Post the game on your Instagram Story, tag* @iliahashamen *and get 250$$ in-game shmips!* Every post after that earns you another 50$$ — just send me the story!
+
+━━━━━━━━━━━━━━━━━━
+
+🚀 *ברוכים הבאים למיירט!*
+
+שרדו גלים אינסופיים של אסטרואידים, מטוסים וטילים — ירו, התחמקו, אספו שדרוגים ועלו בטבלת הניקוד. השתמשו בפלארים נגד טילים מכוונים ואספו את הכוכב הירוק למצב כאוס!
+
+📸 *פרסמו את המשחק באינסטסטורי, תייגו* @iliahashamen *וקבלו 250$$ שמיפים במשחק!* כל פוסט אחרי זה שווה עוד 50$$ — פשוט שלחו לי את הסטורי!`;
+
+  await ctx.reply(welcomeMsg, {
     parse_mode: 'Markdown',
     reply_markup: {
       inline_keyboard: [
-        [{ text: 'PLAY GAME', web_app: { url: GAME_URL } }],
+        [{ text: '🎮 PLAY MEYARET', web_app: { url: GAME_URL } }],
       ],
     },
   });
@@ -345,7 +360,17 @@ bot.callbackQuery(/^gall_(\d+)$/, async (ctx) => {
         .from('users')
         .update({ shmips: Math.round((Number(u.shmips) + amount) * 100) / 100 })
         .eq('telegram_id', u.telegram_id);
-      if (!upErr) gifted++;
+      if (!upErr) {
+        gifted++;
+        // Notify each player
+        try {
+          await bot.api.sendMessage(
+            u.telegram_id,
+            `🎁 *YOU GOT A GIFT!*\n\n+${amount} shmips added to your account.\n\n_Reload the game to receive your shmips!_`,
+            { parse_mode: 'Markdown' },
+          );
+        } catch { /* player may have blocked bot */ }
+      }
     }
 
     await ctx.editMessageText(
@@ -377,6 +402,15 @@ bot.callbackQuery(/^g1_(\d+)_(.+)$/, async (ctx) => {
       .from('users')
       .update({ shmips: Math.round((Number(user.shmips) + amount) * 100) / 100 })
       .eq('telegram_id', targetId);
+
+    // Notify the recipient
+    try {
+      await bot.api.sendMessage(
+        targetId,
+        `🎁 *YOU GOT A GIFT!*\n\n+${amount} shmips added to your account.\n\n_Reload the game to receive your shmips!_`,
+        { parse_mode: 'Markdown' },
+      );
+    } catch { /* player may have blocked bot */ }
 
     await ctx.answerCallbackQuery(`Gifted ${amount} shmips to ${user.nickname}!`);
 
