@@ -77,9 +77,8 @@ async function setMenuButton() {
   }
 }
 
-// /start — welcome new players with guide + Instagram promo
-bot.command('start', async (ctx) => {
-  const welcomeMsg =
+// ── Shared welcome message (used by /start and /announce) ─────────────────────
+const WELCOME_MSG =
 `🚀 *WELCOME TO MEYARET!*
 
 Survive endless waves of asteroids, jets & rockets — shoot, dodge, collect upgrades and climb the leaderboard. Use flares to counter homing rockets and grab the green star for chaos mode!
@@ -94,14 +93,52 @@ Survive endless waves of asteroids, jets & rockets — shoot, dodge, collect upg
 
 📸 *פרסמו את המשחק באינסטסטורי, תייגו* @iliahashamen *וקבלו 250$$ שמיפים במשחק!* כל פוסט אחרי זה שווה עוד 50$$ — פשוט שלחו לי את הסטורי!`;
 
-  await ctx.reply(welcomeMsg, {
+const WELCOME_KEYBOARD = {
+  inline_keyboard: [[{ text: '🎮 PLAY MEYARET', web_app: { url: GAME_URL } }]],
+};
+
+// /start — welcome message for new (and returning) players
+bot.command('start', async (ctx) => {
+  await ctx.reply(WELCOME_MSG, {
     parse_mode: 'Markdown',
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '🎮 PLAY MEYARET', web_app: { url: GAME_URL } }],
-      ],
-    },
+    reply_markup: WELCOME_KEYBOARD,
   });
+});
+
+// /announce — admin only: broadcast welcome message to ALL users in DB
+bot.command('announce', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.reply('Access denied.');
+  if (!supabase) return ctx.reply('DB not connected.');
+
+  await ctx.reply('📡 Starting broadcast to all players...');
+
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('telegram_id');
+
+  if (error || !users?.length) {
+    return ctx.reply('No users found or DB error: ' + (error?.message || ''));
+  }
+
+  let sent = 0, failed = 0;
+  for (const u of users) {
+    try {
+      await bot.api.sendMessage(u.telegram_id, WELCOME_MSG, {
+        parse_mode: 'Markdown',
+        reply_markup: WELCOME_KEYBOARD,
+      });
+      sent++;
+      // Small delay to avoid Telegram rate limits
+      await new Promise(r => setTimeout(r, 50));
+    } catch {
+      failed++; // player blocked bot or account deleted
+    }
+  }
+
+  await ctx.reply(
+    `*BROADCAST COMPLETE*\n\n✅ Sent: ${sent}\n❌ Failed: ${failed} (blocked/deleted)`,
+    { parse_mode: 'Markdown' },
+  );
 });
 
 bot.callbackQuery('leaderboard', async (ctx) => {
