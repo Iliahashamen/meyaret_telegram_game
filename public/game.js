@@ -245,10 +245,13 @@ class Ship {
 
     if (keys.joyActive && keys.joyAngle !== null) {
       this.angle = keys.joyAngle;
-      this.thrusting = keys.up;
-      if (keys.up) {
-        const tx = Math.cos(keys.joyAngle) * CFG.thrustPower;
-        const ty = Math.sin(keys.joyAngle) * CFG.thrustPower;
+      // Joystick magnitude drives base thrust; THRUST button = 3× boost
+      const boostMult = keys.up ? 3 : 1;
+      const power = CFG.thrustPower * (keys.joyMag || 0) * boostMult;
+      this.thrusting = keys.up; // flame only when boost button held
+      if (power > 0) {
+        const tx = Math.cos(keys.joyAngle) * power;
+        const ty = Math.sin(keys.joyAngle) * power;
         this.vx += tx; this.vy += ty;
         const spd = Math.hypot(this.vx, this.vy);
         if (spd > 0.3) {
@@ -272,7 +275,8 @@ class Ship {
       }
     }
     const spd = Math.hypot(this.vx, this.vy);
-    const max = this.golden ? 6 : 3.8;
+    // Higher cap when boosting (THRUST button held)
+    const max = this.golden ? 6 : (keys.up ? 5.5 : 3.8);
     if (spd > max) { this.vx = (this.vx / spd) * max; this.vy = (this.vy / spd) * max; }
     this.vx *= CFG.friction; this.vy *= CFG.friction;
     this.x = wrap(this.x + this.vx, 0, W);
@@ -1930,11 +1934,18 @@ class Game {
       const rect = joyBase.getBoundingClientRect();
       const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
       const dx=cx2-cx, dy=cy2-cy, d=Math.hypot(dx,dy);
-      const maxR=rect.width/2-6, dead=maxR*0.15, ang=Math.atan2(dy,dx);
+      const maxR=rect.width/2-6, dead=maxR*0.12, ang=Math.atan2(dy,dx);
       const clampedD=Math.min(d,maxR);
       joyKnob.style.transform=`translate(calc(-50% + ${Math.cos(ang)*clampedD}px), calc(-50% + ${Math.sin(ang)*clampedD}px))`;
-      if(d<dead){this.keys.joyAngle=null;this.keys.joyActive=false;this.keys.left=this.keys.right=false;}
-      else{this.keys.joyAngle=ang;this.keys.joyActive=true;this.keys.left=this.keys.right=false;}
+      if(d<dead){
+        this.keys.joyAngle=null; this.keys.joyActive=false; this.keys.joyMag=0;
+        this.keys.left=this.keys.right=false;
+      } else {
+        this.keys.joyAngle=ang; this.keys.joyActive=true;
+        // magnitude: 0 just past deadzone → 1 at full push (eased with sqrt for sensitivity)
+        this.keys.joyMag=Math.sqrt(Math.min((d-dead)/(maxR-dead),1));
+        this.keys.left=this.keys.right=false;
+      }
     };
     const resetJoy = () => { joyKnob.style.transform='translate(-50%,-50%)'; this.keys.joyAngle=null;this.keys.joyActive=false;this.keys.left=this.keys.right=false; };
     if (joyBase) {
@@ -3178,11 +3189,11 @@ class Game {
       controls: `
         <div class="guide-section">
           <span class="guide-h1">JOYSTICK (LEFT)</span>
-          <div class="guide-row">Push in any direction to aim your jet. The jet faces wherever the joystick points. Release to coast.</div>
+          <div class="guide-row">Push gently to glide slowly in that direction. Push harder to fly faster — the further you push, the more power. Release to coast on momentum.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h1">THRUST</span>
-          <div class="guide-row">Hold to accelerate in the direction you're aiming. Release to drift with momentum.</div>
+          <span class="guide-h1">THRUST (BOOST)</span>
+          <div class="guide-row">Hold for 3× speed burst. Also fires the engine flame. Use it to chase targets or escape danger fast.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">SHOOT</span>
