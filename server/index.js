@@ -418,8 +418,29 @@ if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
     console.log(`[server] Listening on port ${PORT}`);
     console.log(`[server] Public dir: ${PUBLIC_DIR}`);
     const fullUrl = `${WEBHOOK_BASE}${webhookPath}`;
-    await bot.api.setWebhook(fullUrl);
-    console.log('[bot] Webhook set →', fullUrl);
+
+    // Retry setWebhook up to 5 times to handle 429 during rolling deploys
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        const info = await bot.api.getWebhookInfo();
+        if (info.url === fullUrl) {
+          console.log('[bot] Webhook already set →', fullUrl);
+          break;
+        }
+        await bot.api.setWebhook(fullUrl);
+        console.log('[bot] Webhook set →', fullUrl);
+        break;
+      } catch (err) {
+        const retryAfter = err?.parameters?.retry_after ?? attempt * 2;
+        if (attempt < 5) {
+          console.warn(`[bot] setWebhook attempt ${attempt} failed (${err.description}), retrying in ${retryAfter}s…`);
+          await new Promise(r => setTimeout(r, retryAfter * 1000));
+        } else {
+          console.error('[bot] setWebhook failed after 5 attempts:', err.description);
+        }
+      }
+    }
+
     await setMenuButton();
   });
 } else {
