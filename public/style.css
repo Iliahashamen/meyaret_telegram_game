@@ -479,7 +479,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 /* FLARE — orange — left, upper-middle */
 #ctrl-flare {
   width: 56px; height: 56px;
-  left: 2px; top: 54px;
+  left: 14px; top: 54px;
   font-size: 9px;
   color: #ff6600; border-color: #ff6600;
   box-shadow: 0 0 12px #ff660055;
@@ -499,7 +499,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 /* SHIELD — dark navy — left, lower */
 #ctrl-shield {
   width: 54px; height: 54px;
-  left: 2px; top: 158px;
+  left: 32px; top: 158px;
   font-size: 8px;
   color: #4466cc; border-color: #2244aa;
   box-shadow: 0 0 10px #2244aa44;
