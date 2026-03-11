@@ -237,6 +237,7 @@ function adminToolsKeyboard() {
   const keyboard = [];
   if (GAME_URL) keyboard.push([{ text: '🎮 OPEN GAME', web_app: { url: GAME_URL } }]);
   keyboard.push([{ text: '🎁 GIFT SHMIPS', callback_data: 'tools_gift' }]);
+  keyboard.push([{ text: '🏆 SET SCORE', callback_data: 'tools_setscore' }]);
   keyboard.push([{ text: '🔄 RESET PLAYER', callback_data: 'tools_reset' }]);
   keyboard.push([{ text: '📣 ANNOUNCE', callback_data: 'tools_announce' }]);
   keyboard.push([{ text: '📨 PROMO MESSAGE', callback_data: 'tools_promo' }]);
@@ -254,6 +255,55 @@ bot.command('tools', async (ctx) => {
     console.error('[/tools]', e.message);
     await ctx.reply('Error: ' + e.message);
   }
+});
+
+// ── SET SCORE flow ────────────────────────────────────────────────────────────
+bot.callbackQuery('tools_setscore', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  if (!supabase) return ctx.editMessageText('DB not connected.');
+
+  const { data: users } = await supabase
+    .from('users')
+    .select('telegram_id, nickname, best_score')
+    .order('best_score', { ascending: false });
+
+  if (!users?.length) return ctx.editMessageText('No players found.');
+
+  const keyboard = [];
+  for (let i = 0; i < Math.min(users.length, 40); i += 2) {
+    const row = [];
+    for (const u of users.slice(i, i + 2)) {
+      row.push({ text: `${u.nickname} (${Number(u.best_score).toLocaleString()})`, callback_data: `ss_pick_${u.telegram_id}` });
+    }
+    keyboard.push(row);
+  }
+  keyboard.push([{ text: 'BACK', callback_data: 'tools_back' }]);
+
+  const list = users.slice(0, 40).map((u, i) =>
+    `${i + 1}. *${u.nickname}* — ${Number(u.best_score).toLocaleString()}`
+  ).join('\n');
+
+  await ctx.editMessageText(
+    `*ADMIN — SET SCORE*\n\nPick a player to update:\n\n${list}`,
+    { parse_mode: 'Markdown', reply_markup: { inline_keyboard: keyboard } },
+  );
+});
+
+bot.callbackQuery(/^ss_pick_(\d+)$/, async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  const targetId = ctx.match[1];
+
+  const { data: rows } = await supabase.from('users').select('nickname, best_score').eq('telegram_id', targetId).single();
+  if (!rows) return ctx.editMessageText('Player not found.');
+
+  _adminState[ADMIN_ID] = { step: 'awaiting_setscore', targetId, nickname: rows.nickname };
+
+  await ctx.editMessageText(
+    `*SET SCORE — ${rows.nickname}*\n\nCurrent best: *${Number(rows.best_score).toLocaleString()}*\n\nType the new score as a number:`,
+    { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: 'CANCEL', callback_data: 'tools_back' }]] } },
+  );
 });
 
 bot.callbackQuery('tools_gift', async (ctx) => {
@@ -635,6 +685,34 @@ bot.callbackQuery(/^rgift_custom_(.+)$/, async (ctx) => {
 bot.on('message:text', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return;
   const state = _adminState[ADMIN_ID];
+
+  if (state?.step === 'awaiting_setscore') {
+    const newScore = Number(ctx.message.text.trim().replace(/,/g, ''));
+    if (!newScore || newScore <= 0 || !Number.isInteger(newScore)) {
+      return ctx.reply('Please enter a valid whole number (e.g. 600900).');
+    }
+    const { targetId, nickname } = state;
+    delete _adminState[ADMIN_ID];
+
+    try {
+      // Update best_score on users table
+      await supabase.from('users')
+        .update({ best_score: newScore })
+        .eq('telegram_id', targetId);
+
+      // Insert a score record so the leaderboard view picks it up
+      await supabase.from('scores').insert({
+        telegram_id: Number(targetId),
+        score: newScore,
+        shmips_earned: Math.round(newScore / 1000 * 100) / 100,
+      });
+
+      await ctx.reply(`✅ Score for *${nickname}* set to *${newScore.toLocaleString()}*`, { parse_mode: 'Markdown' });
+    } catch (e) {
+      await ctx.reply('Failed: ' + e.message);
+    }
+    return;
+  }
 
   if (state?.step === 'awaiting_rgift_amount') {
     const amount = Number(ctx.message.text.trim());
