@@ -159,21 +159,15 @@
   <!-- Game Canvas -->
   <canvas id="game-canvas"></canvas>
 
-  <!-- Shield HUD (shown during gameplay) -->
-  <div id="shield-hud" class="shield-hud hidden">
-    <button id="ctrl-shield" class="shield-btn">
-      SHIELD x<span id="shield-count">0</span>
-    </button>
-  </div>
-
   <!-- Mobile Controls Overlay -->
   <div id="controls-overlay" class="hidden">
-    <!-- Left: joystick + flare -->
+    <!-- Left: joystick + flare + shield -->
     <div id="ctrl-left">
       <div id="vjoy-base">
         <div id="vjoy-knob"></div>
       </div>
       <button class="ctrl-round" id="ctrl-flare">FLARE</button>
+      <button id="ctrl-shield" class="ctrl-shield-btn">SHLD <span id="shield-count">0</span></button>
     </div>
     <!-- Right: ROCKET / SHOOT / THRUST -->
     <div id="ctrl-right">
@@ -194,6 +188,6 @@
   </div>
 
   <script type="module" src="sounds.js?v=20250310p"></script>
-  <script type="module" src="game.js?v=20260309b"></script>
+  <script type="module" src="game.js?v=20260309c"></script>
 </body>
 </html>

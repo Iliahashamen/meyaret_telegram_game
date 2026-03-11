@@ -867,16 +867,34 @@ class RedFighter {
     this.angle = 0;
     this.speed  = 1.2;
     this.shootTimer = 0;
-    this.shootRate  = 70;  // ~1.2s between shots in burst
-    this.shotsLeft = 4;    // 4-shot burst
-    this.reloadTimer = 0;
-    this.reloadTime  = 180; // 3s reload after burst
+    this.shootRate  = 70;   // frames between each shot
+    this._totalShots = 0;
+    this._maxShots   = 6;   // fire 6 shots total then flee
+    this._fleeing    = false;
     this.health = 3;
     this.radius = 14;
     this.bobTimer = 0;
+    this.dead = false;
   }
-  update(ship, bullets, W, H, particles) {
+  update(ship, bullets, W, H, _particles) {
     this.bobTimer++;
+
+    if (this._fleeing) {
+      // Accelerate away from player and fly off-screen
+      const awayAng = Math.atan2(this.y - ship.y, this.x - ship.x);
+      this.vx += Math.cos(awayAng) * 0.22;
+      this.vy += Math.sin(awayAng) * 0.22;
+      const spd = Math.hypot(this.vx, this.vy);
+      const maxSpd = 4.0;
+      if (spd > maxSpd) { this.vx = (this.vx / spd) * maxSpd; this.vy = (this.vy / spd) * maxSpd; }
+      this.x += this.vx;
+      this.y += this.vy;
+      if (this.x < -100 || this.x > W + 100 || this.y < -100 || this.y > H + 100) {
+        this.dead = true;
+      }
+      return;
+    }
+
     const dx = ship.x - this.x, dy = ship.y - this.y;
     this.angle = Math.atan2(dy, dx);
     this.vx += Math.cos(this.angle) * 0.13;
@@ -885,17 +903,20 @@ class RedFighter {
     if (spd > this.speed) { this.vx = (this.vx / spd) * this.speed; this.vy = (this.vy / spd) * this.speed; }
     this.x = wrap(this.x + this.vx, 0, W);
     this.y = wrap(this.y + this.vy, 0, H);
-    if (this.shotsLeft <= 0) {
-      this.reloadTimer++;
-      if (this.reloadTimer >= this.reloadTime) { this.shotsLeft = 4; this.reloadTimer = 0; this.shootTimer = 0; }
-    } else {
-      this.shootTimer++;
-      if (this.shootTimer >= this.shootRate) {
-        this.shootTimer = 0; this.shotsLeft--;
-        const nose = { x: this.x + Math.cos(this.angle) * 18, y: this.y + Math.sin(this.angle) * 18 };
-        bullets.push(new EnemyBullet(nose.x, nose.y, this.angle, '#ff3333'));
-        SFX.enemyShoot();
-      }
+
+    if (this._totalShots >= this._maxShots) {
+      this._fleeing = true;
+      new FloatingText(this.x, this.y - 24, 'JET FLEEING!', '#ff8888');
+      return;
+    }
+
+    this.shootTimer++;
+    if (this.shootTimer >= this.shootRate) {
+      this.shootTimer = 0;
+      this._totalShots++;
+      const nose = { x: this.x + Math.cos(this.angle) * 18, y: this.y + Math.sin(this.angle) * 18 };
+      bullets.push(new EnemyBullet(nose.x, nose.y, this.angle, '#ff3333'));
+      SFX.enemyShoot();
     }
   }
   draw(ctx) {
@@ -927,13 +948,12 @@ class YellowAlien {
     this.vx = Math.cos(ang) * rng(1.4, 2.4);
     this.vy = Math.sin(ang) * rng(1.4, 2.4);
     this.angle = 0;
-    this.lifeTimer = 0; this.maxLife = 180; // 3 seconds then vanish
     this.swoops = 0; this.health = 1; // one-shot
     this.radius = 16; this.bobTimer = 0;
     this.dead = false;
   }
   update(_bullets, W, H, _particles) {
-    this.bobTimer++; this.lifeTimer++;
+    this.bobTimer++;
     this.x += this.vx; this.y += this.vy;
     // Wrap horizontally (counts as a swoop)
     if (this.x < -20) { this.x = W + 20; this.swoops++; }
@@ -946,7 +966,7 @@ class YellowAlien {
       if (this.x < 60)     this.vx =  Math.abs(this.vx);
       if (this.x > W - 60) this.vx = -Math.abs(this.vx);
     }
-    this.dead = this.lifeTimer > this.maxLife; // vanish after 3s
+    // aliens stay until killed — no auto-expiry
   }
   draw(ctx) {
     ctx.save();
@@ -1095,11 +1115,11 @@ class PlayerRocket {
       this.life       = 260;
     } else {
       this.speed = 3.2;
-      // Normal: proximity fuse → blast on each detonation (max 2)
+      // Normal: home to 1 target → proximity fuse → small blast (may catch nearby targets)
       // Smart:  direct-hit pierce → no blast per kill, big final explosion on 5th kill
-      this.proximityR = smart ? 0   : 50;
-      this.blastR     = smart ? 110 : 65;
-      this._maxKills  = smart ? 5 : 2;
+      this.proximityR = smart ? 0   : 32;  // normal detonates at 32px proximity
+      this.blastR     = smart ? 110 : 52;  // normal small blast, smart huge final blast
+      this._maxKills  = smart ? 5 : 1;     // normal: 1 detonation then done
       this.radius     = 5;
       this.life       = 420;
     }
@@ -1254,7 +1274,7 @@ class OrangeHomingRocket {
     this.vx = 0; this.vy = 0;
     this.speed = 1.8;
     this.lifeTimer = 0;
-    this.fuseTime = 420; // 7 seconds
+    this.fuseTime = 300; // 5 seconds
     this.radius = 9;
     this.dead = false;
     this._exploded = false;
@@ -1389,12 +1409,18 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
     ctx.fillText('x2', 150, 20);
   }
 
-  // ── LIVES (triangles) ──
+  // ── LIVES — "LIFE : ▲▲▲" ──
   const MAX_TRI    = 5;
   const displayMax = Math.min(maxLives, MAX_TRI);
-  const lifeBaseY  = 61;
+  const lifeBaseY  = 63;
+  // "LIFE :" label
+  ctx.font = `7px ${FONT}`; glow(ctx, C.hud, 5);
+  ctx.fillStyle = '#00ffcc88';
+  ctx.fillText('LIFE :', 14, lifeBaseY);
+  // triangles, starting after the label
+  const triStartX = 62;
   for (let i = 0; i < displayMax; i++) {
-    const lx = 14 + i * 14;
+    const lx = triStartX + i * 14;
     ctx.fillStyle   = i < lives ? C.hud : '#0a0020';
     ctx.shadowBlur  = i < lives ? 9 : 0;
     ctx.shadowColor = C.hud;
@@ -1407,7 +1433,7 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
   if (lives > MAX_TRI) {
     ctx.font = `7px ${FONT}`; ctx.fillStyle = '#ffee00';
     glow(ctx, '#ffee00', 6);
-    ctx.fillText(`+${lives - MAX_TRI}`, 14 + MAX_TRI * 14 + 4, lifeBaseY);
+    ctx.fillText(`+${lives - MAX_TRI}`, triStartX + MAX_TRI * 14 + 2, lifeBaseY);
   }
   ctx.shadowBlur = 0;
 
@@ -1535,7 +1561,7 @@ function _rocketThreatScore(target, ship) {
   let base;
   if      (target.fuseTime  !== undefined) base = 1200; // OrangeHomingRocket — actively chasing player
   else if (target.shootRate !== undefined) base =  700; // RedFighter — shoots at player
-  else if (target.maxLife   !== undefined) base =  350; // YellowAlien — fast but fleeting
+  else if (target.swoops    !== undefined) base =  350; // YellowAlien
   else                                     base =   80; // Asteroid — passive hazard
 
   // Proximity to player: enemy right on top of player = critical
@@ -1742,13 +1768,10 @@ class Game {
     });
     this.canvas.style.display = 'none';
     document.getElementById('controls-overlay').classList.add('hidden');
-    const shieldHud = document.getElementById('shield-hud');
-    if (shieldHud) shieldHud.classList.add('hidden');
 
     if (name === 'game') {
       this.canvas.style.display = 'block';
       if (this._isMobile()) document.getElementById('controls-overlay').classList.remove('hidden');
-      if (shieldHud) shieldHud.classList.remove('hidden');
       SFX.startGameMusic(this.level);
     } else {
       const el = document.getElementById(`${name}-screen`);
@@ -2109,10 +2132,7 @@ class Game {
       ? 3                                                         // dogfight: 3 rocks max
       : Math.min(4 + Math.floor(timeS / 12), 20);                // normal ramp
 
-    // Also cull excess asteroids immediately when switching into dogfight mode
-    if (dogfight && this.asteroids.length > 4) {
-      this.asteroids.splice(4); // trim down to 4 quickly
-    }
+    // Note: we never cull existing asteroids — they stay as cover during dogfights
 
     const spawnInterval = Math.max(100 - Math.floor(timeS * 0.4), 30);
     this.asteroidSpawnTimer++;
@@ -2284,6 +2304,7 @@ class Game {
     this.particles.forEach(p => p.update());
     this.particles = this.particles.filter(p => !p.dead);
     this.redFighters.forEach(rf => rf.update(this.ship, this.enemyBullets, this.W, this.H, this.particles));
+    this.redFighters = this.redFighters.filter(rf => !rf.dead);
     this.yellowAliens.forEach(ya => ya.update(this.rockets, this.W, this.H, this.particles));
     this.yellowAliens = this.yellowAliens.filter(ya => !ya.dead);
     this.orangeRockets.forEach(or => or.update(this.ship, this.W, this.H, this.particles));

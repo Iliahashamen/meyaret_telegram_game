@@ -412,25 +412,22 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 10; }
 
 /* ── SHIELD HUD (top-left, below score box) ───────────────── */
-.shield-hud {
-  position: fixed;
-  top: calc(102px + var(--safe-top));  /* below the HUD box (94px) */
-  left: 6px;
-  z-index: 25;
-  pointer-events: all;
-}
-.shield-btn {
-  background: rgba(0,30,60,0.85);
-  border: var(--px) solid #00aaff88;
+/* Inline shield button sits above flare in ctrl-left */
+.ctrl-shield-btn {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle, rgba(0,170,255,0.18) 0%, transparent 100%);
+  border: 2px solid #00aaff88;
   color: #00aaff;
   font-family: var(--font);
-  font-size: 7px; letter-spacing: 1px;
-  padding: 6px 10px; cursor: pointer;
-  box-shadow: 2px 2px 0 #00aaff33;
-  transition: transform 0.08s;
-  white-space: nowrap;
+  font-size: 6px; letter-spacing: 0px;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  cursor: pointer; transition: transform 0.08s;
+  box-shadow: 0 0 8px #00aaff44;
+  pointer-events: all;
 }
-.shield-btn:active { transform: scale(0.9); background: rgba(0,80,140,0.9); box-shadow: 0 0 16px #00aaff; }
+.ctrl-shield-btn:active { transform: scale(0.88); background: rgba(0,120,220,0.35); box-shadow: 0 0 20px #00aaff; }
 
 /* ── MOBILE CONTROLS ──────────────────────────────────────── */
 #controls-overlay {
