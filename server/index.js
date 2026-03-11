@@ -557,17 +557,125 @@ bot.callbackQuery(/^reset_confirm_(.+)$/, async (ctx) => {
     } catch { /* blocked */ }
 
     await ctx.editMessageText(
-      `*RESET COMPLETE*\n\n${nick}'s upgrades and shmips have been cleared\\.`,
+      `*RESET COMPLETE*\n\n${nick}'s upgrades and shmips have been cleared\\.\n\nWant to send them some starter shmips?`,
       {
         parse_mode: 'MarkdownV2',
         reply_markup: { inline_keyboard: [
-          [{ text: '« BACK TO TOOLS', callback_data: 'tools_back' }],
+          [
+            { text: '50$$',  callback_data: `rgift_50_${targetId}`  },
+            { text: '100$$', callback_data: `rgift_100_${targetId}` },
+            { text: '250$$', callback_data: `rgift_250_${targetId}` },
+          ],
+          [{ text: '✏️ CUSTOM AMOUNT', callback_data: `rgift_custom_${targetId}` }],
+          [{ text: '« BACK TO TOOLS',  callback_data: 'tools_back' }],
         ]},
       },
     );
   } catch (e) {
     console.error('[reset_confirm]', e.message);
     await ctx.editMessageText('Reset failed: ' + e.message);
+  }
+});
+
+// Post-reset quick gift (preset amounts)
+bot.callbackQuery(/^rgift_(\d+)_(.+)$/, async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  const amount   = Number(ctx.match[1]);
+  const targetId = ctx.match[2];
+  await ctx.answerCallbackQuery(`Sending ${amount}$$...`);
+
+  try {
+    const { data: rows } = await supabase.from('users').select('nickname, shmips').eq('telegram_id', targetId).limit(1);
+    const u = rows?.[0];
+    if (!u) return ctx.editMessageText('Player not found.');
+
+    await supabase.from('users')
+      .update({ shmips: Math.round((Number(u.shmips) + amount) * 100) / 100 })
+      .eq('telegram_id', targetId);
+
+    try {
+      await bot.api.sendMessage(targetId,
+        `🎁 *YOU GOT A GIFT!*\n\n+${amount} shmips added to your account\\.\n\n_Reload the game to receive your shmips\\!_`,
+        { parse_mode: 'MarkdownV2' });
+    } catch { /* blocked */ }
+
+    await ctx.editMessageText(
+      `*DONE!*\n\n${amount}$$ sent to ${u.nickname}\\.`,
+      { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: [[{ text: '« BACK TO TOOLS', callback_data: 'tools_back' }]] } },
+    );
+  } catch (e) {
+    console.error('[rgift]', e.message);
+    await ctx.answerCallbackQuery('Failed: ' + e.message);
+  }
+});
+
+// Post-reset custom amount — ask admin to type it
+bot.callbackQuery(/^rgift_custom_(.+)$/, async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  const targetId = ctx.match[1];
+  _adminState[ADMIN_ID] = { step: 'awaiting_rgift_amount', targetId };
+  try {
+    await ctx.editMessageText(
+      '*CUSTOM GIFT*\n\nType the amount of shmips to send\\:',
+      { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: [[{ text: '« CANCEL', callback_data: 'tools_back' }]] } },
+    );
+  } catch { /* ignore */ }
+});
+
+// Catch custom gift amount typed by admin
+bot.on('message:text', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return;
+  const state = _adminState[ADMIN_ID];
+
+  if (state?.step === 'awaiting_rgift_amount') {
+    const amount = Number(ctx.message.text.trim());
+    if (!amount || amount <= 0) return ctx.reply('Please enter a valid number.');
+    const targetId = state.targetId;
+    delete _adminState[ADMIN_ID];
+
+    try {
+      const { data: rows } = await supabase.from('users').select('nickname, shmips').eq('telegram_id', targetId).limit(1);
+      const u = rows?.[0];
+      if (!u) return ctx.reply('Player not found.');
+
+      await supabase.from('users')
+        .update({ shmips: Math.round((Number(u.shmips) + amount) * 100) / 100 })
+        .eq('telegram_id', targetId);
+
+      try {
+        await bot.api.sendMessage(targetId,
+          `🎁 *YOU GOT A GIFT!*\n\n+${amount} shmips added to your account.\n\n_Reload the game to receive your shmips!_`,
+          { parse_mode: 'Markdown' });
+      } catch { /* blocked */ }
+
+      await ctx.reply(`✅ ${amount}$$ sent to ${u.nickname}!`);
+    } catch (e) {
+      await ctx.reply('Failed: ' + e.message);
+    }
+    return;
+  }
+
+  // Promo flow (existing)
+  if (state?.step === 'awaiting_promo') {
+    const text = ctx.message.text;
+    if (text === '/cancel') {
+      delete _adminState[ADMIN_ID];
+      return ctx.reply('Promo cancelled. Back to /tools');
+    }
+    _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: text };
+    await ctx.reply(
+      `*PREVIEW — this is what all players will receive:*\n\n${text}\n\n_Send to all players?_`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ SEND TO ALL', callback_data: 'promo_confirm' }],
+            [{ text: '❌ CANCEL',      callback_data: 'promo_cancel'  }],
+          ],
+        },
+      },
+    );
   }
 });
 
@@ -681,34 +789,6 @@ bot.callbackQuery('promo_cancel', async (ctx) => {
   } catch { /* ignore */ }
 });
 
-// Catch admin free-text message when awaiting promo
-bot.on('message:text', async (ctx) => {
-  if (ctx.from?.id !== ADMIN_ID) return;
-  const state = _adminState[ADMIN_ID];
-  if (!state || state.step !== 'awaiting_promo') return;
-
-  const text = ctx.message.text;
-  if (text === '/cancel') {
-    delete _adminState[ADMIN_ID];
-    return ctx.reply('Promo cancelled. Back to /tools');
-  }
-
-  // Save text and show preview with confirm/cancel
-  _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: text };
-
-  await ctx.reply(
-    `*PREVIEW — this is what all players will receive:*\n\n${text}\n\n_Send to all players?_`,
-    {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '✅ SEND TO ALL', callback_data: 'promo_confirm' }],
-          [{ text: '❌ CANCEL', callback_data: 'promo_cancel' }],
-        ],
-      },
-    },
-  );
-});
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
