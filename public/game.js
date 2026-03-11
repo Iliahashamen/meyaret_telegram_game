@@ -1464,10 +1464,10 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
   ctx.font = `15px ${FONT}`; glow(ctx, C.hud, 14);
   ctx.fillStyle = C.hud;
   ctx.fillText(score.toLocaleString(), 14, 42);
-  // x2 score badge
-  if (scoreX2) {
+  // score multiplier badge — shows exact multiplier (x2, x3, or x6)
+  if (scoreX2 && scoreX2 > 1) {
     ctx.font = `7px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', 10);
-    ctx.fillText('x2', 150, 20);
+    ctx.fillText(`x${scoreX2}`, 150, 20);
   }
 
   // ── LIVES — "LIFE :" + always 5 triangles, fill light blue for current lives ──
@@ -2993,7 +2993,7 @@ class Game {
       multiplierEndMs:this.multiplierEndMs ?? 0,
       rocketAmmo:     this.ship?.rocketAmmo ?? 0,
       shieldCharges:  this.ship?.shieldCharges ?? 0,
-      scoreX2:        (this.runScoreMultiplier || 1) > 1,
+      scoreX2:        (this.runScoreMultiplier || 1),
       warnings: {
         overdrive: this.ship?.isStarOverdrive  || false,
         jets:      (this.redFighters?.length   || 0) > 0,
