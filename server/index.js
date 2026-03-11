@@ -227,8 +227,9 @@ bot.command('ping', async (ctx) => {
 
 function adminToolsKeyboard() {
   const keyboard = [];
-  if (GAME_URL) keyboard.push([{ text: 'OPEN GAME', web_app: { url: GAME_URL } }]);
-  keyboard.push([{ text: 'GIFT SHMIPS', callback_data: 'tools_gift' }]);
+  if (GAME_URL) keyboard.push([{ text: '🎮 OPEN GAME', web_app: { url: GAME_URL } }]);
+  keyboard.push([{ text: '🎁 GIFT SHMIPS', callback_data: 'tools_gift' }]);
+  keyboard.push([{ text: '🔄 RESET PLAYER', callback_data: 'tools_reset' }]);
   return keyboard;
 }
 
@@ -474,6 +475,121 @@ bot.callbackQuery('gift_cancel', async (ctx) => {
       reply_markup: { inline_keyboard: adminToolsKeyboard() },
     });
   } catch (e) { console.error('[gift_cancel]', e.message); }
+});
+
+// ── RESET PLAYER ──────────────────────────────────────────────────────────────
+
+// Step 1 — show player list to pick who to reset
+bot.callbackQuery('tools_reset', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  if (!supabase) return ctx.editMessageText('DB not connected.');
+
+  try {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('telegram_id, nickname, shmips')
+      .order('nickname', { ascending: true })
+      .limit(50);
+    if (error) throw error;
+    if (!users?.length) return ctx.editMessageText('No players found.');
+
+    const keyboard = users.map(u => ([{
+      text: `${u.nickname}  (${Math.round(u.shmips)}$$)`,
+      callback_data: `reset_pick_${u.telegram_id}`,
+    }]));
+    keyboard.push([{ text: '« BACK', callback_data: 'tools_back' }]);
+
+    await ctx.editMessageText(
+      '*RESET PLAYER*\n\nChoose a player to reset\\. This will clear their upgrades, skins, jets and shmips\\. High scores are kept\\.',
+      { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: keyboard } },
+    );
+  } catch (e) {
+    console.error('[tools_reset]', e.message);
+    await ctx.editMessageText('Error: ' + e.message);
+  }
+});
+
+// Step 2 — confirm screen for chosen player
+bot.callbackQuery(/^reset_pick_(.+)$/, async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  const targetId = ctx.match[1];
+
+  const { data: rows } = await supabase
+    .from('users')
+    .select('nickname, shmips, best_score')
+    .eq('telegram_id', targetId)
+    .limit(1);
+  const u = rows?.[0];
+  if (!u) return ctx.editMessageText('Player not found.');
+
+  await ctx.editMessageText(
+    `*RESET: ${u.nickname}*\n\nShmips: ${Math.round(u.shmips)}$$\nBest score: ${u.best_score?.toLocaleString()}\n\n⚠️ This will wipe all upgrades, skins, jets and shmips\\. High scores stay\\.`,
+    {
+      parse_mode: 'MarkdownV2',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '✅ CONFIRM RESET', callback_data: `reset_confirm_${targetId}` }],
+          [{ text: '« BACK', callback_data: 'tools_reset' }],
+        ],
+      },
+    },
+  );
+});
+
+// Step 3 — execute reset
+bot.callbackQuery(/^reset_confirm_(.+)$/, async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery('Resetting...');
+  const targetId = ctx.match[1];
+
+  try {
+    // Wipe upgrades
+    await supabase.from('user_upgrades').delete().eq('telegram_id', targetId);
+    // Zero shmips and clear gift cooldown
+    await supabase.from('users')
+      .update({ shmips: 0, last_spin_at: null })
+      .eq('telegram_id', targetId);
+
+    const { data: rows } = await supabase
+      .from('users').select('nickname').eq('telegram_id', targetId).limit(1);
+    const nick = rows?.[0]?.nickname || targetId;
+
+    // Notify the player
+    try {
+      await bot.api.sendMessage(
+        targetId,
+        `🔄 *Your account has been reset by the admin.*\n\nUpgrades, skins and shmips have been cleared\\. Your scores are safe\\. Reload the game to continue\\.`,
+        { parse_mode: 'MarkdownV2' },
+      );
+    } catch { /* blocked */ }
+
+    await ctx.editMessageText(
+      `*RESET COMPLETE*\n\n${nick}'s upgrades and shmips have been cleared\\.`,
+      {
+        parse_mode: 'MarkdownV2',
+        reply_markup: { inline_keyboard: [
+          [{ text: '« BACK TO TOOLS', callback_data: 'tools_back' }],
+        ]},
+      },
+    );
+  } catch (e) {
+    console.error('[reset_confirm]', e.message);
+    await ctx.editMessageText('Reset failed: ' + e.message);
+  }
+});
+
+// Back to tools menu (shared)
+bot.callbackQuery('tools_back', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  try {
+    await ctx.editMessageText('*MEYARET — ADMIN TOOLS*', {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: adminToolsKeyboard() },
+    });
+  } catch (e) { console.error('[tools_back]', e.message); }
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
