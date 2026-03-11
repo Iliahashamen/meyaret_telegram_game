@@ -1725,7 +1725,7 @@ class Game {
     this.activeMultiplier = 1.0;
     this.redFighterTimer = 0; this.yellowAlienTimer = 0; this.orangeRocketTimer = 0;
     this.runShmipsBonus = 0; this.pickupSpawnTimer = 0;
-    this.greenStarTimer = rngInt(60 * 180, 60 * 300); // once every 3-5 min
+    this.greenStarTimer = rngInt(60 * 90, 60 * 150); // once every 1.5-2.5 min
 
     this.keys = { left:false, right:false, up:false, fire:false, flare:false, rocket:false, shield:false, joyActive:false, joyAngle:null };
     this._lastFrameTs = 0; this._accum = 0;
@@ -2066,7 +2066,7 @@ class Game {
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
     this.redFighterTimer=0; this.yellowAlienTimer=0; this.orangeRocketTimer=0;
     this.asteroidSpawnTimer=0; this._lastMusicTier=1;
-    this.greenStarTimer=rngInt(60 * 180, 60 * 300);
+    this.greenStarTimer=rngInt(60 * 90, 60 * 150);
     this.runScoreMultiplier=1; // set to 2 if x2 score boost active
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
@@ -2438,7 +2438,7 @@ class Game {
     if (this.greenStarTimer <= 0 && this.greenStars.length === 0) {
       const p = this._findSafeSpawnPoint(80, this.ship, 190);
       this.greenStars.push(new GreenStarPickup(p.x, p.y));
-      this.greenStarTimer = rngInt(60 * 180, 60 * 300);
+      this.greenStarTimer = rngInt(60 * 90, 60 * 150);
     }
     // Hover/collect behavior
     for (let si = this.greenStars.length - 1; si >= 0; si--) {
