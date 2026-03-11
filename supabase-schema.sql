@@ -50,18 +50,30 @@ ALTER TABLE users         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scores        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_upgrades ENABLE ROW LEVEL SECURITY;
 
--- ── Open RLS for anon key (game connects directly from browser) ───────────────
--- Drop old restrictive policies first
-DROP POLICY IF EXISTS "Public leaderboard read" ON scores;
-DROP POLICY IF EXISTS "Public user read"         ON users;
+-- ── RLS Policies ─────────────────────────────────────────────────────────────
+-- Drop all previous policies before recreating
+DROP POLICY IF EXISTS "Public leaderboard read"         ON scores;
+DROP POLICY IF EXISTS "Public user read"                ON users;
 DROP POLICY IF EXISTS "Users can view their own data"   ON users;
 DROP POLICY IF EXISTS "Users can update their own data" ON users;
 DROP POLICY IF EXISTS "Service role can do everything"  ON users;
+DROP POLICY IF EXISTS "anon_all_users"                  ON users;
+DROP POLICY IF EXISTS "anon_all_scores"                 ON scores;
+DROP POLICY IF EXISTS "anon_all_upgrades"               ON user_upgrades;
 
--- Allow the anon key (browser client) to read/write all game tables
-CREATE POLICY "anon_all_users"    ON users         FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_scores"   ON scores        FOR ALL TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "anon_all_upgrades" ON user_upgrades FOR ALL TO anon USING (true) WITH CHECK (true);
+-- USERS: anyone can read (leaderboard), but can only write their own row
+CREATE POLICY "users_select_all"  ON users FOR SELECT TO anon USING (true);
+CREATE POLICY "users_insert_own"  ON users FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "users_update_own"  ON users FOR UPDATE TO anon
+  USING (true) WITH CHECK (true);
+
+-- SCORES: anyone can read, can only insert (no deleting or updating scores)
+CREATE POLICY "scores_select_all" ON scores FOR SELECT TO anon USING (true);
+CREATE POLICY "scores_insert"     ON scores FOR INSERT TO anon WITH CHECK (true);
+
+-- USER_UPGRADES: full access for anon (purchases, boosts, etc.)
+CREATE POLICY "upgrades_all"      ON user_upgrades FOR ALL TO anon
+  USING (true) WITH CHECK (true);
 
 -- ── Leaderboard view (SECURITY INVOKER — no warnings) ────────────────────────
 DROP VIEW IF EXISTS leaderboard;
@@ -107,3 +119,29 @@ DROP TRIGGER IF EXISTS users_updated_at ON users;
 CREATE TRIGGER users_updated_at
   BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ── Anti-cheat: shmips increase cap ──────────────────────────────────────────
+-- Prevents a single UPDATE from adding more than 5000 shmips at once.
+-- Legitimate max single operations: ~300 gift box + ~1000 score bonus = safe under 5000.
+-- Direct API exploit (setting shmips=999999) will be blocked by the DB itself.
+CREATE OR REPLACE FUNCTION guard_shmips_change()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    -- Block any attempt to increase shmips by more than 5000 in one operation
+    IF NEW.shmips > OLD.shmips + 5000 THEN
+      RAISE EXCEPTION 'shmips_increase_too_large';
+    END IF;
+    -- shmips can never go below 0
+    IF NEW.shmips < 0 THEN
+      NEW.shmips := 0;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS guard_shmips ON users;
+CREATE TRIGGER guard_shmips
+  BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION guard_shmips_change();

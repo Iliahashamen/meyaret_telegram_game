@@ -4,3 +4,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 .cursor/
+scripts/
+supabase-full-wipe.sql
+MEYARET_FULL_DOCUMENT.html

@@ -9,8 +9,7 @@ import {
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
-  dbDevReset,
-} from './db.js?v=20250310p';
+} from './db.js?v=20260311e';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -32,7 +31,6 @@ async function waitForTelegramUser() {
 
 const API_BASE = (typeof window !== 'undefined' && window.MEYARET_API) || '';
 let OFFLINE_MODE = false;
-const ADMIN_TID = '1357754255';
 
 const DEMO_USER = {
   telegram_id: 0,
@@ -3089,37 +3087,6 @@ class Game {
     document.getElementById('prof-shmips').textContent = (this.userData?.shmips||0).toLocaleString();
     document.getElementById('prof-best').textContent   = (this.userData?.best_score||0).toLocaleString();
     document.getElementById('prof-games').textContent  = (this.userData?.total_games||0).toLocaleString();
-
-    // Secret dev reset — only for admin. Compare as string to handle Supabase text type.
-    const isAdmin = String(this.userData?.telegram_id) === ADMIN_TID;
-    const devArea = document.getElementById('dev-reset-area');
-    if (devArea) {
-      devArea.style.display = isAdmin ? 'block' : 'none';
-      if (isAdmin) {
-        const btn = document.getElementById('dev-reset-btn');
-        if (btn && !btn._bound) {
-          btn._bound = true;
-          btn.addEventListener('click', async () => {
-            // Double-check at click time — belt and suspenders
-            if (String(this.userData?.telegram_id) !== ADMIN_TID) return;
-            btn.textContent = 'RESETTING...';
-            btn.disabled = true;
-            try {
-              await dbDevReset(this.userData.telegram_id);
-              localStorage.removeItem('meyaret_equip_jet');
-              localStorage.removeItem('meyaret_equip_skin');
-              this.upgrades = {};
-              this.userData.shmips = 30000;
-              document.getElementById('prof-shmips').textContent = '30,000';
-              btn.textContent = 'DONE! RELOAD TO APPLY';
-            } catch(e) {
-              btn.textContent = 'ERROR: ' + e.message;
-              btn.disabled = false;
-            }
-          });
-        }
-      }
-    }
 
     this._showScreen('profile');
   }

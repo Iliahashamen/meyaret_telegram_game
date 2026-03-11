@@ -11,8 +11,7 @@ const supabaseKey =
 if (!supabaseUrl) {
   console.error(
     '[supabase] MISSING SUPABASE_URL !\n' +
-    '  Go to Railway → your service → Variables → add:\n' +
-    '  SUPABASE_URL = https://fbcjmniqwqiurssdqnka.supabase.co'
+    '  Go to Railway → your service → Variables → add SUPABASE_URL'
   );
 }
 if (!supabaseKey) {

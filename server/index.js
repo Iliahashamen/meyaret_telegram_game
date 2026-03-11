@@ -212,15 +212,16 @@ bot.command('help', (ctx) =>
 );
 
 // ── Admin Tools ───────────────────────────────────────────────────────────────
-// Use env var ADMIN_TELEGRAM_ID if set, otherwise fall back to hardcoded value
-const ADMIN_ID = Number(process.env.ADMIN_TELEGRAM_ID || 1357754255);
+// Admin ID must be set as ADMIN_TELEGRAM_ID environment variable in Railway.
+const ADMIN_ID = Number(process.env.ADMIN_TELEGRAM_ID || 0);
+if (!ADMIN_ID) console.warn('[bot] ADMIN_TELEGRAM_ID not set — admin tools will be inaccessible');
 
-// /ping — public debug command: replies with your Telegram ID so you can verify
+// /ping — returns your own Telegram ID only (does not reveal admin identity)
 bot.command('ping', async (ctx) => {
   const id   = ctx.from?.id;
   const name = ctx.from?.username ? `@${ctx.from.username}` : ctx.from?.first_name;
   await ctx.reply(
-    `*PONG*\n\nYour Telegram ID: \`${id}\`\nName: ${name}\nAdmin ID configured: \`${ADMIN_ID}\`\nMatch: ${id === ADMIN_ID ? 'YES — you are admin' : 'NO'}`,
+    `*PONG*\n\nYour Telegram ID: \`${id}\`\nName: ${name}`,
     { parse_mode: 'Markdown' },
   );
 });

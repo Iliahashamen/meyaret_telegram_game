@@ -3,6 +3,9 @@
 // No CDN dependency — calls the REST API directly.
 // ============================================================
 
+// NOTE: These are the Supabase PROJECT URL and public ANON key.
+// The anon key is intentionally public (designed for browser use) and is restricted
+// by Supabase Row-Level Security policies. The service_role key is NEVER placed here.
 const SUPA_URL = 'https://fbcjmniqwqiurssdqnka.supabase.co/rest/v1';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiY2ptbmlxd3FpdXJzc2RxbmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNTI0MzksImV4cCI6MjA4ODYyODQzOX0.QDC0jN8Zf1JgvmvDVa3h_CD4wPih6Ly2L4kEFK1Q48E';
 
@@ -92,7 +95,6 @@ const GIFT_REWARDS = [
   { id: 'skin',     weight: 6,  type: 'skin_grant'              },
 ];
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;  // 4 hours (applies to everyone)
-const ADMIN_TID = '1357754255';
 
 function _pickGiftReward() {
   const total = GIFT_REWARDS.reduce((a, r) => a + r.weight, 0);
@@ -360,11 +362,3 @@ async function _grantUpgrade(id, upgradeId) {
   }
 }
 
-// ── Dev/Admin reset — wipes upgrades, gives 30k shmips, keeps scores ──────────
-export async function dbDevReset(telegramId) {
-  await supa(`user_upgrades?telegram_id=eq.${telegramId}`, { method: 'DELETE' });
-  await supa(`users?telegram_id=eq.${telegramId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ shmips: 30000, last_spin_at: null }),
-  });
-}
