@@ -9,7 +9,7 @@ import {
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
-} from './db.js?v=20260311e';
+} from './db.js?v=20260311f';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;

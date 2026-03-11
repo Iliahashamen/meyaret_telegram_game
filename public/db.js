@@ -3,20 +3,31 @@
 // No CDN dependency — calls the REST API directly.
 // ============================================================
 
-// NOTE: These are the Supabase PROJECT URL and public ANON key.
-// The anon key is intentionally public (designed for browser use) and is restricted
-// by Supabase Row-Level Security policies. The service_role key is NEVER placed here.
-const SUPA_URL = 'https://fbcjmniqwqiurssdqnka.supabase.co/rest/v1';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiY2ptbmlxd3FpdXJzc2RxbmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNTI0MzksImV4cCI6MjA4ODYyODQzOX0.QDC0jN8Zf1JgvmvDVa3h_CD4wPih6Ly2L4kEFK1Q48E';
+// ── Config bootstrap ──────────────────────────────────────────────────────────
+// Fetched from the Railway server at runtime — keys never stored in source code.
+const _API_BASE = (typeof window !== 'undefined' && window.MEYARET_API) || '';
+let SUPA_URL = '';
+let SUPA_KEY = '';
 
-const HDR = {
-  'apikey':        SUPA_KEY,
-  'Authorization': `Bearer ${SUPA_KEY}`,
-  'Content-Type':  'application/json',
-};
+// Top-level await: game.js (which imports this module) waits for this to resolve
+// before any game code runs. One fetch on startup, result cached for the session.
+try {
+  const _cfgRes = await fetch(_API_BASE + '/api/config');
+  if (_cfgRes.ok) {
+    const _cfg = await _cfgRes.json();
+    SUPA_URL = _cfg.supaUrl || '';
+    SUPA_KEY = _cfg.supaKey || '';
+  }
+} catch { /* offline / dev mode — DB calls will fail gracefully */ }
 
 // Core fetch helper — throws on HTTP error with Supabase error message
 async function supa(path, opts = {}) {
+  if (!SUPA_URL || !SUPA_KEY) throw new Error('DB not configured.');
+  const HDR = {
+    'apikey':        SUPA_KEY,
+    'Authorization': `Bearer ${SUPA_KEY}`,
+    'Content-Type':  'application/json',
+  };
   const url = `${SUPA_URL}/${path}`;
   const res = await fetch(url, { ...opts, headers: { ...HDR, ...opts.headers } });
   const text = await res.text();

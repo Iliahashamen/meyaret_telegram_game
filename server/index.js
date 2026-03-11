@@ -41,17 +41,24 @@ app.use('/api/users',  usersRouter);
 app.use('/api/scores', scoresRouter);
 app.use('/api/store',  storeRouter);
 
-// ── Health Check — always responds even if DB is down ─────────────────────────
+// ── Public client config — serves anon key from env var, never from source ────
+app.get('/api/config', (_req, res) => {
+  const supaUrl = process.env.SUPABASE_URL;
+  const supaKey = process.env.SUPABASE_ANON_KEY;
+  if (!supaUrl || !supaKey) {
+    return res.status(503).json({ error: 'Server not configured yet.' });
+  }
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.json({ supaUrl: supaUrl + '/rest/v1', supaKey });
+});
+
+// ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
-  const missing = [];
-  if (!process.env.SUPABASE_URL)              missing.push('SUPABASE_URL');
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
-  if (!process.env.TELEGRAM_BOT_TOKEN)        missing.push('TELEGRAM_BOT_TOKEN');
-  res.json({
-    ok: missing.length === 0,
-    ts: new Date().toISOString(),
-    missing: missing.length ? missing : undefined,
-  });
+  const configured =
+    !!process.env.SUPABASE_URL &&
+    !!process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    !!process.env.TELEGRAM_BOT_TOKEN;
+  res.json({ ok: configured, ts: new Date().toISOString() });
 });
 
 // ── Fallback: serve index.html for all non-API routes ─────────────────────────
