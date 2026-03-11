@@ -8,7 +8,6 @@ import { Bot, webhookCallback } from 'grammy';
 
 import { usersRouter }  from './routes/users.js';
 import { scoresRouter } from './routes/scores.js';
-import { spinRouter }   from './routes/spin.js';
 import { storeRouter }  from './routes/store.js';
 import { supabase }     from './supabase.js';
 
@@ -40,7 +39,6 @@ app.use(express.static(PUBLIC_DIR));
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api/users',  usersRouter);
 app.use('/api/scores', scoresRouter);
-app.use('/api/spin',   spinRouter);
 app.use('/api/store',  storeRouter);
 
 // ── Health Check — always responds even if DB is down ─────────────────────────
