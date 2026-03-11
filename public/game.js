@@ -2357,12 +2357,13 @@ class Game {
         this.redFighters.push(new RedFighter(x, y));
       }
     }
-    // Orange homing rockets: appear after 100 seconds
-    const orangeInterval = Math.max(800 - Math.floor(timeS * 1.0), 300);
+    // Orange homing rockets: appear after 3–4 minutes (180–240 s)
+    const orangeStart = 210; // ~3.5 min average
+    const orangeInterval = Math.max(900 - Math.floor((timeS - orangeStart) * 1.2), 300);
     this.orangeRocketTimer++;
-    if (this.orangeRocketTimer > orangeInterval && timeS >= 100) {
+    if (this.orangeRocketTimer > orangeInterval && timeS >= orangeStart) {
       this.orangeRocketTimer = 0;
-      if (this.orangeRockets.length < 1 + Math.floor((timeS - 80) / 80)) {
+      if (this.orangeRockets.length < 1 + Math.floor((timeS - orangeStart) / 90)) {
         const { x, y } = this._edgeSpawn();
         this.orangeRockets.push(new OrangeHomingRocket(x, y));
       }
