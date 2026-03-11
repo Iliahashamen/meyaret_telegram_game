@@ -230,6 +230,8 @@ function adminToolsKeyboard() {
   if (GAME_URL) keyboard.push([{ text: '🎮 OPEN GAME', web_app: { url: GAME_URL } }]);
   keyboard.push([{ text: '🎁 GIFT SHMIPS', callback_data: 'tools_gift' }]);
   keyboard.push([{ text: '🔄 RESET PLAYER', callback_data: 'tools_reset' }]);
+  keyboard.push([{ text: '📣 ANNOUNCE', callback_data: 'tools_announce' }]);
+  keyboard.push([{ text: '📨 PROMO MESSAGE', callback_data: 'tools_promo' }]);
   return keyboard;
 }
 
@@ -266,17 +268,6 @@ bot.callbackQuery('tools_gift', async (ctx) => {
       },
     );
   } catch (e) { console.error('[tools_gift]', e.message); }
-});
-
-bot.callbackQuery('tools_back', async (ctx) => {
-  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
-  await ctx.answerCallbackQuery();
-  try {
-    await ctx.editMessageText('*MEYARET — ADMIN TOOLS*', {
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: adminToolsKeyboard() },
-    });
-  } catch (e) { console.error('[tools_back]', e.message); }
 });
 
 // ── Admin Gift Command ─────────────────────────────────────────────────────────
@@ -590,6 +581,133 @@ bot.callbackQuery('tools_back', async (ctx) => {
       reply_markup: { inline_keyboard: adminToolsKeyboard() },
     });
   } catch (e) { console.error('[tools_back]', e.message); }
+});
+
+// ── ANNOUNCE ──────────────────────────────────────────────────────────────────
+
+bot.callbackQuery('tools_announce', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery('Broadcasting...');
+  if (!supabase) return ctx.editMessageText('DB not connected.');
+
+  const { data: users, error } = await supabase.from('users').select('telegram_id');
+  if (error || !users?.length) return ctx.editMessageText('No users found.');
+
+  let sent = 0, failed = 0;
+  for (const u of users) {
+    try {
+      await bot.api.sendMessage(u.telegram_id, WELCOME_MSG, {
+        parse_mode: 'Markdown',
+        reply_markup: WELCOME_KEYBOARD,
+      });
+      sent++;
+      await new Promise(r => setTimeout(r, 50));
+    } catch { failed++; }
+  }
+
+  try {
+    await ctx.editMessageText(
+      `*ANNOUNCE COMPLETE*\n\n✅ Sent: ${sent}\n❌ Failed: ${failed} (blocked/deleted)`,
+      { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back' }]] } },
+    );
+  } catch { /* ignore edit errors */ }
+});
+
+// ── PROMO MESSAGE ─────────────────────────────────────────────────────────────
+// In-memory state: tracks admin waiting to type a promo message
+const _adminState = {};
+
+bot.callbackQuery('tools_promo', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery();
+  _adminState[ADMIN_ID] = { step: 'awaiting_promo' };
+  try {
+    await ctx.editMessageText(
+      '*PROMO MESSAGE*\n\nType your message now and send it\\. I\'ll show you a preview before sending to all players\\.\n\n_Send /cancel to abort\\._',
+      { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back_promo' }]] } },
+    );
+  } catch { /* ignore */ }
+});
+
+// Cancel promo from back button
+bot.callbackQuery('tools_back_promo', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  delete _adminState[ADMIN_ID];
+  await ctx.answerCallbackQuery('Cancelled.');
+  try {
+    await ctx.editMessageText('*MEYARET — ADMIN TOOLS*', {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: adminToolsKeyboard() },
+    });
+  } catch { /* ignore */ }
+});
+
+// Confirm promo — send to all
+bot.callbackQuery('promo_confirm', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  const promoText = _adminState[ADMIN_ID]?.promoText;
+  if (!promoText) return ctx.answerCallbackQuery('No message saved.');
+  await ctx.answerCallbackQuery('Sending promo...');
+  delete _adminState[ADMIN_ID];
+
+  const { data: users } = await supabase.from('users').select('telegram_id');
+  let sent = 0, failed = 0;
+  for (const u of (users || [])) {
+    try {
+      await bot.api.sendMessage(u.telegram_id, promoText);
+      sent++;
+      await new Promise(r => setTimeout(r, 50));
+    } catch { failed++; }
+  }
+
+  try {
+    await ctx.editMessageText(
+      `*PROMO SENT*\n\n✅ Sent: ${sent}\n❌ Failed: ${failed}`,
+      { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back' }]] } },
+    );
+  } catch { /* ignore */ }
+});
+
+// Cancel promo from confirm screen
+bot.callbackQuery('promo_cancel', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  delete _adminState[ADMIN_ID];
+  await ctx.answerCallbackQuery('Cancelled.');
+  try {
+    await ctx.editMessageText('*MEYARET — ADMIN TOOLS*', {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: adminToolsKeyboard() },
+    });
+  } catch { /* ignore */ }
+});
+
+// Catch admin free-text message when awaiting promo
+bot.on('message:text', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return;
+  const state = _adminState[ADMIN_ID];
+  if (!state || state.step !== 'awaiting_promo') return;
+
+  const text = ctx.message.text;
+  if (text === '/cancel') {
+    delete _adminState[ADMIN_ID];
+    return ctx.reply('Promo cancelled. Back to /tools');
+  }
+
+  // Save text and show preview with confirm/cancel
+  _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: text };
+
+  await ctx.reply(
+    `*PREVIEW — this is what all players will receive:*\n\n${text}\n\n_Send to all players?_`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '✅ SEND TO ALL', callback_data: 'promo_confirm' }],
+          [{ text: '❌ CANCEL', callback_data: 'promo_cancel' }],
+        ],
+      },
+    },
+  );
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
