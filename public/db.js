@@ -53,6 +53,7 @@ export const CATALOG = [
   { id: 'lazer_pew',      name: 'LAZER PEW',       category: 'upgrade', cost: 1600, description: 'Replace bullets with laser beams' },
   { id: 'smart_rocket',   name: 'SMART ROCKET',    category: 'upgrade', cost: 1760, description: 'Blue rocket that pierces and kills 5 targets before exploding' },
   { id: 'collector',      name: 'COLLECTOR',       category: 'upgrade', cost: 880,  description: 'Shoot $ or ? to collect them from range' },
+  { id: 'hornet_assistant', name: 'HORNET ASSISTANT', category: 'upgrade', cost: 5880, description: 'At 2 lives or less, a friendly jet spawns for 20 sec to help' },
 
   // ── Skins (color palette for any jet) ────────────────────────────────────
   { id: 'skin_breast_cancer', name: 'I SUPPORT BREAST CANCER', category: 'skin', cost: 1,   description: 'Pink hull — fight the fight',         color: '#ff69b4', accent: '#ffffff' },
@@ -70,6 +71,7 @@ export const CATALOG = [
   { id: 'skin_silver_surfer', name: 'SILVER SURFER',            category: 'skin', cost: 360, description: 'Silver-blue chrome with icy glow',    color: '#8ab4d4', accent: '#ddeeff' },
   { id: 'skin_neon_dream',    name: 'NEON DREAM',               category: 'skin', cost: 440, description: 'Vivid magenta with electric mint',    color: '#ff00cc', accent: '#00ffaa' },
   { id: 'skin_desert_storm',  name: 'DESERT STORM',             category: 'skin', cost: 384, description: 'Sandy gold with warm amber glow',     color: '#d4a843', accent: '#ff8844' },
+  { id: 'skin_zion',       name: 'ZION',                       category: 'skin', cost: 100, description: 'Blue and white fast flash',            color: 'zion' },
 
   // ── Jets (3 purchasable — Starter is always available for free) ───────────
   { id: 'plane_hamud',      name: 'HAMUDI',         category: 'plane', cost: 2400,
@@ -78,6 +80,8 @@ export const CATALOG = [
     description: '3 lives · 3 flares · 3 rockets · Shield · ×1.5 fire', lives: 3, flares: 3, rockets: 3, shield: true, rapidFire: true },
   { id: 'plane_very_scary', name: 'VERY SCARY JET',  category: 'plane', cost: 8800,
     description: '4 lives · 4 flares · 4 rockets · 2 Shields', lives: 4, flares: 4, rockets: 4, shield: true },
+  { id: 'plane_astrozoinker', name: 'ASTROZOINKER',    category: 'plane', cost: 69000,
+    description: '4 lives · 5 shields · 8 rockets — ultimate hybrid', lives: 4, flares: 4, rockets: 8, shield: true },
 ];
 
 // ── Spin Wheel — 13 segments: shmips 5-30 + one-time boosts, every 6h ────────

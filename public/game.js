@@ -9,7 +9,7 @@ import {
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
-} from './db.js?v=20260311g';
+} from './db.js?v=20260311h';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -105,6 +105,11 @@ function acidColor(t) {
   const l = 50 + 18 * Math.sin(t * 0.25);
   return `hsl(${h}, ${s}%, ${l}%)`;
 }
+function zionColor(t) {
+  // Fast blue/white flash — alternates between blue and white
+  const phase = (t * 0.5) % 2;
+  return phase < 1 ? '#0088ff' : '#ffffff';
+}
 
 // ── Particle ──────────────────────────────────────────────────────────────────
 class Particle {
@@ -159,19 +164,19 @@ class Ship {
     this.jetType = upgrades.jetType || 'starter';
 
     // Lives — capped at CFG.maxLivesBase for upgrade-based starting lives
-    const baseLives = { starter: 2, plane_hamud: 3, plane_walla_yofi: 3, plane_very_scary: 4 }[this.jetType] || 2;
+    const baseLives = { starter: 2, plane_hamud: 3, plane_walla_yofi: 3, plane_very_scary: 4, plane_astrozoinker: 4 }[this.jetType] || 2;
     const extraLife = Math.min(upgrades.extra_life || 0, 1); // max 1 boost/game
     this.maxLives = Math.min(baseLives + extraLife, CFG.maxLivesBase);
     this.lives    = this.maxLives;
 
     // Flares
-    const baseFlares = { starter: 1, plane_hamud: 2, plane_walla_yofi: 3, plane_very_scary: 4 }[this.jetType] || 1;
+    const baseFlares = { starter: 1, plane_hamud: 2, plane_walla_yofi: 3, plane_very_scary: 4, plane_astrozoinker: 4 }[this.jetType] || 1;
     this.maxFlares = baseFlares + Math.min(upgrades.extra_flare || 0, 1);
     this.flares    = this.maxFlares;
 
     // Shield charges
     // KILLAJET + VERY SCARY JET start with one shield; MAGEN grants an extra backup.
-    const jetShieldBase = this.jetType === 'plane_very_scary' ? 2 : (this.jetType === 'plane_walla_yofi' ? 1 : 0);
+    const jetShieldBase = this.jetType === 'plane_astrozoinker' ? 5 : (this.jetType === 'plane_very_scary' ? 2 : (this.jetType === 'plane_walla_yofi' ? 1 : 0));
     this.shieldCharges = jetShieldBase + (upgrades.magen ? 1 : 0) + Math.min(upgrades.extra_shield || 0, 1);
     this.shieldUp      = false; // must be deployed manually
 
@@ -181,14 +186,14 @@ class Ship {
     this.hasTripple = !!(upgrades.tripple_threat);
 
     // Fire rate — stack both multipliers if both owned (x1.5 * x3 = x4.5)
-    const baseFireRate = { starter: 22, plane_hamud: 22, plane_walla_yofi: 15, plane_very_scary: 22 }[this.jetType] || 22;
+    const baseFireRate = { starter: 22, plane_hamud: 22, plane_walla_yofi: 15, plane_very_scary: 22, plane_astrozoinker: 22 }[this.jetType] || 22;
     let rateDiv = 1;
     if (upgrades.pew_pew_15) rateDiv *= 1.5;
     if (upgrades.pew_pew_3)  rateDiv *= 3;
     this.fireRate = Math.max(Math.floor(baseFireRate / rateDiv), 4);
 
     // Rockets
-    const baseRockets = { starter: 0, plane_hamud: 2, plane_walla_yofi: 3, plane_very_scary: 4 }[this.jetType] || 0;
+    const baseRockets = { starter: 0, plane_hamud: 2, plane_walla_yofi: 3, plane_very_scary: 4, plane_astrozoinker: 8 }[this.jetType] || 0;
     const extraRocket = Math.min(upgrades.extra_rocket || 0, 1); // max 1 boost/game
     const kurwaBonus  = upgrades.kurwa_raketa ? 2 : 0;
     this.rocketAmmo   = baseRockets + extraRocket + kurwaBonus;
@@ -201,6 +206,7 @@ class Ship {
     this.hasCollector   = !!(upgrades.collector);
     this.hasAce         = !!(upgrades.ace_upgrade);
     this.hasZepZep      = !!(upgrades.zep_zep_zep);
+    this.hasHornetAssistant = !!(upgrades.hornet_assistant);
 
     // Skin
     this.skinId   = upgrades.skinId   || null;
@@ -213,6 +219,7 @@ class Ship {
       plane_hamud:      '#eeeeff',
       plane_walla_yofi: '#3399ff',
       plane_very_scary: '#bb44ff',
+      plane_astrozoinker: '#00eeff',
     };
     this.color = this.skinColor || jetDefaults[this.jetType] || '#eeeeff';
 
@@ -287,6 +294,7 @@ class Ship {
     if (this.golden) return C.golden;
     if (this.skinId === 'skin_beast') return rainbowColor(this.bobTimer, 1);
     if (this.skinId === 'skin_acid')  return acidColor(this.bobTimer);
+    if (this.skinId === 'skin_zion')  return zionColor(this.bobTimer);
     return this.color;
   }
 
@@ -309,6 +317,8 @@ class Ship {
       this._drawWallaYofi(ctx, col, sz);
     } else if (this.jetType === 'plane_very_scary') {
       this._drawVeryScary(ctx, col, sz);
+    } else if (this.jetType === 'plane_astrozoinker') {
+      this._drawAstrozoinker(ctx, col, sz);
     } else {
       this._drawStarter(ctx, col, sz);
     }
@@ -528,6 +538,56 @@ class Ship {
     this._drawFlame(ctx, purp, sz);
   }
 
+  _drawAstrozoinker(ctx, col, sz) {
+    const ac = this.accent || col;
+    // Hybrid: sharp starter nose, hamud wings, walla body lines, scary angular fins — intimidating
+    glow(ctx, col, 20);
+    ctx.strokeStyle = col; ctx.lineWidth = 2.2;
+    // Sharp pointed nose (starter-inspired, more aggressive)
+    ctx.beginPath();
+    ctx.moveTo(0, -sz * 1.15);
+    ctx.lineTo(sz * 0.5, sz * 0.25);
+    ctx.lineTo(sz * 0.25, sz * 0.55);
+    ctx.lineTo(0, sz * 0.35);
+    ctx.lineTo(-sz * 0.25, sz * 0.55);
+    ctx.lineTo(-sz * 0.5, sz * 0.25);
+    ctx.closePath();
+    ctx.stroke();
+    // Widened swept wings (hamud + very scary hybrid)
+    glow(ctx, ac, 12);
+    ctx.strokeStyle = ac; ctx.lineWidth = 1.8;
+    [-1, 1].forEach(side => {
+      ctx.beginPath();
+      ctx.moveTo(side * sz * 0.5, sz * 0.25);
+      ctx.lineTo(side * sz * 1.4, sz * 0.7);
+      ctx.lineTo(side * sz * 1.0, sz * 0.9);
+      ctx.lineTo(side * sz * 0.25, sz * 0.55);
+      ctx.closePath();
+      ctx.stroke();
+      // Canard spike (scary)
+      ctx.beginPath();
+      ctx.moveTo(side * sz * 0.2, -sz * 0.6);
+      ctx.lineTo(side * sz * 0.65, sz * 0.05);
+      ctx.lineTo(side * sz * 0.5, sz * 0.2);
+      ctx.closePath();
+      ctx.stroke();
+    });
+    // Spine + crossbar (starter + walla)
+    ctx.strokeStyle = col; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -sz * 1.15); ctx.lineTo(0, sz * 0.35);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-sz * 0.35, sz * 0.1); ctx.lineTo(sz * 0.35, sz * 0.1);
+    ctx.stroke();
+    // Cockpit glow
+    glow(ctx, ac, 12);
+    ctx.fillStyle = ac + '44';
+    ctx.beginPath(); ctx.ellipse(0, -sz * 0.4, sz * 0.14, sz * 0.22, 0, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    this._drawFlame(ctx, col, sz);
+  }
+
   _drawFlame(ctx, col, sz) {
     if (!this.thrusting) return;
     const flameSz = rng(6, 10);
@@ -718,6 +778,103 @@ class Ship {
     return false;
   }
 
+}
+
+// ── FriendlyJet (HORNET ASSISTANT) — invincible wingman for 20 sec ────────────
+class FriendlyJet {
+  constructor(x, y, ship) {
+    this.x = x; this.y = y;
+    this.vx = 0; this.vy = 0;
+    this.angle = Math.atan2(ship.y - y, ship.x - x) - Math.PI / 2;
+    this.timer = 20 * 60; // 20 seconds at 60fps
+    this.fireCooldown = 0;
+    this.fireRate = Math.floor(22 / 1.5); // 1.5x fire rate
+    this.skinId = ship.skinId || null;
+    this.skinColor = ship.skinColor || ship.color;
+    this.accent = ship.accent || '#ffffff';
+    this.radius = 14;
+    this.ship = ship;
+    this.bobTimer = 0;
+  }
+  _nearestTarget(g) {
+    let best = null; let bestD = 9999;
+    const check = (arr) => {
+      if (!arr) return;
+      arr.forEach(t => {
+        const d = dist(this, t);
+        if (d < bestD && d < 400) { bestD = d; best = t; }
+      });
+    };
+    check(g.asteroids);
+    check(g.redFighters);
+    check(g.yellowAliens);
+    check(g.orangeRockets);
+    return best;
+  }
+  update(g) {
+    this.timer--;
+    if (this.timer <= 0) return;
+    this.bobTimer++;
+    // Move toward player, orbit slightly behind
+    const dx = g.ship.x - this.x, dy = g.ship.y - this.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const wantDist = 90;
+    if (d > wantDist + 20) {
+      const pull = 0.08 * Math.min(1, (d - wantDist) / 80);
+      this.vx += (dx / d) * pull;
+      this.vy += (dy / d) * pull;
+    } else if (d < wantDist - 20) {
+      this.vx -= (dx / d) * 0.05;
+      this.vy -= (dy / d) * 0.05;
+    }
+    this.vx *= 0.94; this.vy *= 0.94;
+    const spd = Math.hypot(this.vx, this.vy);
+    if (spd > 3.5) { this.vx = (this.vx / spd) * 3.5; this.vy = (this.vy / spd) * 3.5; }
+    this.x = wrap(this.x + this.vx, 0, g.W);
+    this.y = wrap(this.y + this.vy, 0, g.H);
+    // Face nearest target or toward player
+    const t = this._nearestTarget(g);
+    if (t) {
+      this.angle = Math.atan2(t.y - this.y, t.x - this.x) - Math.PI / 2;
+    } else {
+      this.angle = Math.atan2(g.ship.y - this.y, g.ship.x - this.x) - Math.PI / 2;
+    }
+    // Shoot red bullets at 1.5 fire rate
+    if (this.fireCooldown > 0) this.fireCooldown--;
+    else if (t) {
+      const nose = { x: this.x + Math.cos(this.angle + Math.PI/2) * 12, y: this.y + Math.sin(this.angle + Math.PI/2) * 12 };
+      const ang = this.angle + Math.PI / 2;
+      g.bullets.push(new Bullet(nose.x, nose.y, ang, false));
+      this.fireCooldown = this.fireRate;
+    }
+  }
+  draw(ctx) {
+    if (this.timer <= 0) return;
+    const col = this.skinId === 'skin_zion' ? zionColor(this.bobTimer) : this.skinColor;
+    const ac = this.accent;
+    const sz = this.radius;
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle + Math.PI / 2);
+    glow(ctx, col, 14);
+    ctx.strokeStyle = col; ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(0, -sz);
+    ctx.lineTo(sz * 0.55, sz * 0.6);
+    ctx.lineTo(0, sz * 0.3);
+    ctx.lineTo(-sz * 0.55, sz * 0.6);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.strokeStyle = ac; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-sz * 0.38, sz * 0.15); ctx.lineTo(sz * 0.38, sz * 0.15);
+    ctx.stroke();
+    ctx.fillStyle = ac;
+    ctx.beginPath(); ctx.arc(0, -sz * 0.7, sz * 0.08, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+  get dead() { return this.timer <= 0; }
 }
 
 // ── Bullet ────────────────────────────────────────────────────────────────────
@@ -2071,6 +2228,7 @@ class Game {
     this.asteroids=[]; this.bullets=[]; this.enemyBullets=[];
     this.rockets=[]; this.playerRockets=[]; this.megaRaketas=[]; this.fireballs=[]; this.particles=[];
     this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[];
+    this.friendlyJets=[]; this._hornetSpawnedThisRun = false;
     this.coins=[]; this.mysteryPickups=[]; this.greenStars=[];
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
     this.redFighterTimer=0; this.yellowAlienTimer=0; this.orangeRocketTimer=0;
@@ -2111,7 +2269,7 @@ class Game {
     // ── Permanent upgrades ────────────────────────────────────────────────
     ['magen','pew_pew_15','pew_pew_3','jew_method','kurwa_raketa',
      'ace_upgrade','zep_zep_zep','shplit','tripple_threat','lazer_pew',
-     'smart_rocket','collector','score_x2','score_x3'].forEach(id => {
+     'smart_rocket','collector','score_x2','score_x3','hornet_assistant'].forEach(id => {
       if (this.upgrades[id]) ups[id] = 1;
     });
     // Score multiplier: x2 and x3 are permanent, stack to x6
@@ -2137,12 +2295,13 @@ class Game {
       skin_silver_surfer: { color:'#8ab4d4', accent:'#ddeeff' },
       skin_neon_dream:    { color:'#ff00cc', accent:'#00ffaa' },
       skin_desert_storm:  { color:'#d4a843', accent:'#ff8844' },
+      skin_zion:          { color:'zion' },
     };
 
     if (equippedSkin && this.upgrades[equippedSkin] && skinColors[equippedSkin]) {
       ups.skinId = equippedSkin;
       const sc = skinColors[equippedSkin];
-      if (sc.color !== 'rainbow' && sc.color !== 'acid') {
+      if (sc.color !== 'rainbow' && sc.color !== 'acid' && sc.color !== 'zion') {
         ups.skin_color = sc.color;
         if (sc.accent) ups.skin_accent = sc.accent;
       }
@@ -2435,6 +2594,23 @@ class Game {
       }
     }
     this.orangeRockets = this.orangeRockets.filter(or => !or.dead);
+
+    // HORNET ASSISTANT: spawn friendly jet when 2 lives or less (once per run)
+    if (!this._spawnFrozen && this.ship.hasHornetAssistant && !this._hornetSpawnedThisRun && this.ship.lives <= 2) {
+      this._hornetSpawnedThisRun = true;
+      const corners = [
+        { x: this.W * 0.08, y: this.H * 0.15 },
+        { x: this.W * 0.92, y: this.H * 0.15 },
+        { x: this.W * 0.08, y: this.H * 0.85 },
+        { x: this.W * 0.92, y: this.H * 0.85 },
+      ];
+      const pos = corners[rngInt(0, 3)];
+      this.friendlyJets.push(new FriendlyJet(pos.x, pos.y, this.ship));
+      new FloatingText(this.ship.x, this.ship.y - 40, 'HORNET ASSIST!', '#00ff88');
+    }
+    this.friendlyJets.forEach(fj => fj.update(this));
+    this.friendlyJets = this.friendlyJets.filter(fj => !fj.dead);
+
     this.coins.forEach(c => c.update());
     this.coins = this.coins.filter(c => !c.dead);
     this.mysteryPickups.forEach(m => m.update());
@@ -2987,6 +3163,7 @@ class Game {
     this.rockets.forEach(r=>r.draw(ctx));
     this.megaRaketas.forEach(mr=>mr.draw(ctx));
     this.playerRockets.forEach(r=>r.draw(ctx));
+    this.friendlyJets.forEach(fj=>fj.draw(ctx));
     this.redFighters.forEach(rf=>rf.draw(ctx));
     this.yellowAliens.forEach(ya=>ya.draw(ctx));
     this.orangeRockets.forEach(or=>or.draw(ctx));
@@ -3267,6 +3444,10 @@ class Game {
           <div class="guide-row">Shoot at distant coins or mystery boxes to collect them without flying over them. Great for grabbing pickups that are near enemies or far away.</div>
         </div>
         <div class="guide-section">
+          <span class="guide-h2">HORNET ASSISTANT <span class="guide-cost">5,880 $$</span></span>
+          <div class="guide-row">When you drop to 2 lives or less, a friendly jet spawns from the corner for 20 seconds. Uses your skin, fires red bullets at 1.5× rate, hunts enemies. Invincible — cannot be taken down.</div>
+        </div>
+        <div class="guide-section">
           <span class="guide-h2">SCORE x2 <span class="guide-cost">1,500 $$</span></span>
           <div class="guide-row">All score is doubled every run, permanently. Stacks with x3 for a combined <b>x6 multiplier</b>.</div>
         </div>
@@ -3282,12 +3463,13 @@ class Game {
           <div class="guide-row" style="margin-top:8px"><b>STARTER JET</b> <span class="guide-tag good">FREE</span><br>2 lives · 1 flare. Clean and simple. Perfect for learning the game.</div>
           <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">3,000 $$</span><br>3 lives · 2 flares · 2 rockets. Better loadout. An honest upgrade from Starter.</div>
           <div class="guide-row"><b>KILLAJET</b> <span class="guide-cost">6,500 $$</span><br>3 lives · 3 flares · 3 rockets · starts with SHIELD · ×1.5 fire rate. The aggressive choice. Fires faster than anything and starts shielded.</div>
-          <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">11,000 $$</span><br>4 lives · 4 flares · 4 rockets · 2 shields. The tank. Maximum survivability, most ammo, best for long survival runs.</div>
+          <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">8,800 $$</span><br>4 lives · 4 flares · 4 rockets · 2 shields. The tank. Maximum survivability, most ammo, best for long survival runs.</div>
+          <div class="guide-row"><b>ASTROZOINKER</b> <span class="guide-cost">69,000 $$</span><br>4 lives · 5 shields · 8 rockets. Ultimate hybrid jet — sharp, scary, endgame tier.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">SKINS</span>
           <div class="guide-row">Buy in STORE > SKINS. Equip in ARSENAL. Changes your jet's color and glow. Pure cosmetic — no gameplay effect.</div>
-          <div class="guide-row">Special skins: <b>BEAST</b> = animated rainbow hull. <b>ACID</b> = fast colour-cycling psychedelic glow. <b>SILVER SURFER</b> = icy silver-blue chrome.</div>
+          <div class="guide-row">Special skins: <b>BEAST</b> = animated rainbow hull. <b>ACID</b> = fast colour-cycling psychedelic glow. <b>ZION</b> = blue/white fast flash. <b>SILVER SURFER</b> = icy silver-blue chrome.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">STORE BOOSTS</span>
@@ -3386,12 +3568,13 @@ class Game {
     const equippedSkin = localStorage.getItem('meyaret_equip_skin') || null;
 
     // Jet info panel
-    const jetNames = { starter:'STARTER JET', plane_hamud:'HAMUDI', plane_walla_yofi:'KILLAJET', plane_very_scary:'VERY SCARY JET' };
+    const jetNames = { starter:'STARTER JET', plane_hamud:'HAMUDI', plane_walla_yofi:'KILLAJET', plane_very_scary:'VERY SCARY JET', plane_astrozoinker:'ASTROZOINKER' };
     const jetStats = {
       starter:          '2 LIVES · 1 FLARE',
       plane_hamud:      '3 LIVES · 2 FLARES · 2 ROCKETS',
       plane_walla_yofi: '3 LIVES · 3 FLARES · 3 ROCKETS · SHIELD · ×1.5 FIRE',
       plane_very_scary: '4 LIVES · 3 FLARES · 4 ROCKETS · SHIELD',
+      plane_astrozoinker: '4 LIVES · 5 SHIELDS · 8 ROCKETS',
     };
     const el = document.getElementById('ars-jet');      if (el) el.textContent = jetNames[equippedJet] || equippedJet.toUpperCase();
     const el2 = document.getElementById('ars-weapon'); if (el2) el2.textContent = this.upgrades.lazer_pew ? 'LAZER PEW' : this.upgrades.tripple_threat ? 'TRIPPLE THREAT' : this.upgrades.shplit ? 'SHPLIT' : 'STANDARD';
