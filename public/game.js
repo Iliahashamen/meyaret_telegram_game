@@ -252,12 +252,13 @@ class Ship {
       if (this.invTimer <= 0) this.invincible = false;
     }
 
-    const mf = this.tempMonsterFuelUntil > 0; // Monster Fuel: x3 wheel, x3 thrust
+    const mf = this.tempMonsterFuelUntil > 0;
+    const wheelActive = keys.left || keys.right || (keys.joyActive && (keys.joyMag || 0) > 0.05);
+    const mfSpeed = mf && wheelActive; // x3 speed only while using wheel, then back to normal
     const rotMult = mf ? 3 : 1;
-    const thrustMult = mf ? 3 : 1;
+    const thrustMult = mfSpeed ? 3 : 1;
     if (keys.joyActive && keys.joyAngle !== null) {
       this.angle = keys.joyAngle;
-      // Joystick magnitude drives base thrust; THRUST button = 3× boost; Monster Fuel = x3 thrust
       const boostMult = keys.up ? 3 : 1;
       const power = CFG.thrustPower * (keys.joyMag || 0) * boostMult * thrustMult;
       this.thrusting = keys.up;
@@ -272,7 +273,7 @@ class Ship {
           let diff = want - cur;
           while (diff > Math.PI) diff -= TAU;
           while (diff < -Math.PI) diff += TAU;
-          const align = mf ? 0.75 : 0.25; // Monster Fuel: wheel snaps 3× faster to joystick
+          const align = mfSpeed ? 0.8 : 0.25;
           const nang = cur + diff * align;
           this.vx = Math.cos(nang) * spd;
           this.vy = Math.sin(nang) * spd;
@@ -288,11 +289,11 @@ class Ship {
       }
     }
     const spd = Math.hypot(this.vx, this.vy);
-    // Higher cap when boosting (THRUST button held)
     const baseMax = this.golden ? 6 : (keys.up ? 5.5 : 3.8);
-    const max = this.tempMonsterFuelUntil > 0 ? baseMax * 3 : baseMax; // Monster Fuel = x3 speed
+    const max = mfSpeed ? baseMax * 3 : baseMax;
     if (spd > max) { this.vx = (this.vx / spd) * max; this.vy = (this.vy / spd) * max; }
-    this.vx *= CFG.friction; this.vy *= CFG.friction;
+    const friction = mfSpeed ? 0.98 : CFG.friction;
+    this.vx *= friction; this.vy *= friction;
     this.x = wrap(this.x + this.vx, 0, W);
     this.y = wrap(this.y + this.vy, 0, H);
     if (this.fireCooldown > 0) this.fireCooldown--;
@@ -3617,7 +3618,7 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h1">MONSTER FUEL <span class="guide-tag rare">RARE</span></span>
-          <div class="guide-row">A glowing white energy drink can. Spawns every <b>2–3 minutes</b>, less common than $ or ?. Hover or fly through to collect. Grants <b>15 seconds</b> of <b>×3 wheel rotation</b>, <b>×3 thrust</b>, and an <b>automatic white glowing shield</b>. Hold thrust for maximum zoom.</div>
+          <div class="guide-row">A glowing white energy drink can. Spawns every <b>2–3 minutes</b>. Hover or fly through to collect. Grants <b>15 seconds</b> of white shield. While you <b>steer</b> (wheel/joystick), jet moves <b>×3 faster</b> — release to return to normal speed.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">GREEN STAR <span class="guide-tag rare">VERY RARE</span></span>
