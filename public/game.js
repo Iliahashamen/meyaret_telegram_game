@@ -252,12 +252,15 @@ class Ship {
       if (this.invTimer <= 0) this.invincible = false;
     }
 
+    const mf = this.tempMonsterFuelUntil > 0; // Monster Fuel: x3 wheel, x3 thrust
+    const rotMult = mf ? 3 : 1;
+    const thrustMult = mf ? 3 : 1;
     if (keys.joyActive && keys.joyAngle !== null) {
       this.angle = keys.joyAngle;
-      // Joystick magnitude drives base thrust; THRUST button = 3× boost
+      // Joystick magnitude drives base thrust; THRUST button = 3× boost; Monster Fuel = x3 thrust
       const boostMult = keys.up ? 3 : 1;
-      const power = CFG.thrustPower * (keys.joyMag || 0) * boostMult;
-      this.thrusting = keys.up; // flame only when boost button held
+      const power = CFG.thrustPower * (keys.joyMag || 0) * boostMult * thrustMult;
+      this.thrusting = keys.up;
       if (power > 0) {
         const tx = Math.cos(keys.joyAngle) * power;
         const ty = Math.sin(keys.joyAngle) * power;
@@ -269,18 +272,19 @@ class Ship {
           let diff = want - cur;
           while (diff > Math.PI) diff -= TAU;
           while (diff < -Math.PI) diff += TAU;
-          const nang = cur + diff * 0.25;
+          const align = mf ? 0.75 : 0.25; // Monster Fuel: wheel snaps 3× faster to joystick
+          const nang = cur + diff * align;
           this.vx = Math.cos(nang) * spd;
           this.vy = Math.sin(nang) * spd;
         }
       }
     } else {
-      if (keys.left)  this.angle -= CFG.rotSpeed;
-      if (keys.right) this.angle += CFG.rotSpeed;
+      if (keys.left)  this.angle -= CFG.rotSpeed * rotMult;
+      if (keys.right) this.angle += CFG.rotSpeed * rotMult;
       this.thrusting = keys.up;
       if (keys.up) {
-        this.vx += Math.cos(this.angle) * CFG.thrustPower;
-        this.vy += Math.sin(this.angle) * CFG.thrustPower;
+        this.vx += Math.cos(this.angle) * CFG.thrustPower * thrustMult;
+        this.vy += Math.sin(this.angle) * CFG.thrustPower * thrustMult;
       }
     }
     const spd = Math.hypot(this.vx, this.vy);
@@ -3187,7 +3191,7 @@ class Game {
 
   _activateMonsterFuel(pickup) {
     const ship = this.ship;
-    ship.tempMonsterFuelUntil = 600; // 10 seconds
+    ship.tempMonsterFuelUntil = 900; // 15 seconds
     SFX.mysteryPickup();
     burst(this.particles, pickup.x, pickup.y, '#ffffff', 18, 4, 35);
     new FloatingText(pickup.x, pickup.y - 25, 'MONSTER FUEL!', '#ffffff');
@@ -3613,7 +3617,7 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h1">MONSTER FUEL <span class="guide-tag rare">RARE</span></span>
-          <div class="guide-row">A glowing white energy drink can. Spawns every <b>2–3 minutes</b>, less common than $ or ?. Hover or fly through to collect. Grants <b>10 seconds</b> of <b>×3 speed</b> and an <b>automatic white glowing shield</b> that absorbs all damage. Zoom across the map unharmed.</div>
+          <div class="guide-row">A glowing white energy drink can. Spawns every <b>2–3 minutes</b>, less common than $ or ?. Hover or fly through to collect. Grants <b>15 seconds</b> of <b>×3 wheel rotation</b>, <b>×3 thrust</b>, and an <b>automatic white glowing shield</b>. Hold thrust for maximum zoom.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">GREEN STAR <span class="guide-tag rare">VERY RARE</span></span>
