@@ -5,6 +5,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Bot, webhookCallback } from 'grammy';
+import { autoRetry } from '@grammyjs/auto-retry';
 
 import { usersRouter }  from './routes/users.js';
 import { scoresRouter } from './routes/scores.js';
@@ -68,7 +69,18 @@ app.get('*', (req, res) => {
 });
 
 // ── Telegram Bot Setup ────────────────────────────────────────────────────────
-const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN);
+// Trim token — Railway/env often adds trailing newline, which breaks API calls
+const BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+const bot = new Bot(BOT_TOKEN);
+
+// Auto-retry on ETIMEDOUT — 1 retry, max 2s wait (avoids long hangs; 3 retries + backoff felt like "not responding")
+bot.api.config.use(autoRetry({ maxRetryAttempts: 1, maxDelaySeconds: 2 }));
+
+// Catch handler errors (ETIMEDOUT, etc.) so they don’t surface as unhandledRejection
+bot.catch((err) => {
+  const msg = err?.error?.message || err?.message || String(err);
+  console.warn('[bot] Handler error:', msg);
+});
 
 const GAME_URL = process.env.MINI_APP_URL;
 
@@ -878,8 +890,7 @@ bot.callbackQuery('promo_cancel', async (ctx) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
-  const WEBHOOK_BASE = process.env.WEBHOOK_URL.trim();           // strip newlines/spaces
-  const BOT_TOKEN    = process.env.TELEGRAM_BOT_TOKEN.trim();
+  const WEBHOOK_BASE = (process.env.WEBHOOK_URL || '').trim();
   const webhookPath  = `/bot${BOT_TOKEN}`;
   app.use(webhookPath, webhookCallback(bot, 'express'));
 
@@ -900,12 +911,13 @@ if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
         console.log('[bot] Webhook set →', fullUrl);
         break;
       } catch (err) {
+        const msg = err?.description || err?.message || String(err);
         const retryAfter = err?.parameters?.retry_after ?? attempt * 2;
         if (attempt < 5) {
-          console.warn(`[bot] setWebhook attempt ${attempt} failed (${err.description}), retrying in ${retryAfter}s…`);
+          console.warn(`[bot] setWebhook attempt ${attempt} failed (${msg}), retrying in ${retryAfter}s…`);
           await new Promise(r => setTimeout(r, retryAfter * 1000));
         } else {
-          console.error('[bot] setWebhook failed after 5 attempts:', err.description);
+          console.error('[bot] setWebhook failed after 5 attempts:', msg);
         }
       }
     }

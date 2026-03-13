@@ -15,7 +15,7 @@ export function requireTelegramAuth(req, res, next) {
     return res.status(401).json({ error: 'Missing Telegram auth header.' });
   }
 
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
   if (!token) {
     console.error('[auth] ERROR — TELEGRAM_BOT_TOKEN not set in environment!');
     return res.status(500).json({ error: 'Server config error.' });

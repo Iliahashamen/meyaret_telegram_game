@@ -106,9 +106,12 @@ function acidColor(t) {
   return `hsl(${h}, ${s}%, ${l}%)`;
 }
 function zionColor(t) {
-  // Fast blue/white flash — alternates between blue and white
-  const phase = (t * 0.5) % 2;
-  return phase < 1 ? '#0088ff' : '#ffffff';
+  // Gentle blue/white pulse — slower cycle, softer blend (less flashy)
+  const mix = 0.5 + 0.5 * Math.sin(t * 0.04);
+  const r = Math.round(0 + (136 - 0) * mix);
+  const g = Math.round(136 + (200 - 136) * mix);
+  const b = Math.round(255);
+  return `rgb(${r},${g},${b})`;
 }
 
 // ── Particle ──────────────────────────────────────────────────────────────────
@@ -232,6 +235,7 @@ class Ship {
     this.tempRapidUntil      = 0;
     this.tempPowerBoostUntil = 0;
     this.tempStarUntil       = 0;
+    this.tempMonsterFuelUntil = 0;
     this.tempSuperBeamUntil  = 0;
     this.starShieldLayers    = 0;
     this.fireballReady       = false;
@@ -281,7 +285,8 @@ class Ship {
     }
     const spd = Math.hypot(this.vx, this.vy);
     // Higher cap when boosting (THRUST button held)
-    const max = this.golden ? 6 : (keys.up ? 5.5 : 3.8);
+    const baseMax = this.golden ? 6 : (keys.up ? 5.5 : 3.8);
+    const max = this.tempMonsterFuelUntil > 0 ? baseMax * 3 : baseMax; // Monster Fuel = x3 speed
     if (spd > max) { this.vx = (this.vx / spd) * max; this.vy = (this.vy / spd) * max; }
     this.vx *= CFG.friction; this.vy *= CFG.friction;
     this.x = wrap(this.x + this.vx, 0, W);
@@ -337,6 +342,15 @@ class Ship {
       glow(ctx, '#00aaff', 16);
       ctx.lineWidth = 1.8;
       ctx.beginPath(); ctx.arc(0, 0, sz + 8, 0, TAU); ctx.stroke();
+    }
+
+    // Monster Fuel — auto white glowing shield
+    if (this.tempMonsterFuelUntil > 0) {
+      const pulse = 0.6 + Math.sin(this.bobTimer * 0.2) * 0.4;
+      glow(ctx, '#ffffff', 22 * pulse);
+      ctx.strokeStyle = `rgba(255,255,255,${0.7 * pulse})`;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(0, 0, sz + 10, 0, TAU); ctx.stroke();
     }
 
     // Fireball ready — pulsing orange glow on nose
@@ -456,7 +470,7 @@ class Ship {
   }
 
   _drawVeryScary(ctx, col, sz) {
-    const purp = this.skinColor || '#bb44ff';
+    const purp = col; // use passed color so skins (zion, beast, etc.) work on all jets
 
     // Engine glow aura
     glow(ctx, purp, 22);
@@ -753,6 +767,7 @@ class Ship {
 
   hit(particles) {
     if (this.invincible || this.spawnProtection > 0) return false;
+    if (this.tempMonsterFuelUntil > 0) return false; // Monster Fuel white shield absorbs hit
     if (this.starShieldLayers > 0) {
       this.starShieldLayers--;
       this.invincible = true;
@@ -785,10 +800,10 @@ class FriendlyJet {
   constructor(x, y, ship) {
     this.x = x; this.y = y;
     this.vx = 0; this.vy = 0;
-    this.angle = Math.atan2(ship.y - y, ship.x - x) - Math.PI / 2;
+    this.angle = Math.atan2(ship.y - y, ship.x - x); // same convention as Ship: forward = (cos,sin)
     this.timer = 20 * 60; // 20 seconds at 60fps
     this.fireCooldown = 0;
-    this.fireRate = Math.floor(22 / 1.5); // 1.5x fire rate
+    this.fireRate = Math.floor(22 / 2); // 2x fire rate
     this.skinId = ship.skinId || null;
     this.skinColor = ship.skinColor || ship.color;
     this.accent = ship.accent || '#ffffff';
@@ -832,19 +847,18 @@ class FriendlyJet {
     if (spd > 3.5) { this.vx = (this.vx / spd) * 3.5; this.vy = (this.vy / spd) * 3.5; }
     this.x = wrap(this.x + this.vx, 0, g.W);
     this.y = wrap(this.y + this.vy, 0, g.H);
-    // Face nearest target or toward player
+    // Face nearest target (or player) — same angle convention as Ship: forward = (cos(angle), sin(angle))
     const t = this._nearestTarget(g);
-    if (t) {
-      this.angle = Math.atan2(t.y - this.y, t.x - this.x) - Math.PI / 2;
-    } else {
-      this.angle = Math.atan2(g.ship.y - this.y, g.ship.x - this.x) - Math.PI / 2;
-    }
-    // Shoot red bullets at 1.5 fire rate
+    const tx = t ? t.x : g.ship.x, ty = t ? t.y : g.ship.y;
+    this.angle = Math.atan2(ty - this.y, tx - this.x);
+    // Shoot like SHPLIT — 2 parallel bullets, 2x fire rate
     if (this.fireCooldown > 0) this.fireCooldown--;
     else if (t) {
-      const nose = { x: this.x + Math.cos(this.angle + Math.PI/2) * 12, y: this.y + Math.sin(this.angle + Math.PI/2) * 12 };
-      const ang = this.angle + Math.PI / 2;
-      g.bullets.push(new Bullet(nose.x, nose.y, ang, false));
+      const nose = { x: this.x + Math.cos(this.angle) * 12, y: this.y + Math.sin(this.angle) * 12 };
+      const perp = this.angle + Math.PI / 2;
+      const ox = Math.cos(perp) * 10, oy = Math.sin(perp) * 10;
+      g.bullets.push(new Bullet(nose.x + ox, nose.y + oy, this.angle, false));
+      g.bullets.push(new Bullet(nose.x - ox, nose.y - oy, this.angle, false));
       this.fireCooldown = this.fireRate;
     }
   }
@@ -855,7 +869,7 @@ class FriendlyJet {
     const sz = this.radius;
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.rotate(this.angle + Math.PI / 2);
+    ctx.rotate(this.angle + Math.PI / 2); // same as Ship: nose points (cos(angle), sin(angle))
     glow(ctx, col, 14);
     ctx.strokeStyle = col; ctx.lineWidth = 1.8;
     ctx.beginPath();
@@ -1268,6 +1282,55 @@ class MysteryPickup {
   get dead() { return this.life <= 0; }
 }
 
+// ── Monster Fuel Pickup (energy drink — x3 speed + white shield 10 sec) ──────
+class MonsterFuelPickup {
+  constructor(x, y) { this.x = x; this.y = y; this.radius = 18; this.life = 300; }
+  update() { this.life--; }
+  draw(ctx) {
+    const pulse = Math.sin(Date.now() * 0.012) * 0.3 + 0.75;
+    ctx.globalAlpha = pulse;
+    glow(ctx, '#ffffff', 24);
+    glow(ctx, '#e8e8ff', 18);
+    // Retro energy-drink can shape (Monster-style, no logo): tall slim can, glowing white
+    const w = 10, h = 22;
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    // Can body — rounded rect (slim vertical)
+    const r = 3, x = -w, y = -h * 0.4, bw = w * 2, bh = h;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + bw - r, y);
+    ctx.arcTo(x + bw, y, x + bw, y + r, r);
+    ctx.lineTo(x + bw, y + bh - r);
+    ctx.arcTo(x + bw, y + bh, x + bw - r, y + bh, r);
+    ctx.lineTo(x + r, y + bh);
+    ctx.arcTo(x, y + bh, x, y + bh - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.fill();
+    ctx.stroke();
+    // Lid/top — trapezoid cap
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.7, -h * 0.4);
+    ctx.lineTo(w * 0.7, -h * 0.4);
+    ctx.lineTo(w * 0.5, -h * 0.55);
+    ctx.lineTo(-w * 0.5, -h * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Center stripe (retro accent)
+    ctx.fillStyle = 'rgba(200,220,255,0.6)';
+    ctx.fillRect(-2, -h * 0.35, 4, h * 0.7);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+  get dead() { return this.life <= 0; }
+}
+
 // ── Green Star Booster Pickup ─────────────────────────────────────────────────
 class GreenStarPickup {
   constructor(x, y) { this.x = x; this.y = y; this.radius = 15; this.life = 180; } // 3 sec
@@ -1597,9 +1660,10 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
   const FONT = '"Press Start 2P", "Courier New", monospace';
 
   // Build ordered warning list
-  // warnings: { jets, rockets, aliens, asteroids, overdrive, lowLife }
+  // warnings: { jets, rockets, aliens, asteroids, overdrive, monsterFuel, lowLife }
   const warnLines = [];
-  if (warnings?.overdrive)  warnLines.push({ text: 'BEAST MODE',      col: '#33ff88' });
+  if (warnings?.overdrive)   warnLines.push({ text: 'BEAST MODE',      col: '#33ff88' });
+  if (warnings?.monsterFuel) warnLines.push({ text: 'MONSTER FUEL',    col: '#ffffff' });
   if (warnings?.jets)       warnLines.push({ text: 'JET INCOMING',    col: '#ff3333' });
   if (warnings?.rockets)    warnLines.push({ text: 'ROCKET INCOMING', col: '#ff6600' });
   if (warnings?.aliens)     warnLines.push({ text: 'ALIENS!',         col: '#ffee00' });
@@ -1878,13 +1942,14 @@ class Game {
     this.asteroids = []; this.bullets = []; this.enemyBullets = [];
     this.rockets = []; this.playerRockets = []; this.fireballs = []; this.particles = [];
     this.redFighters = []; this.yellowAliens = []; this.orangeRockets = [];
-    this.coins = []; this.mysteryPickups = []; this.greenStars = [];
+    this.coins = []; this.mysteryPickups = []; this.greenStars = []; this.monsterFuels = [];
 
     this.score = 0; this.level = 1; this.tick = 0; this.paused = false;
     this.activeMultiplier = 1.0;
     this.redFighterTimer = 0; this.yellowAlienTimer = 0; this.orangeRocketTimer = 0;
     this.runShmipsBonus = 0; this.pickupSpawnTimer = 0;
     this.greenStarTimer = rngInt(60 * 90, 60 * 150); // once every 1.5-2.5 min
+    this.monsterFuelTimer = rngInt(60 * 180, 60 * 240); // once every 3-4 min
 
     this.keys = { left:false, right:false, up:false, fire:false, flare:false, rocket:false, shield:false, joyActive:false, joyAngle:null };
     this._lastFrameTs = 0; this._accum = 0;
@@ -2229,11 +2294,12 @@ class Game {
     this.rockets=[]; this.playerRockets=[]; this.megaRaketas=[]; this.fireballs=[]; this.particles=[];
     this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[];
     this.friendlyJets=[]; this._hornetSpawnedThisRun = false;
-    this.coins=[]; this.mysteryPickups=[]; this.greenStars=[];
+    this.coins=[]; this.mysteryPickups=[]; this.greenStars=[]; this.monsterFuels=[];
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
     this.redFighterTimer=0; this.yellowAlienTimer=0; this.orangeRocketTimer=0;
     this.asteroidSpawnTimer=0; this._lastMusicTier=1;
     this.greenStarTimer=rngInt(60 * 90, 60 * 150);
+    this.monsterFuelTimer=rngInt(60 * 180, 60 * 240);
     this.runScoreMultiplier=1; // set to 2 if x2 score boost active
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
@@ -2389,17 +2455,20 @@ class Game {
 
   _maintainAsteroids() {
     const timeS = this.gameTime / 60;
+    const chaos = timeS >= 900; // 15 min+ = chaos mode
 
     // During dogfight (red fighters or homing rockets active) keep the field sparse —
-    // just enough rocks to use as cover, not so many it becomes chaos
+    // just enough rocks to use as cover; in chaos mode allow more
     const dogfight = (this.redFighters?.length > 0) || (this.orangeRockets?.length > 0);
+    const baseRamp = 4 + Math.floor(timeS / 10); // ramp a bit faster over time
     const targetCount = dogfight
-      ? 3                                                         // dogfight: 3 rocks max
-      : Math.min(4 + Math.floor(timeS / 12), 20);                // normal ramp
+      ? (chaos ? 6 : 3)                                           // dogfight: 3 rocks normally, 6 in chaos
+      : Math.min(baseRamp + (chaos ? 8 : 0), chaos ? 28 : 20);   // chaos: +8 target, cap 28
 
     // Note: we never cull existing asteroids — they stay as cover during dogfights
 
-    const spawnInterval = Math.max(100 - Math.floor(timeS * 0.4), 30);
+    const baseInterval = Math.max(100 - Math.floor(timeS * 0.5), 25); // ramp spawn speed over time
+    const spawnInterval = chaos ? Math.max(baseInterval - 15, 18) : baseInterval;
     this.asteroidSpawnTimer++;
     if (this.asteroidSpawnTimer >= spawnInterval && this.asteroids.length < targetCount) {
       this.asteroidSpawnTimer = 0;
@@ -2470,12 +2539,13 @@ class Game {
     if (this.ship.tempRapidUntil > 0)      this.ship.tempRapidUntil--;
     if (this.ship.tempPowerBoostUntil > 0) this.ship.tempPowerBoostUntil--;
     if (this.ship.tempStarUntil > 0)       this.ship.tempStarUntil--;
+    if (this.ship.tempMonsterFuelUntil > 0) this.ship.tempMonsterFuelUntil--;
     if (this.ship.tempSuperBeamUntil > 0) this.ship.tempSuperBeamUntil--;
 
     // JEW METHOD: magnet — strong pull with non-linear falloff
     if (this.ship.hasMagnet) {
       const MAGNET_R = 300, MAGNET_F = 1.8;
-      [...this.coins, ...this.mysteryPickups].forEach(p => {
+      [...this.coins, ...this.mysteryPickups, ...this.monsterFuels].forEach(p => {
         const d = dist(this.ship, p);
         if (d > 0 && d < MAGNET_R) {
           const ang   = Math.atan2(this.ship.y - p.y, this.ship.x - p.x);
@@ -2505,33 +2575,46 @@ class Game {
     // Skip enemy spawns during spawn-freeze grace period
     if (this._spawnFrozen) { /* no spawns */ }
     else {
-    // Yellow aliens: appear after 50 seconds, one at a time
-    const alienInterval = Math.max(1200 - Math.floor(timeS * 1.5), 500);
+    const chaos = timeS >= 900; // 15 min+ = chaos mode — more enemies, faster spawns
+
+    // Yellow aliens: appear after 50 seconds; in chaos allow 2
+    const alienMax = chaos ? 2 : 1;
+    const alienInterval = chaos
+      ? Math.max(800 - Math.floor(timeS * 2), 350)
+      : Math.max(1200 - Math.floor(timeS * 1.5), 500);
     this.yellowAlienTimer++;
     if (this.yellowAlienTimer > alienInterval && timeS >= 50) {
       this.yellowAlienTimer = 0;
-      if (this.yellowAliens.length < 1) {
+      if (this.yellowAliens.length < alienMax) {
         const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
     }
-    // Red fighters: appear after 3 minutes, scale with time
-    const redInterval = Math.max(1200 - Math.floor(timeS * 1.2), 450);
+    // Red fighters: appear after 3 minutes, scale with time; chaos = higher cap + faster
+    const redCapBase = Math.max(1, Math.floor((timeS - 150) / 80));
+    const redCap = chaos ? redCapBase + Math.floor(timeS / 600) : redCapBase;
+    const redInterval = chaos
+      ? Math.max(900 - Math.floor(timeS * 2), 320)
+      : Math.max(1200 - Math.floor(timeS * 1.2), 450);
     this.redFighterTimer++;
     if (this.redFighterTimer > redInterval && timeS >= 180) {
       this.redFighterTimer = 0;
-      if (this.redFighters.length < Math.max(1, Math.floor((timeS - 150) / 80))) {
+      if (this.redFighters.length < redCap) {
         const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
-    // Orange homing rockets: appear after 3–4 minutes (180–240 s)
-    const orangeStart = 210; // ~3.5 min average
-    const orangeInterval = Math.max(900 - Math.floor((timeS - orangeStart) * 1.2), 300);
+    // Orange homing rockets: appear after 3–4 minutes; chaos = more rockets (capped so it's playable)
+    const orangeStart = 210;
+    const orangeCapBase = 1 + Math.floor((timeS - orangeStart) / 90);
+    const orangeCap = Math.min(chaos ? orangeCapBase + 1 : orangeCapBase, chaos ? 6 : 4);
+    const orangeInterval = chaos
+      ? Math.max(700 - Math.floor((timeS - orangeStart) * 2), 220)
+      : Math.max(900 - Math.floor((timeS - orangeStart) * 1.2), 300);
     this.orangeRocketTimer++;
     if (this.orangeRocketTimer > orangeInterval && timeS >= orangeStart) {
       this.orangeRocketTimer = 0;
-      if (this.orangeRockets.length < 1 + Math.floor((timeS - orangeStart) / 90)) {
+      if (this.orangeRockets.length < orangeCap) {
         const { x, y } = this._edgeSpawn();
         this.orangeRockets.push(new OrangeHomingRocket(x, y));
       }
@@ -2617,6 +2700,8 @@ class Game {
     this.mysteryPickups = this.mysteryPickups.filter(m => !m.dead);
     this.greenStars.forEach(s => s.update());
     this.greenStars = this.greenStars.filter(s => !s.dead);
+    this.monsterFuels.forEach(m => m.update());
+    this.monsterFuels = this.monsterFuels.filter(m => !m.dead);
 
     // Green Star booster spawn: one star every 3-5 minutes, stays 3s
     this.greenStarTimer--;
@@ -2630,6 +2715,20 @@ class Game {
       if (dist(this.greenStars[si], this.ship) < this.ship.radius + this.greenStars[si].radius + 10) {
         this._activateGreenStar(this.greenStars[si]);
         this.greenStars.splice(si, 1);
+      }
+    }
+
+    // Monster Fuel spawn: every 3-4 minutes, less common than $ and ?
+    this.monsterFuelTimer--;
+    if (this.monsterFuelTimer <= 0 && this.monsterFuels.length === 0) {
+      const p = this._findSafeSpawnPoint(80, this.ship, 190);
+      this.monsterFuels.push(new MonsterFuelPickup(p.x, p.y));
+      this.monsterFuelTimer = rngInt(60 * 180, 60 * 240);
+    }
+    for (let mi = this.monsterFuels.length - 1; mi >= 0; mi--) {
+      if (dist(this.monsterFuels[mi], this.ship) < this.ship.radius + this.monsterFuels[mi].radius + 12) {
+        this._activateMonsterFuel(this.monsterFuels[mi]);
+        this.monsterFuels.splice(mi, 1);
       }
     }
 
@@ -2677,6 +2776,15 @@ class Game {
             if (dist(b, this.mysteryPickups[mi]) < this.mysteryPickups[mi].radius + b.radius) {
               this._applyMysteryReward(this.mysteryPickups[mi].x, this.mysteryPickups[mi].y);
               this.mysteryPickups.splice(mi, 1);
+              hit = true; break;
+            }
+          }
+        }
+        if (!hit) {
+          for (let mi = this.monsterFuels.length-1; mi >= 0; mi--) {
+            if (dist(b, this.monsterFuels[mi]) < this.monsterFuels[mi].radius + b.radius) {
+              this._activateMonsterFuel(this.monsterFuels[mi]);
+              this.monsterFuels.splice(mi, 1);
               hit = true; break;
             }
           }
@@ -3077,6 +3185,14 @@ class Game {
     }
   }
 
+  _activateMonsterFuel(pickup) {
+    const ship = this.ship;
+    ship.tempMonsterFuelUntil = 600; // 10 seconds
+    SFX.mysteryPickup();
+    burst(this.particles, pickup.x, pickup.y, '#ffffff', 18, 4, 35);
+    new FloatingText(pickup.x, pickup.y - 25, 'MONSTER FUEL!', '#ffffff');
+  }
+
   _activateGreenStar(star) {
     const ship = this.ship;
     ship.tempStarUntil = 600; // 10 seconds
@@ -3156,6 +3272,7 @@ class Game {
     this.particles.forEach(p=>p.draw(ctx));
     this.coins.forEach(c=>c.draw(ctx));
     this.mysteryPickups.forEach(m=>m.draw(ctx));
+    this.monsterFuels.forEach(m=>m.draw(ctx));
     this.greenStars.forEach(s=>s.draw(ctx));
     this.asteroids.forEach(a=>a.draw(ctx));
     this.bullets.forEach(b=>b.draw(ctx));
@@ -3181,7 +3298,8 @@ class Game {
       shieldCharges:  this.ship?.shieldCharges ?? 0,
       scoreX2:        (this.runScoreMultiplier || 1),
       warnings: {
-        overdrive: this.ship?.isStarOverdrive  || false,
+        overdrive:    this.ship?.isStarOverdrive     || false,
+        monsterFuel: (this.ship?.tempMonsterFuelUntil || 0) > 0,
         jets:      (this.redFighters?.length   || 0) > 0,
         rockets:   (this.orangeRockets?.length || 0) > 0,
         aliens:    (this.yellowAliens?.length  || 0) > 0,
@@ -3409,7 +3527,7 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h2">JEW METHOD <span class="guide-cost">900 $$</span> — Magnet</span>
-          <div class="guide-row">All coins ($$) and Mystery boxes (?) are pulled toward your jet from much further away. You barely need to aim for pickups. Makes shmip farming significantly faster.</div>
+          <div class="guide-row">All coins ($$), Mystery boxes (?), and Monster Fuel are pulled toward your jet from much further away. You barely need to aim for pickups. Makes shmip farming significantly faster.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h2">KURWA RAKETA <span class="guide-cost">1,200 $$</span></span>
@@ -3441,11 +3559,11 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h2">COLLECTOR <span class="guide-cost">1,100 $$</span></span>
-          <div class="guide-row">Shoot at distant coins or mystery boxes to collect them without flying over them. Great for grabbing pickups that are near enemies or far away.</div>
+          <div class="guide-row">Shoot at distant coins, mystery boxes, or Monster Fuel to collect them without flying over them. Great for grabbing pickups that are near enemies or far away.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h2">HORNET ASSISTANT <span class="guide-cost">5,880 $$</span></span>
-          <div class="guide-row">When you drop to 2 lives or less, a friendly jet spawns from the corner for 20 seconds. Uses your skin, fires red bullets at 1.5× rate, hunts enemies. Invincible — cannot be taken down.</div>
+          <div class="guide-row">When you drop to 2 lives or less, a friendly jet spawns from the corner for 20 seconds. Uses your skin, fires SHPLIT-style dual bullets at 2× rate, hunts enemies. Invincible — cannot be taken down.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h2">SCORE x2 <span class="guide-cost">1,500 $$</span></span>
@@ -3492,6 +3610,10 @@ class Game {
           <div class="guide-row">• Double Damage — your next few shots one-shot anything</div>
           <div class="guide-row">• <span class="guide-tag rare">RARE</span> FIREBALL — "FIREBALL READY" appears. Next shot fires a giant ball that detonates into fragments destroying everything on screen.</div>
           <div class="guide-row">• <span class="guide-tag rare">RARE</span> SUPER RAKETA — "SUPER RAKETA!" appears. Next shot fires a glowing green rocket that splits into 6 homing mini-rockets that search and destroy targets.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">MONSTER FUEL <span class="guide-tag rare">RARE</span></span>
+          <div class="guide-row">A glowing white energy drink can. Spawns every <b>3–4 minutes</b>, less common than $ or ?. Hover or fly through to collect. Grants <b>10 seconds</b> of <b>×3 speed</b> and an <b>automatic white glowing shield</b> that absorbs all damage. Zoom across the map unharmed.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">GREEN STAR <span class="guide-tag rare">VERY RARE</span></span>

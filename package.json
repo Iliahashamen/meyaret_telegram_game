@@ -10,6 +10,7 @@
     "setup-db": "node scripts/setup-db.js"
   },
   "dependencies": {
+    "@grammyjs/auto-retry": "^2.0.2",
     "@supabase/supabase-js": "^2.39.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",
