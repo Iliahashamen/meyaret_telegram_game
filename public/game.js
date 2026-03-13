@@ -1949,7 +1949,7 @@ class Game {
     this.redFighterTimer = 0; this.yellowAlienTimer = 0; this.orangeRocketTimer = 0;
     this.runShmipsBonus = 0; this.pickupSpawnTimer = 0;
     this.greenStarTimer = rngInt(60 * 90, 60 * 150); // once every 1.5-2.5 min
-    this.monsterFuelTimer = rngInt(60 * 180, 60 * 240); // once every 3-4 min
+    this.monsterFuelTimer = rngInt(60 * 120, 60 * 180); // once every 2-3 min
 
     this.keys = { left:false, right:false, up:false, fire:false, flare:false, rocket:false, shield:false, joyActive:false, joyAngle:null };
     this._lastFrameTs = 0; this._accum = 0;
@@ -2299,7 +2299,7 @@ class Game {
     this.redFighterTimer=0; this.yellowAlienTimer=0; this.orangeRocketTimer=0;
     this.asteroidSpawnTimer=0; this._lastMusicTier=1;
     this.greenStarTimer=rngInt(60 * 90, 60 * 150);
-    this.monsterFuelTimer=rngInt(60 * 180, 60 * 240);
+    this.monsterFuelTimer=rngInt(60 * 120, 60 * 180);
     this.runScoreMultiplier=1; // set to 2 if x2 score boost active
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
@@ -2723,7 +2723,7 @@ class Game {
     if (this.monsterFuelTimer <= 0 && this.monsterFuels.length === 0) {
       const p = this._findSafeSpawnPoint(80, this.ship, 190);
       this.monsterFuels.push(new MonsterFuelPickup(p.x, p.y));
-      this.monsterFuelTimer = rngInt(60 * 180, 60 * 240);
+      this.monsterFuelTimer = rngInt(60 * 120, 60 * 180);
     }
     for (let mi = this.monsterFuels.length - 1; mi >= 0; mi--) {
       if (dist(this.monsterFuels[mi], this.ship) < this.ship.radius + this.monsterFuels[mi].radius + 12) {
@@ -3514,51 +3514,51 @@ class Game {
           <div class="guide-row">Bought once in STORE > UPGRADES. Active every single run forever. Stack and combine for powerful synergies.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">MAGEN <span class="guide-cost">800 $$</span></span>
+          <span class="guide-h2">MAGEN <span class="guide-cost">640 $$</span></span>
           <div class="guide-row">You start every run with 1 free shield charge pre-loaded. Basically a guaranteed free shield each game without buying a boost.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">PEW PEW 1.5 <span class="guide-cost">600 $$</span></span>
+          <span class="guide-h2">PEW PEW 1.5 <span class="guide-cost">480 $$</span></span>
           <div class="guide-row">Fire rate increased by 50%. Your gun shoots noticeably faster. <b>Stacks</b> with PEW PEW 3 if you own both.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">PEW PEW 3 <span class="guide-cost">1,500 $$</span></span>
+          <span class="guide-h2">PEW PEW 3 <span class="guide-cost">1,200 $$</span></span>
           <div class="guide-row">Triple fire rate. Already fast? Own both PEW PEW 1.5 and PEW PEW 3 for a combined <b>×4.5</b> fire rate. Absolutely shreds asteroids.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">JEW METHOD <span class="guide-cost">900 $$</span> — Magnet</span>
+          <span class="guide-h2">JEW METHOD <span class="guide-cost">720 $$</span> — Magnet</span>
           <div class="guide-row">All coins ($$), Mystery boxes (?), and Monster Fuel are pulled toward your jet from much further away. You barely need to aim for pickups. Makes shmip farming significantly faster.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">KURWA RAKETA <span class="guide-cost">1,200 $$</span></span>
+          <span class="guide-h2">KURWA RAKETA <span class="guide-cost">960 $$</span></span>
           <div class="guide-row">Start every run with <b>2 extra rockets</b>. More rockets means more homing firepower on demand.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">ACE <span class="guide-cost">1,800 $$</span></span>
+          <span class="guide-h2">ACE <span class="guide-cost">1,440 $$</span></span>
           <div class="guide-row">Earn <b>+1 life</b> every time you destroy a Red Fighter jet. High-risk high-reward — hunting fighters refills your lives.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">ZEP ZEP ZEP <span class="guide-cost">1,400 $$</span></span>
+          <span class="guide-h2">ZEP ZEP ZEP <span class="guide-cost">1,120 $$</span></span>
           <div class="guide-row">Earn <b>+1 rocket</b> every time you kill a Yellow Alien. Encourages hunting those rare yellow flashes for a constant rocket supply.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SHPLIT <span class="guide-cost">1,000 $$</span></span>
+          <span class="guide-h2">SHPLIT <span class="guide-cost">800 $$</span></span>
           <div class="guide-row">Your bullets split into <b>2 parallel lines</b> fired from the left and right sides of your jet instead of one central stream. Covers more horizontal width.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">TRIPPLE THREAT <span class="guide-cost">1,600 $$</span></span>
+          <span class="guide-h2">TRIPPLE THREAT <span class="guide-cost">1,280 $$</span></span>
           <div class="guide-row">Fire in <b>3 spread directions</b> simultaneously — one straight ahead, one angled left, one angled right. Covers a wide cone. Combines with SHPLIT for 6 bullet lines. With LAZER PEW: 3 pink lasers.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">LAZER PEW <span class="guide-cost">2,000 $$</span></span>
+          <span class="guide-h2">LAZER PEW <span class="guide-cost">1,600 $$</span></span>
           <div class="guide-row"><b>Replaces bullets</b> with long-range pink laser beams. Continuous fire, bigger hit range, and looks incredible. Add TRIPPLE THREAT for <b>3 pink lasers at once</b> — the most powerful weapon combo in the game.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SMART ROCKET <span class="guide-cost">2,200 $$</span></span>
+          <span class="guide-h2">SMART ROCKET <span class="guide-cost">1,760 $$</span></span>
           <div class="guide-row">Your homing rockets fly until they hit something — they never self-destruct from timeout. Better tracking arc. A rocket is guaranteed to find a target.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">COLLECTOR <span class="guide-cost">1,100 $$</span></span>
+          <span class="guide-h2">COLLECTOR <span class="guide-cost">880 $$</span></span>
           <div class="guide-row">Shoot at distant coins, mystery boxes, or Monster Fuel to collect them without flying over them. Great for grabbing pickups that are near enemies or far away.</div>
         </div>
         <div class="guide-section">
@@ -3566,11 +3566,11 @@ class Game {
           <div class="guide-row">When you drop to 2 lives or less, a friendly jet spawns from the corner for 20 seconds. Uses your skin, fires SHPLIT-style dual bullets at 2× rate, hunts enemies. Invincible — cannot be taken down.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SCORE x2 <span class="guide-cost">1,500 $$</span></span>
+          <span class="guide-h2">SCORE x2 <span class="guide-cost">1,200 $$</span></span>
           <div class="guide-row">All score is doubled every run, permanently. Stacks with x3 for a combined <b>x6 multiplier</b>.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SCORE x3 <span class="guide-cost">4,000 $$</span></span>
+          <span class="guide-h2">SCORE x3 <span class="guide-cost">3,200 $$</span></span>
           <div class="guide-row">All score is tripled every run, permanently. Stacks with x2 for a combined <b>x6 multiplier</b>.</div>
         </div>`,
 
@@ -3579,8 +3579,8 @@ class Game {
           <span class="guide-h1">JETS</span>
           <div class="guide-row">Buy in STORE > JETS. Equip in ARSENAL. Your jet determines starting lives, flares, rockets and special abilities.</div>
           <div class="guide-row" style="margin-top:8px"><b>STARTER JET</b> <span class="guide-tag good">FREE</span><br>2 lives · 1 flare. Clean and simple. Perfect for learning the game.</div>
-          <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">3,000 $$</span><br>3 lives · 2 flares · 2 rockets. Better loadout. An honest upgrade from Starter.</div>
-          <div class="guide-row"><b>KILLAJET</b> <span class="guide-cost">6,500 $$</span><br>3 lives · 3 flares · 3 rockets · starts with SHIELD · ×1.5 fire rate. The aggressive choice. Fires faster than anything and starts shielded.</div>
+          <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">2,400 $$</span><br>3 lives · 2 flares · 2 rockets. Better loadout. An honest upgrade from Starter.</div>
+          <div class="guide-row"><b>KILLAJET</b> <span class="guide-cost">5,200 $$</span><br>3 lives · 3 flares · 3 rockets · starts with SHIELD · ×1.5 fire rate. The aggressive choice. Fires faster than anything and starts shielded.</div>
           <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">8,800 $$</span><br>4 lives · 4 flares · 4 rockets · 2 shields. The tank. Maximum survivability, most ammo, best for long survival runs.</div>
           <div class="guide-row"><b>ASTROZOINKER</b> <span class="guide-cost">69,000 $$</span><br>4 lives · 5 shields · 8 rockets. Ultimate hybrid jet — sharp, scary, endgame tier.</div>
         </div>
@@ -3613,7 +3613,7 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h1">MONSTER FUEL <span class="guide-tag rare">RARE</span></span>
-          <div class="guide-row">A glowing white energy drink can. Spawns every <b>3–4 minutes</b>, less common than $ or ?. Hover or fly through to collect. Grants <b>10 seconds</b> of <b>×3 speed</b> and an <b>automatic white glowing shield</b> that absorbs all damage. Zoom across the map unharmed.</div>
+          <div class="guide-row">A glowing white energy drink can. Spawns every <b>2–3 minutes</b>, less common than $ or ?. Hover or fly through to collect. Grants <b>10 seconds</b> of <b>×3 speed</b> and an <b>automatic white glowing shield</b> that absorbs all damage. Zoom across the map unharmed.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">GREEN STAR <span class="guide-tag rare">VERY RARE</span></span>
