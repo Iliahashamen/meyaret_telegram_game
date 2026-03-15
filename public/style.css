@@ -613,6 +613,7 @@ body.pc-mode #go-leaderboard { font-size: 11px; padding: 16px 20px; width: min(3
 body.pc-mode #go-leaderboard pre { font-size: 11px !important; }
 body.pc-mode #gameover-screen .btn-primary,
 body.pc-mode #gameover-screen .btn-secondary { font-size: 12px; padding: 14px 24px; }
+body.pc-mode .layout-btn { display: none; }
 
 /* ── Top 5 Modal ──────────────────────────────────────────── */
 .top5-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 300; padding: 20px; }
@@ -634,6 +635,16 @@ body.pc-mode #gameover-screen .btn-secondary { font-size: 12px; padding: 14px 24
 .mute-btn.low   { color: var(--yellow); border-color: var(--border-y); box-shadow: 2px 2px 0 #ffee0022; }
 .mute-btn.muted { color: var(--muted); border-color: var(--muted); box-shadow: none; }
 .mute-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #00ffcc22; }
+
+.layout-btn {
+  position: fixed; bottom: calc(14px + var(--safe-bottom)); right: calc(100px + var(--safe-right));
+  min-width: 58px; height: 34px; padding: 0 8px; font-size: 9px; line-height: 1;
+  background: rgba(7,0,15,0.88); border: var(--px) solid var(--border-m);
+  color: var(--muted2); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 200; box-shadow: 2px 2px 0 #ff007722;
+}
+.layout-btn:active { transform: translate(1px,1px); }
+.layout-btn.compact { color: var(--cyan); border-color: var(--border-c); box-shadow: 2px 2px 0 #00ffcc22; }
 
 /* ── GUIDE BUTTON + SCREEN ─────────────────────────────────── */
 .guide-btn {
@@ -756,8 +767,8 @@ body.pc-mode #gameover-screen .btn-secondary { font-size: 12px; padding: 14px 24
   font-size: clamp(28px, 9vw, 52px);
   font-weight: 900;
   letter-spacing: 4px;
-  color: #33ff88;
-  text-shadow: 0 0 30px #33ff88, 0 0 60px #33ff88cc, 0 0 100px #33ff8866;
+  color: #00ff66;
+  text-shadow: 0 0 20px #00ff66, 0 0 40px #33ff88, 0 0 80px #33ff88cc, 0 0 120px #00ff6655;
   text-align: center;
   animation: glSplash 2s ease-out forwards;
 }
@@ -766,8 +777,8 @@ body.pc-mode #gameover-screen .btn-secondary { font-size: 12px; padding: 14px 24
   font-size: clamp(16px, 5vw, 28px);
   font-weight: 700;
   letter-spacing: 3px;
-  color: #aaffcc;
-  text-shadow: 0 0 20px #aaffcc88;
+  color: #66ffaa;
+  text-shadow: 0 0 16px #00ff88, 0 0 32px #66ffaa88;
   text-align: center;
   margin-top: 8px;
   animation: glSplash 2s ease-out forwards;
@@ -780,19 +791,29 @@ body.pc-mode #gameover-screen .btn-secondary { font-size: 12px; padding: 14px 24
   100% { opacity: 0; transform: scale(1.05); }
 }
 
-/* ── LANDSCAPE MODE ──────────────────────────────────────── */
+/* ── LANDSCAPE / HORIZONTAL LAYOUT ────────────────────────── */
 @media (orientation: landscape) {
   #controls-overlay {
-    height: calc(180px + var(--safe-bottom));
-    padding-bottom: calc(4px + var(--safe-bottom));
+    height: calc(160px + var(--safe-bottom));
+    padding-bottom: calc(6px + var(--safe-bottom));
+    padding-left: calc(10px + var(--safe-left));
+    padding-right: calc(10px + var(--safe-right));
+    align-items: center;
   }
-  #vjoy-base { width: 100px; height: 100px; }
-  #vjoy-knob { width: 40px; height: 40px; }
-  /* Scale down right panel in landscape */
-  #ctrl-right  { width: 120px; height: 200px; }
-  #ctrl-rocket { width: 46px; height: 46px; font-size: 7px; right: 2px; top: 0; }
-  #ctrl-flare  { width: 42px; height: 42px; font-size: 7px; left: 0; top: 54px; }
-  #ctrl-fire   { width: 62px; height: 62px; font-size: 9px; right: 0; top: 66px; }
-  #ctrl-shield { width: 42px; height: 42px; font-size: 6px; left: 0; top: 144px; }
-  #ctrl-thrust { width: 50px; height: 50px; font-size: 7px; right: 0; bottom: 0; }
+  #ctrl-left { gap: 8px; }
+  #vjoy-base { width: 95px; height: 95px; }
+  #vjoy-knob { width: 38px; height: 38px; }
+  /* Right: tighter cluster — direction-only left, actions right */
+  #ctrl-right { width: 130px; height: 165px; }
+  #ctrl-rocket { width: 44px; height: 44px; font-size: 7px; right: 2px; top: 2px; }
+  #ctrl-flare  { width: 42px; height: 42px; font-size: 7px; left: 2px; top: 48px; }
+  #ctrl-fire   { width: 58px; height: 58px; font-size: 9px; right: 2px; top: 52px; }
+  #ctrl-shield { width: 42px; height: 42px; font-size: 6px; left: 2px; top: 98px; }
+  #ctrl-thrust { width: 50px; height: 50px; font-size: 7px; right: 2px; bottom: 2px; }
 }
+
+/* Optional: compact layout (localStorage meyaret_layout=compact) */
+body.layout-compact #controls-overlay { height: calc(170px + var(--safe-bottom)); padding-bottom: 8px; }
+body.layout-compact #vjoy-base { width: 100px; height: 100px; }
+body.layout-compact #vjoy-knob { width: 40px; height: 40px; }
+body.layout-compact #ctrl-right { width: 135px; height: 170px; }

@@ -30,20 +30,20 @@ async function supa(path, opts = {}) {
 }
 
 // ── Store Catalog ─────────────────────────────────────────────────────────────
-// 4 boosts · 12 upgrades · 10 skins · 3 planes (starter is free/default)
+// 4 boosts · 14 upgrades · 17 skins · 4 planes (starter is free/default)
 export const CATALOG = [
   // ── Boosts (per-run, max 1 applied per game) ─────────────────────────────
   { id: 'extra_life',   name: 'Extra Life',   category: 'boost', cost: 10,  description: '+1 life for your next run',    stackable: true },
   { id: 'extra_flare',  name: 'Extra Flare',  category: 'boost', cost: 5,   description: '+1 flare for your next run',   stackable: true },
-  { id: 'extra_shield', name: 'Run Shield',   category: 'boost', cost: 10,  description: '1 shield charge for your next run',         stackable: true },
+  { id: 'extra_shield', name: 'Run Shield',   category: 'boost', cost: 10,  description: '1 shield charge for your next run', stackable: true },
   { id: 'extra_rocket', name: 'Run Rocket',   category: 'boost', cost: 15,  description: '+1 rocket for your next run',  stackable: true },
-  { id: 'score_x2',     name: 'SCORE x2',     category: 'upgrade', cost: 1200, description: 'All score doubled every run (stacks with x3)' },
-  { id: 'score_x3',     name: 'SCORE x3',     category: 'upgrade', cost: 3200, description: 'All score tripled every run (stacks with x2 for x6)' },
+  { id: 'score_x2',     name: 'SCORE x2',     category: 'upgrade', cost: 1500, description: 'All score doubled every run (stacks with x3 for x6)' },
+  { id: 'score_x3',     name: 'SCORE x3',     category: 'upgrade', cost: 4000, description: 'All score tripled every run (stacks with x2 for x6)' },
 
   // ── Upgrades (permanent — always active once owned) ───────────────────────
   { id: 'magen',          name: 'MAGEN',          category: 'upgrade', cost: 640,  description: 'Always start every run with a shield charge' },
   { id: 'pew_pew_15',     name: 'PEW PEW 1.5',    category: 'upgrade', cost: 480,  description: 'Fire rate × 1.5' },
-  { id: 'pew_pew_3',      name: 'PEW PEW 3',      category: 'upgrade', cost: 1200, description: 'Fire rate × 3 (stacks with 1.5 for ×4.5)' },
+  { id: 'pew_pew_3',      name: 'PEW PEW 3',      category: 'upgrade', cost: 1200, description: 'Fire rate × 3 (stacks with 1.5 for ×4.5 — does not override)' },
   { id: 'jew_method',     name: 'JEW METHOD',      category: 'upgrade', cost: 720,  description: '$ and ? fly toward you (magnet)' },
   { id: 'kurwa_raketa',   name: 'KURWA RAKETA',    category: 'upgrade', cost: 960,  description: '+2 rockets every run' },
   { id: 'ace_upgrade',    name: 'ACE',             category: 'upgrade', cost: 1440, description: '+1 life each time you destroy a jet' },
@@ -51,7 +51,7 @@ export const CATALOG = [
   { id: 'shplit',         name: 'SHPLIT',          category: 'upgrade', cost: 800,  description: 'Shoot 2 parallel lines from both sides' },
   { id: 'tripple_threat', name: 'TRIPPLE THREAT',  category: 'upgrade', cost: 1280, description: 'Shoot in 3 spread directions' },
   { id: 'lazer_pew',      name: 'LAZER PEW',       category: 'upgrade', cost: 1600, description: 'Replace bullets with laser beams' },
-  { id: 'smart_rocket',   name: 'SMART ROCKET',    category: 'upgrade', cost: 1760, description: 'Blue rocket that pierces and kills 5 targets before exploding' },
+  { id: 'smart_rocket',   name: 'SMART ROCKET',    category: 'upgrade', cost: 1760, description: 'Blue rocket that searches and kills 5 targets before exploding' },
   { id: 'collector',      name: 'COLLECTOR',       category: 'upgrade', cost: 880,  description: 'Shoot $ or ? to collect them from range' },
   { id: 'hornet_assistant', name: 'HORNET ASSISTANT', category: 'upgrade', cost: 5880, description: 'At 2 lives or less, a friendly jet spawns for 20 sec to help' },
 
@@ -72,14 +72,16 @@ export const CATALOG = [
   { id: 'skin_neon_dream',    name: 'NEON DREAM',               category: 'skin', cost: 440, description: 'Vivid magenta with electric mint',    color: '#ff00cc', accent: '#00ffaa' },
   { id: 'skin_desert_storm',  name: 'DESERT STORM',             category: 'skin', cost: 384, description: 'Sandy gold with warm amber glow',     color: '#d4a843', accent: '#ff8844' },
   { id: 'skin_zion',       name: 'ZION',                       category: 'skin', cost: 100, description: 'Blue and white fast flash',            color: 'zion' },
+  { id: 'skin_candy',      name: 'CANDY',                      category: 'skin', cost: 200, description: 'Sweet pink and mint combo',           color: '#ff88cc', accent: '#88ffdd' },
+  { id: 'skin_aurora',     name: 'AURORA',                     category: 'skin', cost: 260, description: 'Northern lights cyan and purple',       color: '#00ddff', accent: '#aa66ff' },
 
-  // ── Jets (3 purchasable — Starter is always available for free) ───────────
+  // ── Jets (4 purchasable — Starter is always available for free) ───────────
   { id: 'plane_hamud',      name: 'HAMUDI',         category: 'plane', cost: 2400,
     description: '3 lives · 2 flares · 2 rockets', lives: 3, flares: 2, rockets: 2 },
   { id: 'plane_walla_yofi', name: 'KILLAJET',        category: 'plane', cost: 5200,
     description: '3 lives · 3 flares · 3 rockets · Shield · ×1.5 fire', lives: 3, flares: 3, rockets: 3, shield: true, rapidFire: true },
   { id: 'plane_very_scary', name: 'VERY SCARY JET',  category: 'plane', cost: 8800,
-    description: '4 lives · 4 flares · 4 rockets · 2 Shields', lives: 4, flares: 4, rockets: 4, shield: true },
+    description: '4 lives · 4 flares · 4 rockets · 2 Shields', lives: 4, flares: 4, rockets: 4, shield: true, jetShieldBase: 2 },
   { id: 'plane_astrozoinker', name: 'ASTROZOINKER',    category: 'plane', cost: 69000,
     description: '4 lives · 5 shields · 8 rockets — ultimate hybrid', lives: 4, flares: 4, rockets: 8, shield: true },
 ];
@@ -325,7 +327,7 @@ export async function dbOpenGift(telegramId) {
     label = `+${reward.value} $$`;
 
   } else if (reward.type === 'boost_grant') {
-    const boostPool = ['extra_life', 'extra_flare', 'extra_shield', 'extra_rocket', 'score_x2'];
+    const boostPool = ['extra_life', 'extra_flare', 'extra_shield', 'extra_rocket'];
     const grantedId = boostPool[Math.floor(Math.random() * boostPool.length)];
     const item = CATALOG.find(c => c.id === grantedId);
     label = item?.name || grantedId;

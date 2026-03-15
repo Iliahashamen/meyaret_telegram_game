@@ -639,8 +639,7 @@ class Ship {
       this.superRaketaReady = false;
       this.fireCooldown = 20;
       const nose = { x: this.x + Math.cos(this.angle) * 20, y: this.y + Math.sin(this.angle) * 20 };
-      const sr = new MegaRaketa(nose.x, nose.y, this.angle);
-      sr._isSuperRaketa = true; // flag for green visuals + 6 minis
+      const sr = new MegaRaketa(nose.x, nose.y, this.angle, true); // green rocket, 6 minis
       megaRaketas.push(sr);
       SFX.rocketFire();
       return;
@@ -656,12 +655,11 @@ class Ship {
     }
     this.fireCooldown = this.effectiveFireRate;
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
-    // Super Beam — straight devastating beam from ? pickup (laser player only)
+    // Super Beam — single line from ? (laser player only): stationary beam, everything touched dies
     if (this.isSuperBeam) {
-      this.fireCooldown = 6; // very fast continuous beam
-      bullets.push(new SuperBeam(nose.x, nose.y, this.angle));
+      this.fireCooldown = 4; // rapid ticks for collision checks
       SFX.laser();
-      return;
+      return; // collisions handled in Game._processSuperBeamCollisions
     }
     // Star overdrive: MEGA RAKETA — big rocket that splits into 7 mini homing rockets
     // Override cooldown so rockets fire ~once per second regardless of fire upgrades
@@ -932,45 +930,6 @@ class Bullet {
     glow(ctx, col, 10);
     ctx.fillStyle = col;
     ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, TAU); ctx.fill();
-    ctx.shadowBlur = 0;
-  }
-  get dead() { return this.life <= 0; }
-}
-
-// ── Super Beam — straight line across entire screen, kills everything in 1 hit ─
-class SuperBeam {
-  constructor(x, y, angle) {
-    this.x = x; this.y = y;
-    this.angle = angle;
-    this.speed = 26;
-    this.vx = Math.cos(angle) * this.speed;
-    this.vy = Math.sin(angle) * this.speed;
-    this.life = 70;
-    this.radius = 10;
-    this.isSuperBeam = true;
-  }
-  update(W, H) {
-    this.x = wrap(this.x + this.vx, 0, W);
-    this.y = wrap(this.y + this.vy, 0, H);
-    this.life--;
-  }
-  draw(ctx) {
-    const p = 0.6 + 0.4 * Math.sin(Date.now() / 55);
-    const len = 400;
-    const ex = this.x - Math.cos(this.angle) * len;
-    const ey = this.y - Math.sin(this.angle) * len;
-    // Outer glow
-    glow(ctx, '#ff2200', 28 * p);
-    ctx.strokeStyle = `rgba(255,40,0,${0.4 * p})`; ctx.lineWidth = 18;
-    ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(ex, ey); ctx.stroke();
-    // Core beam
-    glow(ctx, '#ff4400', 16);
-    ctx.strokeStyle = '#ff4400'; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(ex, ey); ctx.stroke();
-    // White-hot center
-    glow(ctx, '#ffffff', 8);
-    ctx.strokeStyle = '#ffffffcc'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(ex, ey); ctx.stroke();
     ctx.shadowBlur = 0;
   }
   get dead() { return this.life <= 0; }
@@ -1502,11 +1461,11 @@ class PlayerRocket {
     ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle + Math.PI / 2);
     const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 75);
     if (this.mini) {
-      // Tiny fast red dart
-      ctx.shadowColor = '#ff2200'; ctx.shadowBlur = 10 * pulse;
-      ctx.strokeStyle = '#ff3300'; ctx.lineWidth = 1.8;
+      const col = this._fromSuperRaketa ? '#00ff44' : '#ff2200';
+      ctx.shadowColor = col; ctx.shadowBlur = 10 * pulse;
+      ctx.strokeStyle = this._fromSuperRaketa ? '#00ff88' : '#ff3300'; ctx.lineWidth = 1.8;
       ctx.beginPath(); ctx.moveTo(0,-5); ctx.lineTo(2,3); ctx.lineTo(-2,3); ctx.closePath(); ctx.stroke();
-      ctx.strokeStyle = '#ffaa00';
+      ctx.strokeStyle = this._fromSuperRaketa ? '#66ffaa' : '#ffaa00';
       ctx.beginPath(); ctx.moveTo(-1,3); ctx.lineTo(0, 3+rng(2,6)); ctx.lineTo(1,3); ctx.stroke();
     } else {
       const col  = this.smart ? '#0077ff' : '#ff6600';
@@ -1532,14 +1491,15 @@ class PlayerRocket {
 // ── MegaRaketa (star-overdrive special weapon) ────────────────────────────────
 // A big red rocket that flies straight for ~0.75 s then bursts into 7 mini homing rockets.
 class MegaRaketa {
-  constructor(x, y, angle) {
+  constructor(x, y, angle, isSuper = false) {
     this.x = x; this.y = y;
     this.angle = angle;
+    this._isSuperRaketa = isSuper;
     this.speed = 3.0;
     this.vx = Math.cos(angle) * this.speed;
     this.vy = Math.sin(angle) * this.speed;
     this.radius = 10;
-    this.life   = 50; // frames until split (~0.83 s)
+    this.life   = isSuper ? 60 : 50; // super: 1 sec, normal: ~0.83 s
     this.dead   = false;
     this.isMegaRaketa = true;
   }
@@ -2158,6 +2118,19 @@ class Game {
     document.getElementById('btn-store').addEventListener('click',   () => this._openStore());
     document.getElementById('btn-arsenal').addEventListener('click', () => this._openArsenal());
     document.getElementById('btn-guide').addEventListener('click',   () => this._openGuide());
+    const layoutBtn = document.getElementById('btn-layout');
+    if (layoutBtn) {
+      const isCompact = localStorage.getItem('meyaret_layout') === 'compact';
+      if (isCompact) { document.body.classList.add('layout-compact'); layoutBtn.classList.add('compact'); layoutBtn.textContent = 'COMPACT'; }
+      else layoutBtn.textContent = 'LAYOUT';
+      layoutBtn.addEventListener('click', () => {
+        const next = document.body.classList.toggle('layout-compact');
+        localStorage.setItem('meyaret_layout', next ? 'compact' : '');
+        layoutBtn.classList.toggle('compact', next);
+        layoutBtn.textContent = next ? 'COMPACT' : 'LAYOUT';
+        SFX.btnClick && SFX.btnClick();
+      });
+    }
     document.getElementById('btn-quit').addEventListener('click',    () => { if (tg) tg.close(); });
     document.getElementById('profile-btn').addEventListener('click', () => this._openProfile());
     document.getElementById('leaderboard-strip').addEventListener('click', () => this._showTop5Popup());
@@ -2425,6 +2398,8 @@ class Game {
       skin_neon_dream:    { color:'#ff00cc', accent:'#00ffaa' },
       skin_desert_storm:  { color:'#d4a843', accent:'#ff8844' },
       skin_zion:          { color:'zion' },
+      skin_candy:         { color:'#ff88cc', accent:'#88ffdd' },
+      skin_aurora:        { color:'#00ddff', accent:'#aa66ff' },
     };
 
     if (equippedSkin && this.upgrades[equippedSkin] && skinColors[equippedSkin]) {
@@ -2470,6 +2445,89 @@ class Game {
     </div>`;
     el.classList.remove('hidden');
     setTimeout(() => { el.classList.add('hidden'); el.innerHTML = ''; }, 2000);
+  }
+
+  // Distance from point to line segment — for super beam raycasting
+  _distToSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1e-6;
+    const t = clamp(((px - x1) * dx + (py - y1) * dy) / (len * len), 0, 1);
+    const projX = x1 + t * dx, projY = y1 + t * dy;
+    return Math.hypot(px - projX, py - projY);
+  }
+
+  _processSuperBeamCollisions() {
+    const ship = this.ship;
+    if (!ship?.alive || !ship.isSuperBeam) return;
+    const len = 2000;
+    const x1 = ship.x + Math.cos(ship.angle) * 20;
+    const y1 = ship.y + Math.sin(ship.angle) * 20;
+    const x2 = x1 + Math.cos(ship.angle) * len;
+    const y2 = y1 + Math.sin(ship.angle) * len;
+    const beamW = 18;
+    const hit = (ex, ey, r = 0) => this._distToSegment(ex, ey, x1, y1, x2, y2) < beamW + r;
+    for (let ai = this.asteroids.length - 1; ai >= 0; ai--) {
+      const a = this.asteroids[ai];
+      if (hit(a.x, a.y, a.radius)) {
+        burst(this.particles, a.x, a.y, C.asteroid, 14, 4, 30);
+        this._addScore(a.score * 2);
+        this.asteroids.splice(ai, 1);
+      }
+    }
+    for (let ei = this.redFighters.length - 1; ei >= 0; ei--) {
+      const e = this.redFighters[ei];
+      if (hit(e.x, e.y, e.radius)) {
+        burst(this.particles, e.x, e.y, C.enemyRed, 18, 5, 35);
+        SFX.enemyDie();
+        this._addScore(CFG.enemyRedScore * 2);
+        if (ship.hasAce && ship.lives < 5) { ship.lives++; new FloatingText(ship.x, ship.y - 30, '+1 LIFE! (ACE)', '#00ffcc'); }
+        this.redFighters.splice(ei, 1);
+      }
+    }
+    for (let ei = this.yellowAliens.length - 1; ei >= 0; ei--) {
+      const e = this.yellowAliens[ei];
+      if (hit(e.x, e.y, e.radius)) {
+        burst(this.particles, e.x, e.y, C.enemyYellow, 14, 4, 30);
+        SFX.enemyDie();
+        this._addScore(CFG.enemyYellowScore * 2);
+        if (ship.hasZepZep) { ship.rocketAmmo++; new FloatingText(ship.x, ship.y - 30, '+1 ROCKET! (ZEP)', '#ffee00'); }
+        this.yellowAliens.splice(ei, 1);
+      }
+    }
+    for (let oi = this.orangeRockets.length - 1; oi >= 0; oi--) {
+      const o = this.orangeRockets[oi];
+      if (hit(o.x, o.y, o.radius)) {
+        burst(this.particles, o.x, o.y, '#ff7700', 10, 3, 22);
+        this._addScore(150);
+        this.orangeRockets.splice(oi, 1);
+      }
+    }
+  }
+
+  _drawSuperBeam(ctx) {
+    const ship = this.ship;
+    if (!ship?.isSuperBeam) return;
+    const len = 2000;
+    const x1 = ship.x + Math.cos(ship.angle) * 20;
+    const y1 = ship.y + Math.sin(ship.angle) * 20;
+    const x2 = x1 + Math.cos(ship.angle) * len;
+    const y2 = y1 + Math.sin(ship.angle) * len;
+    const p = 0.6 + 0.4 * Math.sin(Date.now() / 55);
+    glow(ctx, '#00ff88', 24 * p);
+    ctx.strokeStyle = `rgba(0,255,136,${0.5 * p})`;
+    ctx.lineWidth = 16;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    glow(ctx, '#00ffcc', 12);
+    ctx.strokeStyle = '#00ffcc';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
   }
 
   _getNoSpawnRects() {
@@ -2604,6 +2662,7 @@ class Game {
     if (this.ship.tempStarUntil > 0)       this.ship.tempStarUntil--;
     if (this.ship.tempMonsterFuelUntil > 0) this.ship.tempMonsterFuelUntil--;
     if (this.ship.tempSuperBeamUntil > 0) this.ship.tempSuperBeamUntil--;
+    if (this.ship.isSuperBeam) this._processSuperBeamCollisions();
 
     // JEW METHOD: magnet — strong pull with non-linear falloff
     if (this.ship.hasMagnet) {
@@ -2706,7 +2765,9 @@ class Game {
         for (let j = 0; j < miniCount; j++) {
           const spread = miniCount === 6 ? (j - 2.5) * 0.42 : (j - 3) * 0.38;
           const ang = mr.angle + spread + (Math.random() - 0.5) * 0.1;
-          this.playerRockets.push(new PlayerRocket(mr.x, mr.y, ang, false, true));
+          const pr = new PlayerRocket(mr.x, mr.y, ang, false, true);
+          if (isSR) pr._fromSuperRaketa = true;
+          this.playerRockets.push(pr);
         }
         this.megaRaketas.splice(mi, 1);
       }
@@ -2795,9 +2856,9 @@ class Game {
       }
     }
 
-    // Spawn pickups
+    // Spawn pickups (no spawn during 2s grace)
     this.pickupSpawnTimer++;
-    if (this.pickupSpawnTimer > 360 && this.coins.length === 0 && this.mysteryPickups.length === 0) {
+    if (!this._spawnFrozen && this.pickupSpawnTimer > 360 && this.coins.length === 0 && this.mysteryPickups.length === 0) {
       this.pickupSpawnTimer = 0;
       const p = this._findSafeSpawnPoint(60, this.ship, 120);
       const x = p.x, y = p.y;
@@ -2887,39 +2948,8 @@ class Game {
       }
     }
 
-    // ── Super Beam — pierces and insta-kills everything ─────────────────────
-    for (let bi = this.bullets.length - 1; bi >= 0; bi--) {
-      const b = this.bullets[bi];
-      if (!b.isSuperBeam) continue;
-      for (let ai = this.asteroids.length-1; ai >= 0; ai--) {
-        if (dist(b, this.asteroids[ai]) < b.radius + this.asteroids[ai].radius) {
-          burst(this.particles, this.asteroids[ai].x, this.asteroids[ai].y, C.asteroid, 14, 4, 30);
-          this._addScore(this.asteroids[ai].score * 2); this.asteroids.splice(ai, 1);
-        }
-      }
-      for (let ei = this.redFighters.length-1; ei >= 0; ei--) {
-        if (dist(b, this.redFighters[ei]) < b.radius + this.redFighters[ei].radius) {
-          burst(this.particles, this.redFighters[ei].x, this.redFighters[ei].y, C.enemyRed, 18, 5, 35);
-          SFX.enemyDie(); this._addScore(CFG.enemyRedScore * 2);
-          if (ship.hasAce && ship.lives < 5) { ship.lives++; new FloatingText(ship.x, ship.y-30, '+1 LIFE! (ACE)', '#00ffcc'); }
-          this.redFighters.splice(ei, 1);
-        }
-      }
-      for (let ei = this.yellowAliens.length-1; ei >= 0; ei--) {
-        if (dist(b, this.yellowAliens[ei]) < b.radius + this.yellowAliens[ei].radius) {
-          burst(this.particles, this.yellowAliens[ei].x, this.yellowAliens[ei].y, C.enemyYellow, 14, 4, 30);
-          SFX.enemyDie(); this._addScore(CFG.enemyYellowScore * 2);
-          if (ship.hasZepZep) { ship.rocketAmmo++; new FloatingText(ship.x, ship.y-30, '+1 ROCKET! (ZEP)', '#ffee00'); }
-          this.yellowAliens.splice(ei, 1);
-        }
-      }
-      for (let ei = this.orangeRockets.length-1; ei >= 0; ei--) {
-        if (dist(b, this.orangeRockets[ei]) < b.radius + this.orangeRockets[ei].radius) {
-          burst(this.particles, this.orangeRockets[ei].x, this.orangeRockets[ei].y, '#ff7700', 10, 3, 22);
-          this._addScore(150); this.orangeRockets[ei].dead = true; this.orangeRockets.splice(ei, 1);
-        }
-      }
-    }
+    // ── Super Beam (ray from ship) — insta-kills everything it touches ────────
+    // Collisions handled in _processSuperBeamCollisions; beam drawn in _draw
 
     // ── Player bullets vs asteroids ─────────────────────────────────────────
     for (let bi = this.bullets.length-1; bi >= 0; bi--) {
@@ -3348,7 +3378,10 @@ class Game {
     this.yellowAliens.forEach(ya=>ya.draw(ctx));
     this.orangeRockets.forEach(or=>or.draw(ctx));
     this.fireballs.forEach(fb=>fb.draw(ctx));
-    if (this.ship?.alive) this.ship.draw(ctx);
+    if (this.ship?.alive) {
+      if (this.ship.isSuperBeam) this._drawSuperBeam(ctx);
+      this.ship.draw(ctx);
+    }
     const _lives = this.ship?.lives ?? 0;
     drawHUD(ctx, W, {
       score:          this.score,
@@ -3506,19 +3539,19 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h2">HUD — READING THE SCREEN</span>
-          <div class="guide-row"><b>Top-left</b> — Big score display. Below it: LIFE bar (5 triangles, filled light blue for current lives).</div>
-          <div class="guide-row"><b>Below lives</b> — Warning banners flash in color: JET INCOMING, ROCKET INCOMING, ALIENS!, ASTEROID STORM, LOW LIFE!, BEAST MODE.</div>
-          <div class="guide-row"><b>Top-right</b> — Counters: FLARE / ROCKET / SHLD. Dim when empty.</div>
+          <div class="guide-row"><b>SCORE</b> — Your current points. LIFE bar shows remaining lives (5 triangles max).</div>
+          <div class="guide-row"><b>WARNINGS</b> — Flash when danger is near: JET INCOMING, ROCKET INCOMING, ALIENS!, ASTEROID STORM, LOW LIFE!, BEAST MODE.</div>
+          <div class="guide-row"><b>FLARE / ROCKET / SHLD</b> — Ammo counters. Dim when empty.</div>
         </div>`,
 
       controls: `
         <div class="guide-section">
-          <span class="guide-h1">JOYSTICK (LEFT)</span>
-          <div class="guide-row">Push gently to glide slowly in that direction. Push harder to fly faster — the further you push, the more power. Release to coast on momentum.</div>
+          <span class="guide-h1">DIRECTION</span>
+          <div class="guide-row">Steer where your jet faces. Push the stick to glide or fly in that direction. Release to coast.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h1">THRUST (BOOST)</span>
-          <div class="guide-row">Hold for 3× speed burst. Also fires the engine flame. Use it to chase targets or escape danger fast.</div>
+          <span class="guide-h1">THRUST</span>
+          <div class="guide-row">Hold for 3× speed burst. Fires the engine flame. Chase targets or escape danger fast.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">SHOOT</span>
@@ -3618,7 +3651,7 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h2">SMART ROCKET <span class="guide-cost">1,760 $$</span></span>
-          <div class="guide-row">Your homing rockets fly until they hit something — they never self-destruct from timeout. Better tracking arc. A rocket is guaranteed to find a target.</div>
+          <div class="guide-row">Blue rocket that searches and kills 5 targets before exploding. Pierce through enemies one by one, then big final blast.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h2">COLLECTOR <span class="guide-cost">880 $$</span></span>
@@ -3629,11 +3662,11 @@ class Game {
           <div class="guide-row">When you drop to 2 lives or less, a fast friendly jet spawns for 20 seconds. Uses your skin, fires golden double cannons (4 bullets) at 6× rate, launches 2 homing rockets every 1.5 sec. Invincible — cannot be taken down.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SCORE x2 <span class="guide-cost">1,200 $$</span></span>
+          <span class="guide-h2">SCORE x2 <span class="guide-cost">1,500 $$</span></span>
           <div class="guide-row">All score is doubled every run, permanently. Stacks with x3 for a combined <b>x6 multiplier</b>.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SCORE x3 <span class="guide-cost">3,200 $$</span></span>
+          <span class="guide-h2">SCORE x3 <span class="guide-cost">4,000 $$</span></span>
           <div class="guide-row">All score is tripled every run, permanently. Stacks with x2 for a combined <b>x6 multiplier</b>.</div>
         </div>`,
 
@@ -3665,7 +3698,7 @@ class Game {
           <div class="guide-row">White glowing boxes that spawn from destroyed asteroids or appear randomly. Fly through them to collect (or shoot them with COLLECTOR upgrade). Random reward each time:</div>
           <div class="guide-row">• Rapid Fire x3 — triples your fire rate briefly</div>
           <div class="guide-row">• Laser beam — temporary laser</div>
-          <div class="guide-row">• <span class="guide-tag rare">RARE</span> SUPER BEAM — if you already have LAZER PEW, fires a devastating straight-line red beam that pierces and kills everything it touches for 4 seconds</div>
+          <div class="guide-row">• <span class="guide-tag rare">RARE</span> SUPER LASER — if you have LAZER PEW: a single green beam from your jet for 4 seconds. Straight line — everything it touches dies in one shot.</div>
           <div class="guide-row">• Extra Life — +1 life immediately</div>
           <div class="guide-row">• Shield charge — instant shield</div>
           <div class="guide-row">• Flare — +1 flare ammo</div>
@@ -3758,7 +3791,7 @@ class Game {
       starter:          '2 LIVES · 1 FLARE',
       plane_hamud:      '3 LIVES · 2 FLARES · 2 ROCKETS',
       plane_walla_yofi: '3 LIVES · 3 FLARES · 3 ROCKETS · SHIELD · ×1.5 FIRE',
-      plane_very_scary: '4 LIVES · 3 FLARES · 4 ROCKETS · SHIELD',
+      plane_very_scary: '4 LIVES · 4 FLARES · 4 ROCKETS · 2 SHIELDS',
       plane_astrozoinker: '4 LIVES · 5 SHIELDS · 8 ROCKETS',
     };
     const el = document.getElementById('ars-jet');      if (el) el.textContent = jetNames[equippedJet] || equippedJet.toUpperCase();
@@ -4020,33 +4053,26 @@ class Game {
   }
 
   async _buyItem(item) {
-    if (this._buyingInProgress) return; // debounce — ignore taps while purchasing
+    if (this._buyingInProgress) return;
     this._buyingInProgress = true;
     const msg = document.getElementById('store-msg');
-    if (OFFLINE_MODE) {
-      msg.textContent = 'CONNECT VIA TELEGRAM TO PURCHASE.';
-      msg.className = 'store-msg fail'; msg.classList.remove('hidden');
-      setTimeout(() => msg.classList.add('hidden'), 3000);
+    if (OFFLINE_MODE || !TG_USER?.id && !this.userData?.telegram_id) {
       this._buyingInProgress = false; return;
     }
     const tid = TG_USER?.id || this.userData?.telegram_id;
-    if (!tid) { this._buyingInProgress = false; return; }
     try {
       SFX.btnClick();
-      msg.textContent = 'PURCHASING...'; msg.className = 'store-msg'; msg.classList.remove('hidden');
+      msg.textContent = ''; msg.classList.add('hidden');
       const{newBalance} = await dbBuyItem(tid, item.id);
       this.userData.shmips = newBalance;
       this.upgrades[item.id] = (this.upgrades[item.id]||0) + 1;
       document.getElementById('store-balance').textContent = `BALANCE: ${newBalance.toLocaleString()} $$`;
       msg.textContent = `${item.name} ACQUIRED!`; msg.className = 'store-msg success'; msg.classList.remove('hidden');
       SFX.shmipEarn && SFX.shmipEarn();
-      setTimeout(() => msg.classList.add('hidden'), 3000);
+      setTimeout(() => msg.classList.add('hidden'), 2500);
       this._renderStoreTab(document.querySelector('.tab-btn.active')?.dataset.tab || 'boost');
-    } catch(e) {
-      msg.textContent = 'NOT ENOUGH SHMIPS'; msg.className = 'store-msg fail'; msg.classList.remove('hidden');
-      setTimeout(() => msg.classList.add('hidden'), 3000);
-    }
-    this._buyingInProgress = false;
+    } catch(_) { /* no error popups — just wait */ }
+    setTimeout(() => { this._buyingInProgress = false; }, 1500); // debounce 1.5s
   }
 }
 
