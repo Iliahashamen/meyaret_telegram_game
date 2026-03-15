@@ -119,6 +119,39 @@ export const SFX = {
     o.start(t); o.stop(t + 0.07);
   },
 
+  // ── XForce activate — godly laser beam ─────────────────────────────────────
+  xforceActivate() {
+    if (this.muted) return;
+    const t = _now();
+    const dur = 0.5;
+    // Low rumble foundation
+    const gLow = _gain(0.25);
+    const oLow = _osc('sine', 80, gLow);
+    gLow.gain.setValueAtTime(0, t);
+    gLow.gain.linearRampToValueAtTime(0.25, t + 0.02);
+    gLow.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    oLow.frequency.setValueAtTime(80, t);
+    oLow.frequency.linearRampToValueAtTime(45, t + dur);
+    oLow.start(t); oLow.stop(t + dur);
+    // Main laser sweep — dramatic
+    const gMain = _gain(0.22);
+    const oMain = _osc('sawtooth', 2200, gMain);
+    gMain.gain.setValueAtTime(0, t);
+    gMain.gain.linearRampToValueAtTime(0.22, t + 0.01);
+    gMain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    oMain.frequency.setValueAtTime(2200, t);
+    oMain.frequency.exponentialRampToValueAtTime(180, t + dur);
+    oMain.start(t); oMain.stop(t + dur);
+    // High shimmer — divine overtone
+    const gHi = _gain(0.12);
+    const oHi = _osc('sine', 1760, gHi);
+    gHi.gain.setValueAtTime(0.12, t);
+    gHi.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.7);
+    oHi.frequency.setValueAtTime(1760, t);
+    oHi.frequency.linearRampToValueAtTime(1320, t + dur * 0.5);
+    oHi.start(t); oHi.stop(t + dur);
+  },
+
   // ── Laser beam ────────────────────────────────────────────────────────────
   laser() {
     if (this.muted) return;
@@ -535,7 +568,7 @@ export const SFX = {
     _getCtx();
   },
 
-  // ── Opening theme — short fun fanfare (~1.5 sec) ─────────────────────────────
+  // ── Opening theme — loops until menu opens (stopOpeningMusic) ───────────────
   startOpeningMusic() {
     if (this.muted || _musicMode === 'opening') return;
     _stopMusicLoop();
@@ -547,14 +580,10 @@ export const SFX = {
       [294, 392, 494, 587, 392, 494, 294, 262],
     ];
     const arp = ARPS[Math.floor(Math.random() * ARPS.length)];
-    const tempo = 200; // Slower, measured pace
-    const maxNotes = 8; // One full arp = ~1.6 sec, then stop
+    const tempo = 200;
     let i = 0;
     _musicTimer = setInterval(() => {
-      if (this.muted || _musicMode !== 'opening' || i >= maxNotes) {
-        if (i >= maxNotes) _stopMusicLoop();
-        return;
-      }
+      if (this.muted || _musicMode !== 'opening') return;
       const t = _now();
       const note = arp[i % arp.length];
       _playTone(note, t, 0.2, 'square', 0.05);

@@ -1754,7 +1754,7 @@ function drawGrid(ctx, W, H, tick) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, warnings, xforceCooldownSec, ripCountdownSec }) {
+function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, warnings, xforceCooldownSec, ripCountdownSec }) {
   const FONT = '"Press Start 2P", "Courier New", monospace';
   const s = 1;
   const glowCap = (b) => Math.min(b * s, 14); // cap blur to reduce lag
@@ -1788,7 +1788,7 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
   ctx.fillText(score.toLocaleString(), 14, 42 * s);
   if (scoreX2 && scoreX2 > 1) {
     ctx.font = `${Math.round(7 * s)}px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', glowCap(6));
-    ctx.fillText(`x${scoreX2}`, 6 + panelW - 12, 20 * s);
+    ctx.fillText(`x${scoreX2}`, 6 + panelW - 28, 20 * s);
   }
 
   // ── LIVES ──
@@ -1863,8 +1863,10 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = '#ff00ff';
     glow(ctx, '#ff00ff', glowCap(8));
-    ctx.font = `${Math.round(9 * s)}px ${FONT}`;
-    ctx.fillText(`RIP ${ripCountdownSec}s`, W/2, 26 * s);
+    ctx.font = `${Math.round(10 * s)}px ${FONT}`;
+    ctx.fillText('GET READY FOR RIP N DIP', W / 2, H / 2 - 16);
+    ctx.font = `${Math.round(12 * s)}px ${FONT}`;
+    ctx.fillText(`- ${ripCountdownSec} SECONDS -`, W / 2, H / 2 + 8);
     ctx.textAlign = 'right';
   }
 
@@ -2086,7 +2088,6 @@ class Game {
     const status = document.getElementById('loading-status');
     const _ss = (msg, color) => { if (status) { status.textContent = msg; status.style.color = color || '#00ffcc'; } };
 
-    // ── Fast opening (<3 sec): 1 random loading text + quick loop ─────────────
     const OPENING_TEXTS = [
       'SYNCING HANGAR...', 'LOADING ROCKETS...', 'CALIBRATING RETRO RADAR...',
       'ARMING CANNONS...', 'INITIALIZING THRUST...', 'SCANNING ASTEROIDS...',
@@ -2098,10 +2099,6 @@ class Game {
     SFX.startOpeningMusic && SFX.startOpeningMusic();
     label.textContent = pick;
     _ss(pick, '#00ffcc');
-    await this._sleep(2200); // ~2.2 sec total
-    // Opening music continues until main menu — stopped when SFX.startMenuMusic() runs
-    bar.style.width = '15%'; label.textContent = 'WARMING ENGINES...';
-    _ss('CALIBRATING RETRO RADAR...','#ffee00');
 
     const tgUser = await waitForTelegramUser();
     if (tgUser) TG_USER = tgUser;
@@ -2167,7 +2164,7 @@ class Game {
         this._showMultiplierBanner();
       }
       bar.style.width = '100%'; label.textContent = 'READY FOR LAUNCH';
-      await this._sleep(2500);
+      await this._sleep(600);
       document.getElementById('loading-screen').style.display = 'none';
       if (data.isNew) {
         const saved = localStorage.getItem('meyaret_callsign');
@@ -2284,6 +2281,9 @@ class Game {
     document.getElementById('btn-quit').addEventListener('click',    () => { if (tg) tg.close(); });
     document.getElementById('profile-btn').addEventListener('click', () => this._openProfile());
     document.getElementById('leaderboard-strip').addEventListener('click', () => this._showTop5Popup());
+    document.getElementById('btn-weekly-best')?.addEventListener('click', () => this._showWeeklyPopup());
+    document.getElementById('weekly-close')?.addEventListener('click', () => document.getElementById('weekly-modal')?.classList.add('hidden'));
+    document.getElementById('weekly-modal')?.querySelector('.top5-backdrop')?.addEventListener('click', () => document.getElementById('weekly-modal')?.classList.add('hidden'));
 
     const muteBtn = document.getElementById('mute-btn');
     if (muteBtn) {
@@ -2605,6 +2605,7 @@ class Game {
     if (this.xforceCooldownUntil > 0 && this.gameTime < this.xforceCooldownUntil) return;
     this.xforceActiveUntil = this.gameTime + 240; // 4 sec
     this.xforceCooldownUntil = this.gameTime + 5 * 60 * 60; // 5 min
+    SFX.xforceActivate && SFX.xforceActivate();
     new FloatingText(this.W/2, this.H/2, 'XFORCE!', '#ff2222');
   }
 
@@ -2792,7 +2793,7 @@ class Game {
     }
     if (this.gameTime >= this.xforceCooldownUntil) this.xforceCooldownUntil = 0;
 
-    // Rip n Dip — full lives 2 min → 10s countdown → 6s rainbow fury
+    // Rip n Dip — full lives 2 min → 10s countdown → 8s rainbow fury
     if (this.upgrades?.rip_n_dip && this.ship?.alive) {
       const maxLives = this.ship.maxLives ?? 5;
       if (this.ship.lives >= maxLives) {
@@ -2802,7 +2803,7 @@ class Game {
           if (this.ripCountdownRemain === 0) this.ripCountdownRemain = 600; // 10 sec
           this.ripCountdownRemain--;
           if (this.ripCountdownRemain <= 0) {
-            this.ripFuryUntil = this.gameTime + 360; // 6 sec
+            this.ripFuryUntil = this.gameTime + 480; // 8 sec
             this.ripFullLivesSince = 0;
             this.ripCountdownRemain = 0;
             new FloatingText(this.W/2, this.H/2, 'RIP N DIP!', '#ff00ff');
@@ -3571,7 +3572,11 @@ class Game {
     new FloatingText(mx, my - 20, label, roll >= 0.94 ? '#ff6600' : '#ff00ff');
   }
 
-  _addScore(pts) { this.score += Math.floor(pts * (this.runScoreMultiplier || 1)); }
+  _addScore(pts) {
+    const base = this.runScoreMultiplier || 1;
+    const ripMult = (this.ripFuryUntil > 0 && this.gameTime < this.ripFuryUntil) ? 10 : 1;
+    this.score += Math.floor(pts * base * ripMult);
+  }
 
   // ── Draw ───────────────────────────────────────────────────────────────────
   _draw() {
@@ -3600,7 +3605,7 @@ class Game {
     const xforceSec = this.upgrades?.xforce_lavian
       ? (xforceActive ? -1 : Math.max(0, Math.ceil((this.xforceCooldownUntil - this.gameTime) / 60)))
       : undefined;
-    drawHUD(ctx, W, {
+    drawHUD(ctx, W, H, {
       score:          this.score,
       lives:          _lives,
       maxLives:       this.ship?.maxLives ?? 3,
@@ -3719,6 +3724,36 @@ class Game {
     document.getElementById('top5-close').onclick = () => modal.classList.add('hidden');
   }
 
+  async _showWeeklyPopup() {
+    const modal = document.getElementById('weekly-modal');
+    const entriesEl = document.getElementById('weekly-entries');
+    const timerEl = document.getElementById('weekly-timer');
+    if (!modal || !entriesEl || !timerEl) return;
+    entriesEl.textContent = 'LOADING...';
+    timerEl.textContent = '';
+    modal.classList.remove('hidden');
+    try {
+      const base = API_BASE || window.location.origin;
+      const res = await fetch(base + '/api/scores/weekly');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load');
+      entriesEl.innerHTML = (data.top3 || []).map(e =>
+        `${e.rank}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`
+      ).join('<br>') || 'NO SCORES THIS WEEK';
+      const ms = data.countdownMs || 0;
+      const d = Math.floor(ms / 86400000);
+      const h = Math.floor((ms % 86400000) / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      timerEl.textContent = d > 0
+        ? `CLOSES IN ${d}d ${h}h ${m}m`
+        : `CLOSES IN ${h}h ${m}m ${s}s`;
+    } catch (e) {
+      entriesEl.textContent = 'COULD NOT LOAD';
+      timerEl.textContent = '';
+    }
+  }
+
   // ── Guide ───────────────────────────────────────────────────────────────────
   _openGuide() {
     const GUIDE_TABS = [
@@ -3743,7 +3778,7 @@ class Game {
           <div class="guide-row">Large asteroid — <b>20 pts</b></div>
           <div class="guide-row">Red Fighter jet — <b>200 pts</b></div>
           <div class="guide-row">Yellow Alien — <b>1,000 pts</b></div>
-          <div class="guide-row">Score doubles in real-time if the SCORE x2 boost is active.</div>
+          <div class="guide-row">SCORE x2/x3 boosts multiply in real-time. <b>RIP N DIP</b> fury = <b>×10 score</b> during rainbow mode.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h2">SHMIPS ($$)</span>
@@ -3763,6 +3798,7 @@ class Game {
           <div class="guide-row"><b>LIFE</b> — Remaining lives (5 max).</div>
           <div class="guide-row"><b>WARNINGS</b> — Flash when danger is near.</div>
           <div class="guide-row"><b>FLARE / ROCKET / SHLD</b> — Ammo. Dim when empty.</div>
+          <div class="guide-row"><b>X</b> — XForce Lavian (if owned). Red lasers wipe the screen. 5 min cooldown.</div>
         </div>`,
 
       controls: `
@@ -3772,7 +3808,7 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h1">RIGHT SIDE — ACTIONS</span>
-          <div class="guide-row">Thrust, Shoot, Rocket, Flare, Shield. Close together — tap like a mobile game.</div>
+          <div class="guide-row">Thrust, Shoot, Rocket, Flare, Shield, X (XForce). Tap like a mobile game.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">THRUST</span>
@@ -3835,71 +3871,81 @@ class Game {
           <div class="guide-row">Bought once in STORE > UPGRADES. Active every single run forever. Stack and combine for powerful synergies.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">MAGEN <span class="guide-cost">640 $$</span></span>
-          <div class="guide-row">You start every run with 1 free shield charge pre-loaded. Basically a guaranteed free shield each game without buying a boost.</div>
+          <span class="guide-h2">MAGEN <span class="guide-cost">608 $$</span></span>
+          <div class="guide-row">You start every run with 1 free shield charge pre-loaded. A guaranteed free shield each game.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">PEW PEW 1.5 <span class="guide-cost">480 $$</span></span>
-          <div class="guide-row">Fire rate increased by 50%. Your gun shoots noticeably faster. <b>Stacks</b> with PEW PEW 3 if you own both.</div>
+          <span class="guide-h2">PEW PEW 1.5 <span class="guide-cost">456 $$</span></span>
+          <div class="guide-row">Fire rate × 1.5. Stacks with PEW PEW 3 for ×4.5.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">PEW PEW 3 <span class="guide-cost">1,200 $$</span></span>
-          <div class="guide-row">Triple fire rate. Already fast? Own both PEW PEW 1.5 and PEW PEW 3 for a combined <b>×4.5</b> fire rate. Absolutely shreds asteroids.</div>
+          <span class="guide-h2">PEW PEW 3 <span class="guide-cost">1,140 $$</span></span>
+          <div class="guide-row">Fire rate × 3. Stacks with PEW PEW 1.5 for a combined ×4.5. Shreds asteroids.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">JEW METHOD <span class="guide-cost">720 $$</span> — Magnet</span>
-          <div class="guide-row">All coins ($$), Mystery boxes (?), and Monster Fuel are pulled toward your jet from much further away. You barely need to aim for pickups. Makes shmip farming significantly faster.</div>
+          <span class="guide-h2">JEW METHOD <span class="guide-cost">684 $$</span> — Magnet</span>
+          <div class="guide-row">Coins, Mystery boxes, Monster Fuel fly toward you from further away. Makes shmip farming faster.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">KURWA RAKETA <span class="guide-cost">960 $$</span></span>
-          <div class="guide-row">Start every run with <b>2 extra rockets</b>. More rockets means more homing firepower on demand.</div>
+          <span class="guide-h2">KURWA RAKETA <span class="guide-cost">912 $$</span></span>
+          <div class="guide-row">Start every run with <b>+2 rockets</b>. More homing firepower on demand.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">ACE <span class="guide-cost">1,440 $$</span></span>
-          <div class="guide-row">Earn <b>+1 life</b> every time you destroy a Red Fighter jet. High-risk high-reward — hunting fighters refills your lives.</div>
+          <span class="guide-h2">ACE <span class="guide-cost">1,368 $$</span></span>
+          <div class="guide-row">+1 life for every Red Fighter destroyed. Hunting fighters refills lives.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">ZEP ZEP ZEP <span class="guide-cost">1,120 $$</span></span>
-          <div class="guide-row">Earn <b>+1 rocket</b> every time you kill a Yellow Alien. Encourages hunting those rare yellow flashes for a constant rocket supply.</div>
+          <span class="guide-h2">ZEP ZEP ZEP <span class="guide-cost">1,064 $$</span></span>
+          <div class="guide-row">+1 rocket for every Yellow Alien killed. Hunt rare aliens for constant rocket supply.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SHPLIT <span class="guide-cost">800 $$</span></span>
-          <div class="guide-row">Your bullets split into <b>2 parallel lines</b> fired from the left and right sides of your jet instead of one central stream. Covers more horizontal width.</div>
+          <span class="guide-h2">SHPLIT <span class="guide-cost">760 $$</span></span>
+          <div class="guide-row">2 parallel bullet lines from left and right sides. Combines with TRIPPLE THREAT for 6 lines.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">TRIPPLE THREAT <span class="guide-cost">1,280 $$</span></span>
-          <div class="guide-row">Fire in <b>3 spread directions</b> simultaneously — one straight ahead, one angled left, one angled right. Covers a wide cone. Combines with SHPLIT for 6 bullet lines.</div>
+          <span class="guide-h2">TRIPPLE THREAT <span class="guide-cost">1,216 $$</span></span>
+          <div class="guide-row">Fire in 3 spread directions. Covers a wide cone. Combines with SHPLIT for 6 bullet lines.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SMART ROCKET <span class="guide-cost">1,760 $$</span></span>
-          <div class="guide-row">Blue rocket that searches and kills 5 targets before exploding. Pierce through enemies one by one, then big final blast.</div>
+          <span class="guide-h2">SMART ROCKET <span class="guide-cost">1,672 $$</span></span>
+          <div class="guide-row">Blue rocket pierces 5 targets then explodes. Pierce through enemies, big final blast.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">COLLECTOR <span class="guide-cost">880 $$</span></span>
-          <div class="guide-row">Shoot at distant coins, mystery boxes, or Monster Fuel to collect them without flying over them. Great for grabbing pickups that are near enemies or far away.</div>
+          <span class="guide-h2">COLLECTOR <span class="guide-cost">836 $$</span></span>
+          <div class="guide-row">Shoot coins, mystery boxes, Monster Fuel from range. Grab pickups near enemies safely.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">HORNET ASSISTANT <span class="guide-cost">5,880 $$</span></span>
-          <div class="guide-row">When you drop to 2 lives or less, a fast friendly jet spawns for 20 seconds. Uses your skin, fires golden double cannons (4 bullets) at 6× rate, launches 2 homing rockets every 1.5 sec. Invincible — cannot be taken down.</div>
+          <span class="guide-h2">HORNET ASSISTANT <span class="guide-cost">5,586 $$</span></span>
+          <div class="guide-row">At 2 lives or less, a friendly jet spawns for 20 sec. Fires golden cannons, homing rockets. Invincible.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SCORE x2 <span class="guide-cost">1,500 $$</span></span>
-          <div class="guide-row">All score is doubled every run, permanently. Stacks with x3 for a combined <b>x6 multiplier</b>.</div>
+          <span class="guide-h2">XFORCE LAVIAN <span class="guide-cost">4,332 $$</span></span>
+          <div class="guide-row">X button: red lasers wipe the screen for 4 sec. 5 min cooldown. Epic panic button.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">SCORE x3 <span class="guide-cost">4,000 $$</span></span>
-          <div class="guide-row">All score is tripled every run, permanently. Stacks with x2 for a combined <b>x6 multiplier</b>.</div>
+          <span class="guide-h2">RIP N DIP <span class="guide-cost">6,333 $$</span></span>
+          <div class="guide-row">Full lives for 2 min → 10 sec countdown. Survive → <b>8 sec rainbow fury</b>. Everything turns rainbow, score <b>×10</b> during fury. Shielded.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">SCORE x2 <span class="guide-cost">1,425 $$</span></span>
+          <div class="guide-row">All score doubled every run. Stacks with x3 for ×6.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h2">SCORE x3 <span class="guide-cost">3,800 $$</span></span>
+          <div class="guide-row">All score tripled every run. Stacks with x2 for ×6.</div>
         </div>`,
 
       gear: `
         <div class="guide-section">
           <span class="guide-h1">JETS</span>
           <div class="guide-row">Buy in STORE > JETS. Equip in ARSENAL. Your jet determines starting lives, flares, rockets and special abilities.</div>
-          <div class="guide-row" style="margin-top:8px"><b>STARTER JET</b> <span class="guide-tag good">FREE</span><br>2 lives · 1 flare. Clean and simple. Perfect for learning the game.</div>
-          <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">2,400 $$</span><br>3 lives · 2 flares · 2 rockets. Better loadout.</div>
-          <div class="guide-row"><b>KILLAJET</b> <span class="guide-cost">5,200 $$</span><br>3 lives · 3 flares · 3 rockets · starts with SHIELD · ×1.5 fire rate. The aggressive choice. Fires faster than anything and starts shielded.</div>
-          <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">8,800 $$</span><br>4 lives · 4 flares · 4 rockets · 2 shields. The tank. Best for long survival runs.</div>
-          <div class="guide-row"><b>ASTROZOINKER</b> <span class="guide-cost">69,000 $$</span><br>4 lives · 5 shields · 8 rockets. Ultimate hybrid jet — sharp, scary, endgame tier.</div>
+          <div class="guide-row" style="margin-top:8px"><b>STARTER JET</b> <span class="guide-tag good">FREE</span><br>2 lives · 1 flare. Perfect for learning.</div>
+          <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">2,280 $$</span><br>3 lives · 2 flares · 2 rockets.</div>
+          <div class="guide-row"><b>KILLAJET</b> <span class="guide-cost">4,940 $$</span><br>3 lives · 3 flares · 3 rockets · Shield · ×1.3 fire. Aggressive choice.</div>
+          <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">8,360 $$</span><br>4 lives · 4 flares · 4 rockets · 2 shields · ×1.5 fire. The tank.</div>
+          <div class="guide-row"><b>NEGEV</b> <span class="guide-cost">10,773 $$</span><br>4 lives · 5 flares · 6 rockets · 3 shields · ×1.7 fire.</div>
+          <div class="guide-row"><b>BABA YAGA</b> <span class="guide-cost">24,277 $$</span><br>5 lives · 7 flares · 8 rockets · 4 shields · ×1.8 fire.</div>
+          <div class="guide-row"><b>ASTROZOINKER</b> <span class="guide-cost">65,550 $$</span><br>5 lives · 9 flares · 11 rockets · 7 shields · ×2 fire. Endgame tier.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">SKINS</span>
@@ -3909,10 +3955,10 @@ class Game {
         <div class="guide-section">
           <span class="guide-h1">STORE BOOSTS</span>
           <div class="guide-row">One-time use per run. Buy in STORE > BOOSTS. Applied at the start of the next game, then consumed.</div>
-          <div class="guide-row"><b>Extra Life</b> <span class="guide-cost">10 $$</span> — +1 life for that run.</div>
-          <div class="guide-row"><b>Extra Flare</b> <span class="guide-cost">5 $$</span> — +1 flare for that run.</div>
-          <div class="guide-row"><b>Run Shield</b> <span class="guide-cost">10 $$</span> — 1 shield charge for that run.</div>
-          <div class="guide-row"><b>Run Rocket</b> <span class="guide-cost">15 $$</span> — +1 rocket for that run.</div>
+          <div class="guide-row"><b>Extra Life</b> <span class="guide-cost">15 $$</span> — +1 life for that run.</div>
+          <div class="guide-row"><b>Extra Flare</b> <span class="guide-cost">10 $$</span> — +1 flare for that run.</div>
+          <div class="guide-row"><b>Run Shield</b> <span class="guide-cost">15 $$</span> — 1 shield charge for that run.</div>
+          <div class="guide-row"><b>Run Rocket</b> <span class="guide-cost">20 $$</span> — +1 rocket for that run.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">MYSTERY BOX ?</span>
@@ -3964,7 +4010,8 @@ class Game {
         <div class="guide-section">
           <span class="guide-h1">SCORE TIPS</span>
           <div class="guide-row"><span class="guide-tag tip">TIP</span> Small asteroids give the most points per hit (100pts). Break big ones down fast.</div>
-          <div class="guide-row"><span class="guide-tag tip">TIP</span> Combine SCORE x2 boost with long survival — points scale exponentially as enemies get harder.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> Combine SCORE x2 with long survival for big scores.</div>
+          <div class="guide-row"><span class="guide-tag tip">TIP</span> RIP N DIP fury = ×10 score. Chain kills during rainbow for massive points.</div>
           <div class="guide-row"><span class="guide-tag tip">TIP</span> Hunting Red Fighters (200pts each) and Yellow Aliens (1,000pts each) is key for top scores.</div>
           <div class="guide-row"><span class="guide-tag tip">TIP</span> The FIREBALL from ? circles can clear an entire screen of enemies at once — huge point swing.</div>
         </div>`,
@@ -4277,7 +4324,9 @@ class Game {
       grid.innerHTML = '<div class="store-weekly-soon">COMING SOON!</div>';
       return;
     }
-    const items = (this._catalog || []).filter(item => item.category === category);
+    const items = (this._catalog || [])
+      .filter(item => item.category === category)
+      .filter(item => item.id !== 'thrust_default' && item.id !== 'bullet_default');
     if (items.length === 0) return;
     items.forEach(item => {
       const qty = this.upgrades[item.id] || 0;

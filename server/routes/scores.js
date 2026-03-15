@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../supabase.js';
 import { requireTelegramAuth } from '../middleware/auth.js';
+import { getWeeklyEventData } from '../weeklyEvent.js';
 
 export const scoresRouter = Router();
 
@@ -60,6 +61,16 @@ scoresRouter.post('/', requireTelegramAuth, async (req, res) => {
     totalShmips:      newShmips,
     newBestScore:     newBest,
   });
+});
+
+// GET /api/scores/weekly  — 6-weekly event: top 3, countdown, no auth required
+scoresRouter.get('/weekly', async (_req, res) => {
+  try {
+    const data = await getWeeklyEventData();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // GET /api/scores/leaderboard  — top 5, no auth required

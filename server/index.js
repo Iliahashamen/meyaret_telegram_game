@@ -12,6 +12,7 @@ import { scoresRouter } from './routes/scores.js';
 import { storeRouter }  from './routes/store.js';
 import { supabase }     from './supabase.js';
 import { requireTelegramAuth } from './middleware/auth.js';
+import { scheduleWeeklyPayout } from './weeklyEvent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
@@ -932,13 +933,19 @@ if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
     }
 
     await setMenuButton();
+    scheduleWeeklyPayout(bot);
   });
 } else {
   app.listen(PORT, () => {
     console.log(`[server] http://localhost:${PORT}`);
     console.log(`[server] Public dir: ${PUBLIC_DIR}`);
   });
-  bot.start({ onStart: () => setMenuButton() }).catch(console.error);
+  bot.start({
+    onStart: () => {
+      setMenuButton();
+      scheduleWeeklyPayout(bot);
+    },
+  }).catch(console.error);
 }
 
 export default app;
