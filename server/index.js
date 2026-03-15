@@ -11,6 +11,7 @@ import { usersRouter }  from './routes/users.js';
 import { scoresRouter } from './routes/scores.js';
 import { storeRouter }  from './routes/store.js';
 import { supabase }     from './supabase.js';
+import { requireTelegramAuth } from './middleware/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
@@ -41,6 +42,14 @@ app.use(express.static(PUBLIC_DIR));
 app.use('/api/users',  usersRouter);
 app.use('/api/scores', scoresRouter);
 app.use('/api/store',  storeRouter);
+
+// ── Sandbox check — only ADMIN_TELEGRAM_ID gets sandbox (MEYARET 2 BETA)
+app.get('/api/sandbox', requireTelegramAuth, (req, res) => {
+  const sandboxId = Number(process.env.ADMIN_TELEGRAM_ID || 0);
+  const tid = Number(req.telegramUserId);
+  const isSandbox = sandboxId && tid === sandboxId;
+  res.json({ sandbox: !!isSandbox });
+});
 
 // ── Public client config — serves anon key from env var, never from source ────
 app.get('/api/config', (_req, res) => {

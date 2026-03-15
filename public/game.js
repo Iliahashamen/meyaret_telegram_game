@@ -31,6 +31,7 @@ async function waitForTelegramUser() {
 
 const API_BASE = (typeof window !== 'undefined' && window.MEYARET_API) || '';
 let OFFLINE_MODE = false;
+let SANDBOX_MODE = false; // MEYARET 2 BETA — only for ADMIN_TELEGRAM_ID
 
 const DEMO_USER = {
   telegram_id: 0,
@@ -808,7 +809,9 @@ class FriendlyJet {
     this.angle = Math.atan2(ship.y - y, ship.x - x); // same convention as Ship: forward = (cos,sin)
     this.timer = 20 * 60; // 20 seconds at 60fps
     this.fireCooldown = 0;
-    this.fireRate = Math.floor(22 / 2); // 2x fire rate
+    this.fireRate = Math.floor(22 / 6); // 6x fire rate
+    this.rocketCooldown = 0;
+    this.rocketRate = 60 * 1.5; // 1.5 sec between rockets
     this.skinId = ship.skinId || null;
     this.skinColor = ship.skinColor || ship.color;
     this.accent = ship.accent || '#ffffff';
@@ -835,36 +838,48 @@ class FriendlyJet {
     this.timer--;
     if (this.timer <= 0) return;
     this.bobTimer++;
-    // Move toward player, orbit slightly behind
+    // Move toward player fast — strong wingman
     const dx = g.ship.x - this.x, dy = g.ship.y - this.y;
     const d = Math.hypot(dx, dy) || 1;
-    const wantDist = 90;
-    if (d > wantDist + 20) {
-      const pull = 0.08 * Math.min(1, (d - wantDist) / 80);
+    const wantDist = 80;
+    if (d > wantDist + 15) {
+      const pull = 0.18 * Math.min(1, (d - wantDist) / 60);
       this.vx += (dx / d) * pull;
       this.vy += (dy / d) * pull;
-    } else if (d < wantDist - 20) {
-      this.vx -= (dx / d) * 0.05;
-      this.vy -= (dy / d) * 0.05;
+    } else if (d < wantDist - 15) {
+      this.vx -= (dx / d) * 0.08;
+      this.vy -= (dy / d) * 0.08;
     }
-    this.vx *= 0.94; this.vy *= 0.94;
+    this.vx *= 0.96; this.vy *= 0.96;
     const spd = Math.hypot(this.vx, this.vy);
-    if (spd > 3.5) { this.vx = (this.vx / spd) * 3.5; this.vy = (this.vy / spd) * 3.5; }
+    if (spd > 6.5) { this.vx = (this.vx / spd) * 6.5; this.vy = (this.vy / spd) * 6.5; }
     this.x = wrap(this.x + this.vx, 0, g.W);
     this.y = wrap(this.y + this.vy, 0, g.H);
     // Face nearest target (or player) — same angle convention as Ship: forward = (cos(angle), sin(angle))
     const t = this._nearestTarget(g);
     const tx = t ? t.x : g.ship.x, ty = t ? t.y : g.ship.y;
     this.angle = Math.atan2(ty - this.y, tx - this.x);
-    // Shoot like SHPLIT — 2 parallel bullets, 2x fire rate
+    // Double cannons — 4 bullets (2 pairs), 4x fire rate
     if (this.fireCooldown > 0) this.fireCooldown--;
     else if (t) {
       const nose = { x: this.x + Math.cos(this.angle) * 12, y: this.y + Math.sin(this.angle) * 12 };
       const perp = this.angle + Math.PI / 2;
       const ox = Math.cos(perp) * 10, oy = Math.sin(perp) * 10;
-      g.bullets.push(new Bullet(nose.x + ox, nose.y + oy, this.angle, false));
-      g.bullets.push(new Bullet(nose.x - ox, nose.y - oy, this.angle, false));
+      const spread = 0.08;
+      g.bullets.push(new Bullet(nose.x + ox, nose.y + oy, this.angle - spread, true));
+      g.bullets.push(new Bullet(nose.x + ox, nose.y + oy, this.angle + spread, true));
+      g.bullets.push(new Bullet(nose.x - ox, nose.y - oy, this.angle - spread, true));
+      g.bullets.push(new Bullet(nose.x - ox, nose.y - oy, this.angle + spread, true));
       this.fireCooldown = this.fireRate;
+    }
+    // Rockets every 1.5 sec — fire 2 at once (homing)
+    if (this.rocketCooldown > 0) this.rocketCooldown--;
+    else {
+      const nose = { x: this.x + Math.cos(this.angle) * 14, y: this.y + Math.sin(this.angle) * 14 };
+      const spread = 0.15;
+      g.playerRockets.push(new PlayerRocket(nose.x, nose.y, this.angle - spread, false));
+      g.playerRockets.push(new PlayerRocket(nose.x, nose.y, this.angle + spread, false));
+      this.rocketCooldown = this.rocketRate;
     }
   }
   draw(ctx) {
@@ -1942,6 +1957,7 @@ class Game {
     this.state    = 'loading';
     this.userData = null;
     this.upgrades = {};
+    this.sandboxMode = false; // MEYARET 2 BETA — set in _init from /api/sandbox
 
     this.ship = null;
     this.asteroids = []; this.bullets = []; this.enemyBullets = [];
@@ -1986,6 +2002,23 @@ class Game {
     if (tgUser) TG_USER = tgUser;
 
     const tid = TG_USER?.id;
+    const initData = window.Telegram?.WebApp?.initData || '';
+    if (tid && initData) {
+      try {
+        const res = await fetch(`${API_BASE}/api/sandbox`, {
+          headers: { 'X-Telegram-Init-Data': initData },
+        });
+        if (res.ok) {
+          const { sandbox } = await res.json();
+          SANDBOX_MODE = !!sandbox;
+          this.sandboxMode = SANDBOX_MODE;
+          if (SANDBOX_MODE) {
+            const logo = document.querySelector('#loading-screen .logo-text');
+            if (logo) logo.textContent = 'MEYARET 2 BETA';
+          }
+        }
+      } catch (_) { /* ignore */ }
+    }
     const hasWebApp = !!window.Telegram?.WebApp;
     _ss(tid ? 'PILOT LINK ESTABLISHED' : (hasWebApp ? 'WAITING FOR PILOT LINK...' : 'COMM CHANNEL OFFLINE'), tid ? '#00ffcc' : '#ff4466');
 
@@ -3568,7 +3601,7 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h2">HORNET ASSISTANT <span class="guide-cost">5,880 $$</span></span>
-          <div class="guide-row">When you drop to 2 lives or less, a friendly jet spawns from the corner for 20 seconds. Uses your skin, fires SHPLIT-style dual bullets at 2× rate, hunts enemies. Invincible — cannot be taken down.</div>
+          <div class="guide-row">When you drop to 2 lives or less, a fast friendly jet spawns for 20 seconds. Uses your skin, fires golden double cannons (4 bullets) at 6× rate, launches 2 homing rockets every 1.5 sec. Invincible — cannot be taken down.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h2">SCORE x2 <span class="guide-cost">1,200 $$</span></span>
