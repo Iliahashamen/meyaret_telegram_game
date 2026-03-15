@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
-    "setup-db": "node scripts/setup-db.js"
+    "setup-db": "node scripts/setup-db.js",
+    "test": "node -e \"const fs=require('fs');const p=['server/index.js','public/game.js','public/db.js','public/sounds.js'].map(f=>require('path').join(process.cwd(),f));const o=p.filter(f=>fs.existsSync(f)).length;console.log(o===p.length?'OK':('Missing:'+p.filter(f=>!fs.existsSync(f)).join(', ')));process.exit(o===p.length?0:1);\""
   },
   "dependencies": {
     "@grammyjs/auto-retry": "^2.0.2",

@@ -535,7 +535,7 @@ export const SFX = {
     _getCtx();
   },
 
-  // ── Opening theme — fast 80s synthwave loop ──────────────────────────────────
+  // ── Opening theme — short fun fanfare (~1.5 sec) ─────────────────────────────
   startOpeningMusic() {
     if (this.muted || _musicMode === 'opening') return;
     _stopMusicLoop();
@@ -547,21 +547,25 @@ export const SFX = {
       [294, 392, 494, 587, 392, 494, 294, 262],
     ];
     const arp = ARPS[Math.floor(Math.random() * ARPS.length)];
-    const tempo = 95; // Fast punchy loop
+    const tempo = 200; // Slower, measured pace
+    const maxNotes = 8; // One full arp = ~1.6 sec, then stop
     let i = 0;
     _musicTimer = setInterval(() => {
-      if (this.muted || _musicMode !== 'opening') return;
+      if (this.muted || _musicMode !== 'opening' || i >= maxNotes) {
+        if (i >= maxNotes) _stopMusicLoop();
+        return;
+      }
       const t = _now();
       const note = arp[i % arp.length];
-      _playTone(note, t, 0.1, 'square', 0.04);
-      _playTone(note * 0.5, t, 0.15, 'sine', 0.02);
-      _playTone(note * 2, t + 0.015, 0.05, 'triangle', 0.014);
+      _playTone(note, t, 0.2, 'square', 0.05);
+      _playTone(note * 0.5, t, 0.28, 'sine', 0.03);
+      _playTone(note * 2, t + 0.02, 0.08, 'triangle', 0.02);
       if (i % 2 === 0) {
-        const hg = _gain(0.025);
+        const hg = _gain(0.02);
         const hf = _filter('highpass', 5000, hg);
-        const hn = _noise(0.025, hf);
+        const hn = _noise(0.03, hf);
         hf.connect(hg);
-        hn.start(t); hn.stop(t + 0.025);
+        hn.start(t); hn.stop(t + 0.03);
       }
       i++;
     }, tempo);

@@ -2,14 +2,14 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js?v=20250310p';
+import { SFX } from './sounds.js';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
-} from './db.js?v=20260311h';
+} from './db.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -83,7 +83,6 @@ const CFG = {
 // ── Utility ───────────────────────────────────────────────────────────────────
 const rng   = (a, b) => a + Math.random() * (b - a);
 const rngInt = (a, b) => Math.floor(rng(a, b + 1));
-const clamp  = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const TAU    = Math.PI * 2;
 
 function wrap(val, lo, hi) {
@@ -827,8 +826,6 @@ class Ship {
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
     bullets.push(new PlayerRocket(nose.x, nose.y, this.angle, this.smartRocket));
     SFX.rocketFire();
-    // Update shield HUD counter
-    _updateShieldHUD(this.shieldCharges);
     return true;
   }
 
@@ -1154,6 +1151,7 @@ class Asteroid {
   constructor(x, y, size = 'large', angle = null, level = 1) {
     this.x = x; this.y = y;
     this.size = size;
+    this.level = level;
     this.radius = CFG.asteroidSizes[size];
     const speedMult = 0.65 + Math.min(level - 1, 15) * 0.035;
     const baseSpd = size === 'large' ? rng(0.40, 0.80) : size === 'medium' ? rng(0.70, 1.20) : rng(1.10, 1.80);
@@ -1192,8 +1190,8 @@ class Asteroid {
   }
   split(particles) {
     burst(particles, this.x, this.y, C.asteroid, 8, 2.5, 25);
-    if (this.size === 'large')  { SFX.explodeLarge(); return [new Asteroid(this.x, this.y, 'medium'), new Asteroid(this.x, this.y, 'medium')]; }
-    if (this.size === 'medium') { SFX.explodeMed();   return [new Asteroid(this.x, this.y, 'small'),  new Asteroid(this.x, this.y, 'small')];  }
+    if (this.size === 'large')  { SFX.explodeLarge(); return [new Asteroid(this.x, this.y, 'medium', null, this.level), new Asteroid(this.x, this.y, 'medium', null, this.level)]; }
+    if (this.size === 'medium') { SFX.explodeMed();   return [new Asteroid(this.x, this.y, 'small', null, this.level),  new Asteroid(this.x, this.y, 'small', null, this.level)];  }
     SFX.explodeSmall();
     return [];
   }
@@ -1694,12 +1692,8 @@ class OrangeHomingRocket {
   deflect(particles) {
     if (this._exploded) return;
     this._exploded = true;
-    for (let i = 0; i < 20; i++) {
-      const ang = rng(0, TAU);
-      const spd = rng(1.5, 4.5);
-      particles.push(new Particle(this.x, this.y, Math.cos(ang)*spd, Math.sin(ang)*spd,
-        ['#ffee00','#ffcc00','#ffffaa','#ff8800'][Math.floor(Math.random()*4)], rng(2,4)));
-    }
+    const col = ['#ffee00','#ffcc00','#ffffaa','#ff8800'][Math.floor(Math.random() * 4)];
+    burst(particles, this.x, this.y, col, 20, 4, 28);
     this.dead = true;
   }
   draw(ctx) {
@@ -1746,7 +1740,7 @@ function drawGrid(ctx, W, H, tick) {
     ctx.beginPath(); ctx.arc((s.x/1000)*W,(s.y/1000)*H,s.r,0,TAU); ctx.fill();
   }
   for (const s of STARS_MID) {
-    ctx.globalAlpha = (Math.sin(tick*.011+s.phase)*.25+.75)*(s.r>1?.55:.38);
+    ctx.globalAlpha = (Math.sin(tick*.011+s.phase)*.25+.75)*(s.r>1?0.55:0.38);
     ctx.fillStyle = s.tint||'#ffffff';
     ctx.beginPath(); ctx.arc((s.x/1000)*W,(s.y/1000)*H,s.r,0,TAU); ctx.fill();
   }
@@ -3219,7 +3213,7 @@ class Game {
             this._addScore(CFG.enemyYellowScore * (alienOneShot ? 3 : 1));
             this.yellowAliens.splice(ei, 1);
             // ZEP ZEP ZEP: +1 rocket per alien kill
-            if (ship.hasZepZep) { ship.rocketAmmo++; new FloatingText(ship.x, ship.y-30, '+1 ROCKET! (ZEP)', '#ffee00'); _updateShieldHUD(ship.shieldCharges); }
+            if (ship.hasZepZep) { ship.rocketAmmo++; new FloatingText(ship.x, ship.y-30, '+1 ROCKET! (ZEP)', '#ffee00'); }
           }
           break;
         }
