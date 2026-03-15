@@ -50,11 +50,10 @@ export const CATALOG = [
   { id: 'zep_zep_zep',    name: 'ZEP ZEP ZEP',    category: 'upgrade', cost: 1064, description: '+1 rocket each time you kill an alien' },
   { id: 'shplit',         name: 'SHPLIT',          category: 'upgrade', cost: 760,  description: 'Shoot 2 parallel lines from both sides' },
   { id: 'tripple_threat', name: 'TRIPPLE THREAT',  category: 'upgrade', cost: 1216, description: 'Shoot in 3 spread directions' },
-  { id: 'lazer_pew',      name: 'LAZER PEW',       category: 'upgrade', cost: 1520, description: 'Replace bullets with laser beams' },
   { id: 'smart_rocket',   name: 'SMART ROCKET',    category: 'upgrade', cost: 1672, description: 'Blue rocket that searches and kills 5 targets before exploding' },
   { id: 'collector',      name: 'COLLECTOR',       category: 'upgrade', cost: 836,  description: 'Shoot $ or ? to collect them from range' },
   { id: 'hornet_assistant', name: 'HORNET ASSISTANT', category: 'upgrade', cost: 5586, description: 'At 2 lives or less, a friendly jet spawns for 20 sec to help' },
-  { id: 'xforce_lavian',  name: 'XFORCE LAVIAN',   category: 'upgrade', cost: 4332, description: 'X button: red lasers kill all for 4 sec (7 min cooldown)' },
+  { id: 'xforce_lavian',  name: 'XFORCE LAVIAN',   category: 'upgrade', cost: 4332, description: 'X button: red lasers kill all for 4 sec (5 min cooldown)' },
   { id: 'rip_n_dip',      name: 'RIP N DIP',       category: 'upgrade', cost: 6333, description: 'Full lives 2 min → 10s countdown. Survive = rainbow fury 6 sec' },
 
   // ── Thrust colors ────────────────────────────────────────────────────────
@@ -246,6 +245,22 @@ export async function dbConsumeBoost(telegramId, upgradeId) {
       });
     }
   } catch { /* best-effort */ }
+}
+
+// ── Refund LAZER PEW (removed upgrade) — one-time 2000 $$ refund ─────────────
+export async function dbRefundLazerPew(telegramId) {
+  const id = String(telegramId);
+  try {
+    const ups = await supa(`user_upgrades?telegram_id=eq.${id}&upgrade_id=eq.lazer_pew&select=id,quantity`);
+    if (!ups?.length) return null;
+    const rows = await supa(`users?telegram_id=eq.${id}&select=shmips`);
+    const user = rows[0];
+    if (!user) return null;
+    const newShmips = Math.round((Number(user.shmips) + 2000) * 100) / 100;
+    await supa(`users?telegram_id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ shmips: newShmips }) });
+    await supa(`user_upgrades?telegram_id=eq.${id}&upgrade_id=eq.lazer_pew`, { method: 'DELETE' });
+    return { shmips: newShmips };
+  } catch { return null; }
 }
 
 // ── Add bonus shmips (from coin pickups) ───────────────────────────────────────

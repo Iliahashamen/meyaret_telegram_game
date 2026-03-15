@@ -7,7 +7,7 @@ import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
-  dbGetUserUpgrades, dbBuyItem,
+  dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
 } from './db.js?v=20260311h';
 
@@ -195,7 +195,7 @@ class Ship {
     this.shieldUp      = false; // must be deployed manually
 
     // Weapon modes — all stackable
-    this.hasLaser  = !!(upgrades.lazer_pew);
+    this.hasLaser  = false; // LAZER PEW removed — only via ? boost now
     this.hasShplit  = !!(upgrades.shplit);
     this.hasTripple = !!(upgrades.tripple_threat);
 
@@ -254,7 +254,6 @@ class Ship {
     this.tempPowerBoostUntil = 0;
     this.tempStarUntil       = 0;
     this.tempMonsterFuelUntil = 0;
-    this.tempSuperBeamUntil  = 0;
     this.tempRamboUntil      = 0;
     this.starShieldLayers    = 0;
     this.fireballReady       = false;
@@ -723,9 +722,8 @@ class Ship {
 
   canFire() { return this.fireCooldown <= 0; }
   get isStarOverdrive() { return this.tempStarUntil > 0; }
-  get effectiveLaser() { return this.hasLaser || this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0; }
+  get effectiveLaser() { return this.tempLaserUntil > 0 || this.tempPinkBeamUntil > 0; }
   get isPinkBeam()    { return this.tempPinkBeamUntil > 0; }
-  get isSuperBeam()   { return this.tempSuperBeamUntil > 0; }
   get effectiveFireRate() {
     if (this.ripFuryActive) return Math.max(Math.floor(this.fireRate / 3), 2);
     if (this.isStarOverdrive) return Math.max(Math.floor(this.fireRate / 2), 2);
@@ -756,12 +754,6 @@ class Ship {
     }
     this.fireCooldown = this.effectiveFireRate;
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
-    // Super Beam — single line from ? (laser player only): stationary beam, everything touched dies
-    if (this.isSuperBeam) {
-      this.fireCooldown = 4; // rapid ticks for collision checks
-      SFX.laser();
-      return; // collisions handled in Game._processSuperBeamCollisions
-    }
     // Star overdrive: MEGA RAKETA — big rocket that splits into 7 mini homing rockets
     // Override cooldown so rockets fire ~once per second regardless of fire upgrades
     if (this.isStarOverdrive && megaRaketas) {
@@ -2100,26 +2092,19 @@ class Game {
     const status = document.getElementById('loading-status');
     const _ss = (msg, color) => { if (status) { status.textContent = msg; status.style.color = color || '#00ffcc'; } };
 
-    // ── 3 sec opening: fast retro theme + 2 random loading texts ─────────────
+    // ── Fast opening (<3 sec): 1 random loading text + quick loop ─────────────
     const OPENING_TEXTS = [
       'SYNCING HANGAR...', 'LOADING ROCKETS...', 'CALIBRATING RETRO RADAR...',
       'ARMING CANNONS...', 'INITIALIZING THRUST...', 'SCANNING ASTEROIDS...',
       'BOOTING NEURAL LINK...', 'WARMING ENGINES...', 'CHARGING SHIELDS...',
       'PRIMING FLARES...'
     ];
-    const picks = [...OPENING_TEXTS].sort(() => Math.random() - 0.5).slice(0, 2);
+    const pick = OPENING_TEXTS[Math.floor(Math.random() * OPENING_TEXTS.length)];
     bar.style.width = '10%';
     SFX.startOpeningMusic && SFX.startOpeningMusic();
-    label.textContent = picks[0];
-    _ss(picks[0], '#00ffcc');
-    await this._sleep(1500);
-    if (picks[1]) {
-      label.textContent = picks[1];
-      _ss(picks[1], '#00ffcc');
-      await this._sleep(1500);
-    } else {
-      await this._sleep(1500);
-    }
+    label.textContent = pick;
+    _ss(pick, '#00ffcc');
+    await this._sleep(2200); // ~2.2 sec total
     // Opening music continues until main menu — stopped when SFX.startMenuMusic() runs
     bar.style.width = '15%'; label.textContent = 'WARMING ENGINES...';
     _ss('CALIBRATING RETRO RADAR...','#ffee00');
@@ -2170,7 +2155,18 @@ class Game {
       bar.style.width = '85%';
       _ss(`WELCOME ${data.isNew ? 'PILOT' : data.user.nickname}`,'#00ffcc');
       this.userData = data.user;
-      this._parseUpgrades(data.upgrades || []);
+      const ups = data.upgrades || [];
+      const hadLazer = ups.some(u => u.upgrade_id === 'lazer_pew');
+      if (hadLazer && !localStorage.getItem('meyaret_lazer_refund_done')) {
+        try {
+          const ref = await dbRefundLazerPew(tid);
+          if (ref) {
+            this.userData.shmips = ref.shmips;
+            localStorage.setItem('meyaret_lazer_refund_done', '1');
+          }
+        } catch (_) {}
+      }
+      this._parseUpgrades(ups.filter(u => u.upgrade_id !== 'lazer_pew'));
       if (data.user.multiplier_end && new Date(data.user.multiplier_end) > new Date()) {
         this.activeMultiplier = Number(data.user.multiplier_value);
         this.multiplierEndMs  = new Date(data.user.multiplier_end).getTime();
@@ -2524,7 +2520,7 @@ class Game {
 
     // ── Permanent upgrades ────────────────────────────────────────────────
     ['magen','pew_pew_15','pew_pew_3','jew_method','kurwa_raketa',
-     'ace_upgrade','zep_zep_zep','shplit','tripple_threat','lazer_pew',
+     'ace_upgrade','zep_zep_zep','shplit','tripple_threat',
      'smart_rocket','collector','score_x2','score_x3','hornet_assistant','xforce_lavian','rip_n_dip'].forEach(id => {
       if (this.upgrades[id]) ups[id] = 1;
     });
@@ -2610,94 +2606,11 @@ class Game {
     setTimeout(() => { el.classList.add('hidden'); el.innerHTML = ''; }, 2000);
   }
 
-  // Distance from point to line segment — for super beam raycasting
-  _distToSegment(px, py, x1, y1, x2, y2) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const len = Math.hypot(dx, dy) || 1e-6;
-    const t = clamp(((px - x1) * dx + (py - y1) * dy) / (len * len), 0, 1);
-    const projX = x1 + t * dx, projY = y1 + t * dy;
-    return Math.hypot(px - projX, py - projY);
-  }
-
-  _processSuperBeamCollisions() {
-    const ship = this.ship;
-    if (!ship?.alive || !ship.isSuperBeam) return;
-    const len = 2000;
-    const x1 = ship.x + Math.cos(ship.angle) * 20;
-    const y1 = ship.y + Math.sin(ship.angle) * 20;
-    const x2 = x1 + Math.cos(ship.angle) * len;
-    const y2 = y1 + Math.sin(ship.angle) * len;
-    const beamW = 18;
-    const hit = (ex, ey, r = 0) => this._distToSegment(ex, ey, x1, y1, x2, y2) < beamW + r;
-    for (let ai = this.asteroids.length - 1; ai >= 0; ai--) {
-      const a = this.asteroids[ai];
-      if (hit(a.x, a.y, a.radius)) {
-        burst(this.particles, a.x, a.y, C.asteroid, 14, 4, 30);
-        this._addScore(a.score * 2);
-        this.asteroids.splice(ai, 1);
-      }
-    }
-    for (let ei = this.redFighters.length - 1; ei >= 0; ei--) {
-      const e = this.redFighters[ei];
-      if (hit(e.x, e.y, e.radius)) {
-        burst(this.particles, e.x, e.y, C.enemyRed, 18, 5, 35);
-        SFX.enemyDie();
-        this._addScore(CFG.enemyRedScore * 2);
-        if (ship.hasAce && ship.lives < 5) { ship.lives++; new FloatingText(ship.x, ship.y - 30, '+1 LIFE! (ACE)', '#00ffcc'); }
-        this.redFighters.splice(ei, 1);
-      }
-    }
-    for (let ei = this.yellowAliens.length - 1; ei >= 0; ei--) {
-      const e = this.yellowAliens[ei];
-      if (hit(e.x, e.y, e.radius)) {
-        burst(this.particles, e.x, e.y, C.enemyYellow, 14, 4, 30);
-        SFX.enemyDie();
-        this._addScore(CFG.enemyYellowScore * 2);
-        if (ship.hasZepZep) { ship.rocketAmmo++; new FloatingText(ship.x, ship.y - 30, '+1 ROCKET! (ZEP)', '#ffee00'); }
-        this.yellowAliens.splice(ei, 1);
-      }
-    }
-    for (let oi = this.orangeRockets.length - 1; oi >= 0; oi--) {
-      const o = this.orangeRockets[oi];
-      if (hit(o.x, o.y, o.radius)) {
-        burst(this.particles, o.x, o.y, '#ff7700', 10, 3, 22);
-        this._addScore(150);
-        this.orangeRockets.splice(oi, 1);
-      }
-    }
-  }
-
-  _drawSuperBeam(ctx) {
-    const ship = this.ship;
-    if (!ship?.isSuperBeam) return;
-    const len = 2000;
-    const x1 = ship.x + Math.cos(ship.angle) * 20;
-    const y1 = ship.y + Math.sin(ship.angle) * 20;
-    const x2 = x1 + Math.cos(ship.angle) * len;
-    const y2 = y1 + Math.sin(ship.angle) * len;
-    const p = 0.6 + 0.4 * Math.sin(Date.now() / 55);
-    glow(ctx, '#00ff88', 24 * p);
-    ctx.strokeStyle = `rgba(0,255,136,${0.5 * p})`;
-    ctx.lineWidth = 16;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    glow(ctx, '#00ffcc', 12);
-    ctx.strokeStyle = '#00ffcc';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-
   _activateXforce() {
     if (!this.upgrades?.xforce_lavian || !this.ship?.alive) return;
     if (this.xforceCooldownUntil > 0 && this.gameTime < this.xforceCooldownUntil) return;
     this.xforceActiveUntil = this.gameTime + 240; // 4 sec
-    this.xforceCooldownUntil = this.gameTime + 6 * 60 * 60; // 6 min
+    this.xforceCooldownUntil = this.gameTime + 5 * 60 * 60; // 5 min
     new FloatingText(this.W/2, this.H/2, 'XFORCE!', '#ff2222');
   }
 
@@ -2741,18 +2654,34 @@ class Game {
   }
 
   _drawRipFuryOverlay(ctx) {
-    const t = (this.ripFuryUntil - this.gameTime) / 360;
-    const alpha = 0.15 + 0.1 * Math.sin(Date.now() / 100);
-    const h = ((this.tick * 2) % 360) * (Math.PI / 180);
+    const FONT = '"Press Start 2P", "Courier New", monospace';
+    const furyRemain = this.ripFuryUntil - this.gameTime;
+    const furySec = Math.ceil(furyRemain / 60);
+    const h = ((this.tick * 3) % 360);
     ctx.save();
-    ctx.globalAlpha = alpha;
+    // Full-screen rainbow 'color' blend — makes everything on screen rainbow
+    ctx.globalCompositeOperation = 'color';
+    ctx.globalAlpha = 0.85;
     const g = ctx.createLinearGradient(0, 0, this.W, this.H);
-    g.addColorStop(0, `hsl(${(h * 57) % 360}, 100%, 50%)`);
-    g.addColorStop(0.33, `hsl(${(h * 57 + 120) % 360}, 100%, 50%)`);
-    g.addColorStop(0.66, `hsl(${(h * 57 + 240) % 360}, 100%, 50%)`);
-    g.addColorStop(1, `hsl(${(h * 57) % 360}, 100%, 50%)`);
+    g.addColorStop(0, `hsl(${h % 360}, 100%, 50%)`);
+    g.addColorStop(0.33, `hsl(${(h + 120) % 360}, 100%, 50%)`);
+    g.addColorStop(0.66, `hsl(${(h + 240) % 360}, 100%, 50%)`);
+    g.addColorStop(1, `hsl(${(h + 60) % 360}, 100%, 50%)`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, this.W, this.H);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    // Center text: RIP N DIP!! and sec counter at 60% opacity
+    ctx.globalAlpha = 0.6;
+    ctx.textAlign = 'center';
+    ctx.font = `14px ${FONT}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#ff00ff';
+    ctx.shadowBlur = 16;
+    ctx.fillText('RIP N DIP!!', this.W / 2, this.H / 2 - 14);
+    ctx.font = `10px ${FONT}`;
+    ctx.fillText(`${furySec}s`, this.W / 2, this.H / 2 + 10);
+    ctx.shadowBlur = 0;
     ctx.restore();
   }
 
@@ -2863,7 +2792,7 @@ class Game {
     if (this.keys.xforce){ this._activateXforce(); this.keys.xforce = false; }
 
     // Xforce Lavian — red lasers kill all for 4 sec
-    const XFORCE_COOLDOWN = 6 * 60 * 60; // 6 min in frames
+    const XFORCE_COOLDOWN = 5 * 60 * 60; // 5 min in frames
     if (this.upgrades?.xforce_lavian && this.xforceActiveUntil > 0 && this.gameTime < this.xforceActiveUntil) {
       this._processXforceLasers();
     }
@@ -2921,10 +2850,8 @@ class Game {
     if (this.ship.tempPowerBoostUntil > 0) this.ship.tempPowerBoostUntil--;
     if (this.ship.tempStarUntil > 0)       this.ship.tempStarUntil--;
     if (this.ship.tempMonsterFuelUntil > 0) this.ship.tempMonsterFuelUntil--;
-    if (this.ship.tempSuperBeamUntil > 0) this.ship.tempSuperBeamUntil--;
     if (this.ship.tempRamboUntil > 0) this.ship.tempRamboUntil--;
     if (this.ship.tempRamboUntil <= 0) this.ramboActive = false;
-    if (this.ship.isSuperBeam) this._processSuperBeamCollisions();
 
     // Rambo: auto-fire rockets every 18 frames for 5 sec
     if (this.ramboActive && this.ship.tempRamboUntil > 0 && this.ship.alive) {
@@ -3236,9 +3163,6 @@ class Game {
         this.mysteryPickups.splice(mi, 1);
       }
     }
-
-    // ── Super Beam (ray from ship) — insta-kills everything it touches ────────
-    // Collisions handled in _processSuperBeamCollisions; beam drawn in _draw
 
     // ── Player bullets vs asteroids ─────────────────────────────────────────
     for (let bi = this.bullets.length-1; bi >= 0; bi--) {
@@ -3638,10 +3562,7 @@ class Game {
     const roll = Math.random();
     let label;
     if      (roll < 0.14) { ship.tempRapidUntil    = 900;                          label = 'RAPID FIRE!'; }
-    else if (roll < 0.28) {
-      if (ship.hasLaser) { ship.tempSuperBeamUntil = 240; label = 'SUPER BEAM!'; }
-      else               { ship.tempLaserUntil    = 1200; label = 'LASER!'; }
-    }
+    else if (roll < 0.28) { ship.tempLaserUntil = 1200; label = 'LASER!'; }
     else if (roll < 0.40) { if (ship.lives < 5) { ship.lives++; label = '+1 LIFE!'; } else { label = 'FULL LIVES!'; } }
     else if (roll < 0.52) { ship.shieldCharges++; _updateShieldHUD(ship.shieldCharges); label = '+1 SHIELD!'; }
     else if (roll < 0.64) { ship.flares = Math.min(ship.flares+1, 9);              label = '+1 FLARE!'; }
@@ -3678,12 +3599,8 @@ class Game {
     this.yellowAliens.forEach(ya=>ya.draw(ctx));
     this.orangeRockets.forEach(or=>or.draw(ctx));
     this.fireballs.forEach(fb=>fb.draw(ctx));
-    if (this.ship?.alive) {
-      if (this.ship.isSuperBeam) this._drawSuperBeam(ctx);
-      this.ship.draw(ctx);
-    }
+    if (this.ship?.alive) this.ship.draw(ctx);
     if (this.xforceActiveUntil > 0 && this.gameTime < this.xforceActiveUntil) this._drawXforceLasers(ctx);
-    if (this.ripFuryUntil > 0 && this.gameTime < this.ripFuryUntil) this._drawRipFuryOverlay(ctx);
     const _lives = this.ship?.lives ?? 0;
     const xforceActive = this.xforceActiveUntil > 0 && this.gameTime < this.xforceActiveUntil;
     const xforceSec = this.upgrades?.xforce_lavian
@@ -3711,6 +3628,7 @@ class Game {
         lowLife:   _lives === 1,
       },
     });
+    if (this.ripFuryUntil > 0 && this.gameTime < this.ripFuryUntil) this._drawRipFuryOverlay(ctx);
   }
 
   // ── Game Over ──────────────────────────────────────────────────────────────
@@ -3872,7 +3790,7 @@ class Game {
           <div class="guide-row"><b>Standard</b> — Fast red bullets.</div>
           <div class="guide-row"><b>SHPLIT</b> — Two parallel bullet lines.</div>
           <div class="guide-row"><b>TRIPPLE THREAT</b> — Three spread directions.</div>
-          <div class="guide-row"><b>LAZER PEW</b> — Laser beams. Add TRIPPLE for 3 lasers.</div>
+          <div class="guide-row"><b>LASER</b> — From ? mystery pickup only. Temporary laser beams for 20 sec.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">ROCKET</span>
@@ -3956,11 +3874,7 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h2">TRIPPLE THREAT <span class="guide-cost">1,280 $$</span></span>
-          <div class="guide-row">Fire in <b>3 spread directions</b> simultaneously — one straight ahead, one angled left, one angled right. Covers a wide cone. Combines with SHPLIT for 6 bullet lines. With LAZER PEW: 3 pink lasers.</div>
-        </div>
-        <div class="guide-section">
-          <span class="guide-h2">LAZER PEW <span class="guide-cost">1,600 $$</span></span>
-          <div class="guide-row"><b>Replaces bullets</b> with long-range pink laser beams. Continuous fire, bigger hit range, and looks incredible. Add TRIPPLE THREAT for <b>3 pink lasers at once</b> — the most powerful weapon combo in the game.</div>
+          <div class="guide-row">Fire in <b>3 spread directions</b> simultaneously — one straight ahead, one angled left, one angled right. Covers a wide cone. Combines with SHPLIT for 6 bullet lines.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h2">SMART ROCKET <span class="guide-cost">1,760 $$</span></span>
@@ -4010,8 +3924,7 @@ class Game {
           <span class="guide-h1">MYSTERY BOX ?</span>
           <div class="guide-row">White glowing circles (?) that spawn from destroyed asteroids or appear randomly. Fly through them to collect (or shoot them with COLLECTOR upgrade). Random reward each time:</div>
           <div class="guide-row">• Rapid Fire x3 — triples your fire rate briefly</div>
-          <div class="guide-row">• Laser beam — temporary laser (if you don't have LAZER PEW)</div>
-          <div class="guide-row">• <span class="guide-tag rare">RARE</span> SUPER LASER — if you have LAZER PEW: a single straight green beam for 4 seconds. One-shot kills everything it touches.</div>
+          <div class="guide-row">• Laser beam — temporary laser for 20 sec (from ? only)</div>
           <div class="guide-row">• Extra Life — +1 life immediately</div>
           <div class="guide-row">• Shield charge — instant shield</div>
           <div class="guide-row">• Flare — +1 flare ammo</div>
@@ -4049,7 +3962,6 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h1">BEST UPGRADE COMBOS</span>
-          <div class="guide-row"><b>LAZER PEW + TRIPPLE THREAT</b> — 3 pink laser beams, the highest DPS weapon combo.</div>
           <div class="guide-row"><b>MAGEN + VERY SCARY JET</b> — Shield + 4 lives. Near-unkillable for the first few minutes.</div>
           <div class="guide-row"><b>ACE + ZEP ZEP ZEP</b> — Killing Red Fighters gives lives, killing Aliens gives rockets. Aggressive play refills all your resources.</div>
           <div class="guide-row"><b>JEW METHOD + COLLECTOR</b> — Everything flies to you and you can grab from range. Never miss a pickup.</div>
@@ -4110,7 +4022,7 @@ class Game {
       plane_astrozoinker: '5 LIVES · 9 FLARES · 11 ROCKETS · 7 SHIELDS · ×2 FIRE',
     };
     const el = document.getElementById('ars-jet');      if (el) el.textContent = jetNames[equippedJet] || equippedJet.toUpperCase();
-    const el2 = document.getElementById('ars-weapon'); if (el2) el2.textContent = this.upgrades.lazer_pew ? 'LAZER PEW' : this.upgrades.tripple_threat ? 'TRIPPLE THREAT' : this.upgrades.shplit ? 'SHPLIT' : 'STANDARD';
+    const el2 = document.getElementById('ars-weapon'); if (el2) el2.textContent = this.upgrades.tripple_threat ? 'TRIPPLE THREAT' : this.upgrades.shplit ? 'SHPLIT' : 'STANDARD';
     const el3 = document.getElementById('ars-ability');if (el3) el3.textContent = jetStats[equippedJet] || '—';
     const el4 = document.getElementById('ars-skin');   if (el4) el4.textContent = equippedSkin ? (CATALOG.find(c=>c.id===equippedSkin)?.name || equippedSkin) : 'DEFAULT';
 
@@ -4336,7 +4248,7 @@ class Game {
 
   // ── Store ──────────────────────────────────────────────────────────────────
   _updateSpecialTimer() {
-    const el = document.getElementById('store-special-timer');
+    const el = document.getElementById('store-special-btn');
     if (!el) return;
     const now = new Date();
     const target = new Date(now);
@@ -4347,10 +4259,10 @@ class Game {
     else if (daysToTue === 0 && now < target) daysToTue = 0;
     target.setDate(target.getDate() + daysToTue);
     const ms = target - now;
-    if (ms <= 0) { el.textContent = 'SOON'; return; }
+    if (ms <= 0) { el.textContent = 'SPECIAL - SOON'; return; }
     const d = Math.floor(ms / 86400000);
     const h = Math.floor((ms % 86400000) / 3600000);
-    el.textContent = `${String(d).padStart(2,'0')}d ${String(h).padStart(2,'0')}h`;
+    el.textContent = `SPECIAL - ${d}d ${h}h`;
   }
 
   async _openStore() {

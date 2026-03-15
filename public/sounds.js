@@ -535,27 +535,36 @@ export const SFX = {
     _getCtx();
   },
 
-  // ── Opening theme (3 sec, fast retro loop) ──────────────────────────────────
+  // ── Opening theme — fast 80s synthwave loop ──────────────────────────────────
   startOpeningMusic() {
     if (this.muted || _musicMode === 'opening') return;
     _stopMusicLoop();
     _musicMode = 'opening';
-    const arp = [392, 523, 659, 784, 523, 659, 392, 349];
+    const ARPS = [
+      [392, 523, 659, 784, 523, 659, 392, 349],
+      [330, 440, 554, 659, 440, 554, 330, 294],
+      [349, 466, 587, 698, 523, 698, 392, 349],
+      [294, 392, 494, 587, 392, 494, 294, 262],
+    ];
+    const arp = ARPS[Math.floor(Math.random() * ARPS.length)];
+    const tempo = 95; // Fast punchy loop
     let i = 0;
     _musicTimer = setInterval(() => {
       if (this.muted || _musicMode !== 'opening') return;
       const t = _now();
-      _playTone(arp[i % arp.length], t, 0.15, 'square', 0.04);
-      _playTone(arp[i % arp.length] * 0.5, t, 0.2, 'sine', 0.02);
+      const note = arp[i % arp.length];
+      _playTone(note, t, 0.1, 'square', 0.04);
+      _playTone(note * 0.5, t, 0.15, 'sine', 0.02);
+      _playTone(note * 2, t + 0.015, 0.05, 'triangle', 0.014);
       if (i % 2 === 0) {
         const hg = _gain(0.025);
         const hf = _filter('highpass', 5000, hg);
-        const hn = _noise(0.03, hf);
+        const hn = _noise(0.025, hf);
         hf.connect(hg);
-        hn.start(t); hn.stop(t + 0.03);
+        hn.start(t); hn.stop(t + 0.025);
       }
       i++;
-    }, 140);
+    }, tempo);
   },
 
   stopOpeningMusic() {
@@ -569,40 +578,37 @@ export const SFX = {
     if (this.muted || _musicMode === 'menu') return;
     _stopMusicLoop();
     _musicMode = 'menu';
-    const a = [330,311,294,277,311,330,294,262,247,277,294,330,311,277,262,247,262,294,277,247,220,208,247,262,294,277,247,220,196,220];
-    const b = [220,247,262,294,330,349,330,294,311,330,370,392,370,349,330,294,311,330,370,392,415,392,370,349,330,294,277,262,247,262];
-    const c = [196,185,208,220,233,196,185,175,196,208,220,185,175,165,175,165,185,196,220,233,247,220,196,185,175,165,156,175,185,196];
-    const melody = [...a, ...b, ...c];
-    const padR = [165,165,165,165,165,165,165,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147,147];
-    const padB = [175,175,175,175,175,185,185,185,185,185,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196,196];
-    const padC = [147,147,147,156,156,156,156,139,139,139,139,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131,131];
-    const pad = [...padR, ...padB, ...padC];
-    const bassA = [82,82,82,82,82,82,82,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73];
-    const bassBs = [87,87,87,87,87,92,92,92,92,92,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98,98];
-    const bassCs = [73,73,73,78,78,78,78,69,69,69,69,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65,65];
-    const bass = [...bassA, ...bassBs, ...bassCs];
+    const VARIANTS = [
+      { m: [330,311,294,277,311,330,294,262,247,277,294,330,311,277,262,247,262,294,277,247,220,208,247,262,294,277,247,220,196,220,220,247,262,294,330,349,330,294,311,330,370,392,370,349,330,294,311,330,370,392,415,392,370,349,330,294,277,262,247,262], p: [165,147,156], b: [82,73,87,73,98,87,73] },
+      { m: [277,294,311,330,294,277,262,247,262,277,294,311,330,349,330,311,294,277,262,247,220,247,262,277,294,311,294,277,262,247], p: [185,196,175,165], b: [73,82,87,82,73,69,78,82] },
+      { m: [392,370,349,330,349,370,392,415,392,370,349,330,311,294,277,262,247,262,277,294,311,330,349,330,311,294,277,262,247,220], p: [208,220,196,185], b: [98,87,82,87,98,92,87,82] },
+      { m: [262,294,330,349,330,294,262,247,220,247,262,294,330,349,392,370,349,330,294,262,247,262,294,330,349,330,294,262,247,220], p: [147,156,139,131], b: [65,73,78,73,65,69,73] },
+    ];
+    const v = VARIANTS[Math.floor(Math.random() * VARIANTS.length)];
+    const tempo = 380 + Math.floor(Math.random() * 60);
     let i = 0;
     _musicTimer = setInterval(() => {
       if (this.muted || _musicMode !== 'menu') return;
       const t = _now();
-      const idx = i % melody.length;
-      _playTone(melody[idx], t, 0.38, 'triangle', 0.032);
-      _playTone(pad[idx % pad.length], t, 0.45, 'sine', 0.016);
-      _playTone(bass[idx % bass.length], t, 0.45, 'sine', 0.012);
-      // Funky hi-hat percussion on every 2nd beat
+      const idx = i % v.m.length;
+      _playTone(v.m[idx], t, 0.36, 'triangle', 0.028);
+      _playTone(v.p[idx % v.p.length], t, 0.42, 'sine', 0.014);
+      _playTone(v.b[idx % v.b.length], t, 0.42, 'sine', 0.011);
       if (i % 2 === 0) {
-        const hg = _gain(0.02);
+        const hg = _gain(0.018);
         const hf = _filter('highpass', 6000, hg);
-        const hn = _noise(0.04, hf);
+        const hn = _noise(0.038, hf);
         hf.connect(hg);
-        hn.start(t); hn.stop(t + 0.04);
+        hn.start(t); hn.stop(t + 0.038);
       }
-      // Synth stab on every 4th beat
       if (i % 4 === 0) {
-        _playTone(melody[idx] * 2, t + 0.02, 0.08, 'square', 0.012);
+        _playTone(v.m[idx] * 2, t + 0.02, 0.07, 'square', 0.01);
+      }
+      if (i % 8 === 0) {
+        _playTone(v.m[idx] * 1.5, t + 0.04, 0.15, 'sine', 0.008);
       }
       i++;
-    }, 420);
+    }, tempo);
   },
 
   // Level-based music — starts calm (lv1) and escalates to chaos (lv20)
@@ -614,92 +620,138 @@ export const SFX = {
     _stopMusicLoop();
     _musicMode = newMode;
 
-    // ── Note sequences per tier — multiple variants for variety ─────────────────
-    const T1_A = [82,82,87,82,78,73,78,82,87,82,78,73,69,73,78,82,87,92,87,82];
-    const T1_B = [73,78,82,87,78,73,69,73,78,87,82,78,73,69,65,69,73,78,82,87];
-    const T1_C = [87,82,78,73,78,82,87,92,87,82,78,73,78,82,87,78,73,69,73,78];
-    const T2_A = [98,98,104,110,98,87,98,104,110,117,104,98,87,98,110,123,117,110,98,87];
-    const T2_B = [87,92,98,104,98,92,87,98,104,110,104,98,92,87,98,110,104,98,92,87];
-    const T2_C = [104,98,92,87,98,104,110,117,110,104,98,92,98,104,117,110,104,98,92,87];
-    const T3_A = [110,117,123,110,98,104,110,123,117,110,98,92,87,98,110,123,130,123,110,98];
-    const T3_B = [98,104,110,117,110,104,98,110,117,123,117,110,104,98,110,117,123,117,110,104];
-    const T3_C = [117,110,104,98,104,110,117,123,117,110,104,98,110,117,123,110,104,98,110,117];
-    const T4_A = [110,110,123,98,110,82,98,110,123,146,110,98,82,110,123,98,82,73,98,110,117,131,147,131,117,110,98,87,98,110];
-    const T4_B = [98,110,123,110,98,87,98,110,123,110,98,87,98,110,117,104,98,87,98,110,123,131,123,110,98,87,98,110,117,110];
-    const T4_C = [123,110,98,110,123,131,110,98,110,123,147,123,110,98,123,110,98,110,123,131,147,123,110,98,110,123,131,123,110,98];
-    const T5_A = [147,139,131,147,156,147,139,131,139,147,156,165,156,147,139,131,123,131,139,147,156,165,175,165,156,147,139,131,123,110];
-    const T5_B = [131,139,147,156,147,139,131,147,156,165,156,147,139,131,147,156,165,156,147,139,131,139,147,156,165,175,165,156,147,139];
-    const T5_C = [156,147,139,147,156,165,147,139,147,156,175,165,156,147,156,165,175,165,156,147,139,147,156,165,175,165,156,147,139,131];
-
-    const VARIANTS = [
-      [null, T1_A, T2_A, T3_A, T4_A, T5_A],
-      [null, T1_B, T2_B, T3_B, T4_B, T5_B],
-      [null, T1_C, T2_C, T3_C, T4_C, T5_C],
+    // ── 80s Synthwave — wide variant pool per tier ─────────────────────────────
+    const T1_BASS = [
+      [82,82,87,82,78,73,78,82,87,92,87,82,78,73,69,73,78,82,87,92],
+      [73,78,82,87,78,73,69,73,78,87,82,78,73,69,65,69,73,78,82,87],
+      [87,82,78,73,78,82,87,92,87,82,78,73,78,82,87,78,73,69,73,78],
+      [82,87,92,87,82,78,73,78,82,87,82,78,73,69,73,78,82,87,92,87],
+      [69,73,78,82,78,73,69,65,69,73,78,82,87,82,78,73,69,73,78,82],
+      [78,73,69,73,78,82,87,92,87,82,78,73,69,73,78,82,87,82,78,73],
     ];
-    const variant = Math.floor(Math.random() * 3);
-    const bass = VARIANTS[variant][tier];
+    const T2_BASS = [
+      [98,98,104,110,98,87,98,104,110,117,104,98,87,98,110,123,117,110,98,87],
+      [87,92,98,104,98,92,87,98,104,110,104,98,92,87,98,110,104,98,92,87],
+      [104,98,92,87,98,104,110,117,110,104,98,92,98,104,117,110,104,98,92,87],
+      [110,104,98,104,110,117,104,98,110,117,123,117,110,104,98,104,110,117,123,117],
+      [92,98,104,110,98,92,87,92,98,104,110,104,98,92,87,98,104,110,117,110],
+    ];
+    const T3_BASS = [
+      [110,117,123,110,98,104,110,123,117,110,98,92,87,98,110,123,130,123,110,98],
+      [98,104,110,117,110,104,98,110,117,123,117,110,104,98,110,117,123,117,110,104],
+      [117,110,104,98,104,110,117,123,117,110,104,98,110,117,123,110,104,98,110,117],
+      [104,110,117,123,110,104,98,104,110,117,123,117,110,104,98,110,117,123,130,123],
+      [123,117,110,117,123,130,117,110,123,130,139,130,123,117,110,117,123,130,139,130],
+      [110,104,98,104,110,117,104,98,110,117,123,110,104,98,104,110,117,123,117,110],
+    ];
+    const T4_BASS = [
+      [110,110,123,98,110,82,98,110,123,146,110,98,82,110,123,98,82,73,98,110,117,131,147,131,117,110,98,87,98,110],
+      [98,110,123,110,98,87,98,110,123,110,98,87,98,110,117,104,98,87,98,110,123,131,123,110,98,87,98,110,117,110],
+      [123,110,98,110,123,131,110,98,110,123,147,123,110,98,123,110,98,110,123,131,147,123,110,98,110,123,131,123,110,98],
+      [110,123,131,123,110,98,110,123,147,123,110,98,110,123,131,110,98,110,123,147,131,123,110,98,123,131,147,131,123,110],
+      [98,87,98,110,123,131,110,98,110,123,110,98,87,98,110,123,110,98,87,98,110,117,123,110,98,87,98,110,117,110],
+    ];
+    const T5_BASS = [
+      [147,139,131,147,156,147,139,131,139,147,156,165,156,147,139,131,123,131,139,147,156,165,175,165,156,147,139,131,123,110],
+      [131,139,147,156,147,139,131,147,156,165,156,147,139,131,147,156,165,156,147,139,131,139,147,156,165,175,165,156,147,139],
+      [156,147,139,147,156,165,147,139,147,156,175,165,156,147,156,165,175,165,156,147,139,147,156,165,175,165,156,147,139,131],
+      [139,131,139,147,156,165,147,139,147,156,147,139,131,139,147,156,165,156,147,139,131,147,156,165,175,165,156,147,139,131],
+      [147,156,165,156,147,139,131,139,147,156,165,175,165,156,147,139,131,139,147,156,165,156,147,139,131,147,156,165,175,165],
+    ];
 
-    // Tempo per tier (ms per note)
+    const BASS_POOL = [null, T1_BASS, T2_BASS, T3_BASS, T4_BASS, T5_BASS];
+    const pool = BASS_POOL[tier];
+    const bass = pool[Math.floor(Math.random() * pool.length)];
+
+    // Synthwave arpeggio layers — root-based, 80s feel
+    const ARP_UP = (r) => [r, r*1.25, r*1.5, r*2];
+    const ARP_DOWN = (r) => [r*2, r*1.5, r*1.25, r];
+    const ARP_V = [
+      (r,i) => ARP_UP(r)[i % 4],
+      (r,i) => ARP_DOWN(r)[i % 4],
+      (r,i) => (i % 2 ? r * 1.5 : r),
+      (r,i) => (i % 4 < 2 ? r : r * 2),
+    ];
+    const arpFn = ARP_V[Math.floor(Math.random() * ARP_V.length)];
+
+    // Tempo — slight variation for feel
     const TEMPO = [null, 340, 310, 285, 265, 240];
-    const tempo = TEMPO[tier];
+    const tempo = TEMPO[tier] + Math.floor(Math.random() * 20) - 10;
 
     let i = 0;
     _musicTimer = setInterval(() => {
       if (this.muted || _musicMode !== newMode) return;
       const t = _now();
       const root = bass[i % bass.length];
-
-      // Bass note — sawtooth, gets louder with tier
       const bassVol = 0.018 + tier * 0.006;
-      _playTone(root, t, 0.2, 'sawtooth', bassVol);
 
-      // Octave accent — triangle
-      if (tier >= 2) _playTone(root * 2, t + 0.02, 0.08, 'triangle', 0.010 + tier * 0.003);
+      // Deep sawtooth bass — classic 80s
+      _playTone(root, t, 0.22, 'sawtooth', bassVol);
 
-      // Kick drum — from tier 2
+      // Sub layer — sine for weight
+      _playTone(root * 0.5, t, 0.2, 'sine', 0.012);
+
+      // Octave stab — punch
+      if (tier >= 2) _playTone(root * 2, t + 0.02, 0.07, 'triangle', 0.009 + tier * 0.0025);
+
+      // Synthwave arp — shimmer
       if (tier >= 2) {
-        const kg = _gain(0.02 + tier * 0.008);
-        const ko = _osc('sine', 80, kg);
-        kg.gain.setValueAtTime(0.02 + tier * 0.008, t);
-        kg.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-        ko.frequency.setValueAtTime(80, t);
-        ko.frequency.exponentialRampToValueAtTime(25, t + 0.1);
-        ko.start(t); ko.stop(t + 0.12);
+        const arpNote = arpFn(root, i);
+        _playTone(arpNote, t + 0.03, 0.1, 'square', 0.005 + tier * 0.002);
       }
 
-      // Hi-hat — from tier 2, density increases
+      // Lush pad stab — every 4 beats
+      if (tier >= 2 && i % 4 === 0) {
+        _playTone(root * 1.5, t + 0.05, 0.25, 'sine', 0.006);
+        _playTone(root * 2.5, t + 0.06, 0.2, 'sine', 0.004);
+      }
+
+      // Kick — 80s punch
+      if (tier >= 2) {
+        const kg = _gain(0.022 + tier * 0.007);
+        const ko = _osc('sine', 85, kg);
+        kg.gain.setValueAtTime(0.022 + tier * 0.007, t);
+        kg.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+        ko.frequency.setValueAtTime(85, t);
+        ko.frequency.exponentialRampToValueAtTime(22, t + 0.09);
+        ko.start(t); ko.stop(t + 0.11);
+      }
+
+      // Gated-style hi-hat — 80s drum machine
       const hatEvery = tier >= 4 ? 1 : 2;
       if (tier >= 2 && i % hatEvery === 1) {
-        const hg = _gain(0.008 + tier * 0.003);
-        const hf = _filter('highpass', 7000, hg);
-        const hn = _noise(0.03, hf);
+        const hg = _gain(0.007 + tier * 0.003);
+        const hf = _filter('highpass', 7200, hg);
+        const hn = _noise(0.028, hf);
         hf.connect(hg);
-        hn.start(t + 0.04); hn.stop(t + 0.07);
+        hn.start(t + 0.035); hn.stop(t + 0.065);
       }
 
-      // Open hi-hat / crash on bar downbeats — from tier 3
+      // Crash / open hat — bar downbeat
       if (tier >= 3 && i % 8 === 0) {
-        const cg = _gain(0.012 + tier * 0.003);
-        const cf = _filter('highpass', 4000, cg);
-        const cn = _noise(0.25, cf);
+        const cg = _gain(0.011 + tier * 0.0025);
+        const cf = _filter('highpass', 3800, cg);
+        const cn = _noise(0.22, cf);
         cf.connect(cg);
-        cn.start(t); cn.stop(t + 0.25);
+        cn.start(t); cn.stop(t + 0.22);
       }
 
-      // Synth arp accent — from tier 3
-      if (tier >= 3 && i % 3 === 0) {
-        _playTone(root * 3, t + 0.05, 0.05, 'square', 0.006 + tier * 0.002);
+      // Brass stab — tier 3+
+      if (tier >= 3 && i % 4 === 2) {
+        _playTone(root * 3, t + 0.04, 0.06, 'square', 0.006 + tier * 0.0015);
+        _playTone(root * 2, t + 0.05, 0.04, 'sawtooth', 0.004);
       }
 
-      // Harmonic fill — from tier 4
-      if (tier >= 4 && i % 4 === 2) {
-        _playTone(root * 1.5, t + 0.04, 0.12, 'sine', 0.009);
+      // Harmonic pad fill — tier 4
+      if (tier >= 4 && i % 8 === 4) {
+        _playTone(root * 1.25, t + 0.06, 0.18, 'sine', 0.007);
+        _playTone(root * 2.25, t + 0.08, 0.12, 'triangle', 0.005);
       }
 
-      // Distorted synth hits — tier 5 only
+      // Chaos layer — tier 5
       if (tier >= 5 && i % 2 === 0) {
-        _playTone(root * 4, t + 0.01, 0.04, 'square', 0.007);
-        _playTone(root * 0.5, t + 0.08, 0.04, 'sawtooth', 0.012);
+        _playTone(root * 4, t + 0.01, 0.035, 'square', 0.006);
+        _playTone(root * 0.5, t + 0.07, 0.038, 'sawtooth', 0.011);
       }
 
       i++;
