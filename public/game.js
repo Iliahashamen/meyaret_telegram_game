@@ -1638,7 +1638,7 @@ function drawGrid(ctx, W, H, tick) {
 // ── HUD ───────────────────────────────────────────────────────────────────────
 function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, warnings }) {
   const FONT = '"Press Start 2P", "Courier New", monospace';
-  const s = SANDBOX_MODE ? 1.5 : 1; // PC mode: bigger HUD (1.5 not 1.7 — less lag)
+  const s = 1;
   const glowCap = (b) => Math.min(b * s, 14); // cap blur to reduce lag
 
   // Build ordered warning list
@@ -1971,24 +1971,9 @@ class Game {
         SANDBOX_MODE = sandbox;
         this.sandboxMode = sandbox;
         if (debugMode && status) { status.textContent = `sandbox: ${res.status} → BETA ${sandbox}`; await this._sleep(4000); }
-        const forcePC = typeof URLSearchParams !== 'undefined' && new URLSearchParams(window.location.search).get('pc') === '1';
-        if (sandbox || forcePC) {
-          if (forcePC && !sandbox) { SANDBOX_MODE = true; this.sandboxMode = true; }
-          document.body.classList.add('pc-mode');
-          const loadLogo = document.getElementById('loading-logo');
-          const menuLogo = document.getElementById('menu-logo');
-          if (loadLogo) loadLogo.textContent = 'MEYARET 2 BETA';
-          if (menuLogo) menuLogo.textContent = 'MEYARET 2 BETA';
-        }
       } catch (e) {
         if (debugMode && status) { status.textContent = `sandbox err: ${e?.message || 'failed'}`; await this._sleep(4000); }
       }
-    }
-    const forcePC = typeof URLSearchParams !== 'undefined' && new URLSearchParams(window.location.search).get('pc') === '1';
-    if (forcePC && !document.body.classList.contains('pc-mode')) {
-      document.body.classList.add('pc-mode');
-      SANDBOX_MODE = true;
-      this.sandboxMode = true;
     }
     const hasWebApp = !!window.Telegram?.WebApp;
     _ss(tid ? 'PILOT LINK ESTABLISHED' : (hasWebApp ? 'WAITING FOR PILOT LINK...' : 'COMM CHANNEL OFFLINE'), tid ? '#00ffcc' : '#ff4466');
@@ -2079,19 +2064,11 @@ class Game {
     });
     this.canvas.style.display = 'none';
     document.getElementById('controls-overlay')?.classList.add('hidden');
-    document.getElementById('pc-controls-box')?.classList.add('hidden');
 
     if (name === 'game') {
       this.canvas.style.display = 'block';
       const ctrl = document.getElementById('controls-overlay');
-      const pcBox = document.getElementById('pc-controls-box');
-      if (this.sandboxMode) {
-        ctrl?.classList.add('hidden');
-        pcBox?.classList.remove('hidden');
-      } else {
-        pcBox?.classList.add('hidden');
-        if (this._isMobile()) ctrl?.classList.remove('hidden');
-      }
+      if (this._isMobile()) ctrl?.classList.remove('hidden');
       SFX.startGameMusic(this.level);
     } else {
       const el = document.getElementById(`${name}-screen`);
@@ -2172,14 +2149,6 @@ class Game {
   }
 
   _bindInputs() {
-    const kmap = { ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
-                   ArrowUp:'up', KeyW:'up', ControlLeft:'up', ControlRight:'up',
-                   Space:'fire', KeyE:'flare', KeyF:'flare', ShiftLeft:'flare',
-                   KeyR:'rocket', KeyQ:'shield' };
-    const isTyping = () => ['INPUT','TEXTAREA'].includes(document.activeElement?.tagName);
-    window.addEventListener('keydown', e => { if(isTyping()) return; const k=kmap[e.code]; if(k){this.keys[k]=true; e.preventDefault();} });
-    window.addEventListener('keyup',   e => { if(isTyping()) return; const k=kmap[e.code]; if(k) this.keys[k]=false; });
-
     const joyBase = document.getElementById('vjoy-base');
     const joyKnob = document.getElementById('vjoy-knob');
     const applyJoy = (cx2, cy2) => {
@@ -2266,10 +2235,6 @@ class Game {
   // ── Menu ───────────────────────────────────────────────────────────────────
   _loadMenu() {
     if (!this.userData) return;
-    if (this.sandboxMode) {
-      const menuLogo = document.getElementById('menu-logo');
-      if (menuLogo) menuLogo.textContent = 'MEYARET 2 BETA';
-    }
     const nick = this.userData.nickname || localStorage.getItem('meyaret_callsign') || 'PILOT';
     document.getElementById('menu-nickname').textContent  = nick;
     document.getElementById('menu-trust-name').textContent = nick;
@@ -2439,10 +2404,7 @@ class Game {
   _showGoodLuckSplash(nick) {
     const el = document.getElementById('goodluck-splash');
     if (!el) return;
-    el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;">
-      <div class="gl-text">GOOD LUCK</div>
-      <div class="gl-sub">${nick}</div>
-    </div>`;
+    el.innerHTML = `<div class="gl-wrap"><span class="gl-text">Good luck ${nick}</span></div>`;
     el.classList.remove('hidden');
     setTimeout(() => { el.classList.add('hidden'); el.innerHTML = ''; }, 2000);
   }
@@ -3266,6 +3228,15 @@ class Game {
       }
     }
 
+    // ── Auto-flare: if rocket gets close and player has flares, deploy automatically ──
+    for (let oi = this.orangeRockets.length - 1; oi >= 0; oi--) {
+      const or = this.orangeRockets[oi];
+      if (dist(or, ship) < 95 && ship.flares > 0) {
+        ship.useFlare(this.rockets, this.particles, this.orangeRockets);
+        break;
+      }
+    }
+
     // ── Orange homing rockets vs ship ────────────────────────────────────────
     for (let oi = this.orangeRockets.length-1; oi >= 0; oi--) {
       const or = this.orangeRockets[oi];
@@ -3538,20 +3509,25 @@ class Game {
           <div class="guide-row">4 min+ &nbsp;— Max chaos. Everything, all at once.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">HUD — READING THE SCREEN</span>
-          <div class="guide-row"><b>SCORE</b> — Your current points. LIFE bar shows remaining lives (5 triangles max).</div>
-          <div class="guide-row"><b>WARNINGS</b> — Flash when danger is near: JET INCOMING, ROCKET INCOMING, ALIENS!, ASTEROID STORM, LOW LIFE!, BEAST MODE.</div>
-          <div class="guide-row"><b>FLARE / ROCKET / SHLD</b> — Ammo counters. Dim when empty.</div>
+          <span class="guide-h2">HUD</span>
+          <div class="guide-row"><b>SCORE</b> — Your points.</div>
+          <div class="guide-row"><b>LIFE</b> — Remaining lives (5 max).</div>
+          <div class="guide-row"><b>WARNINGS</b> — Flash when danger is near.</div>
+          <div class="guide-row"><b>FLARE / ROCKET / SHLD</b> — Ammo. Dim when empty.</div>
         </div>`,
 
       controls: `
         <div class="guide-section">
-          <span class="guide-h1">DIRECTION</span>
-          <div class="guide-row">Steer where your jet faces. Push the stick to glide or fly in that direction. Release to coast.</div>
+          <span class="guide-h1">LEFT SIDE — DIRECTION</span>
+          <div class="guide-row">Steer where your jet faces. Push the stick to fly. Release to coast.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">RIGHT SIDE — ACTIONS</span>
+          <div class="guide-row">Thrust, Shoot, Rocket, Flare, Shield. Close together — tap like a mobile game.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">THRUST</span>
-          <div class="guide-row">Hold for 3× speed burst. Fires the engine flame. Chase targets or escape danger fast.</div>
+          <div class="guide-row">Hold for 3× speed burst. Chase or escape.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">SHOOT</span>
@@ -3675,9 +3651,9 @@ class Game {
           <span class="guide-h1">JETS</span>
           <div class="guide-row">Buy in STORE > JETS. Equip in ARSENAL. Your jet determines starting lives, flares, rockets and special abilities.</div>
           <div class="guide-row" style="margin-top:8px"><b>STARTER JET</b> <span class="guide-tag good">FREE</span><br>2 lives · 1 flare. Clean and simple. Perfect for learning the game.</div>
-          <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">2,400 $$</span><br>3 lives · 2 flares · 2 rockets. Better loadout. An honest upgrade from Starter.</div>
+          <div class="guide-row"><b>HAMUDI</b> <span class="guide-cost">2,400 $$</span><br>3 lives · 2 flares · 2 rockets. Better loadout.</div>
           <div class="guide-row"><b>KILLAJET</b> <span class="guide-cost">5,200 $$</span><br>3 lives · 3 flares · 3 rockets · starts with SHIELD · ×1.5 fire rate. The aggressive choice. Fires faster than anything and starts shielded.</div>
-          <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">8,800 $$</span><br>4 lives · 4 flares · 4 rockets · 2 shields. The tank. Maximum survivability, most ammo, best for long survival runs.</div>
+          <div class="guide-row"><b>VERY SCARY JET</b> <span class="guide-cost">8,800 $$</span><br>4 lives · 4 flares · 4 rockets · 2 shields. The tank. Best for long survival runs.</div>
           <div class="guide-row"><b>ASTROZOINKER</b> <span class="guide-cost">69,000 $$</span><br>4 lives · 5 shields · 8 rockets. Ultimate hybrid jet — sharp, scary, endgame tier.</div>
         </div>
         <div class="guide-section">
@@ -3697,8 +3673,8 @@ class Game {
           <span class="guide-h1">MYSTERY BOX ?</span>
           <div class="guide-row">White glowing boxes that spawn from destroyed asteroids or appear randomly. Fly through them to collect (or shoot them with COLLECTOR upgrade). Random reward each time:</div>
           <div class="guide-row">• Rapid Fire x3 — triples your fire rate briefly</div>
-          <div class="guide-row">• Laser beam — temporary laser</div>
-          <div class="guide-row">• <span class="guide-tag rare">RARE</span> SUPER LASER — if you have LAZER PEW: a single green beam from your jet for 4 seconds. Straight line — everything it touches dies in one shot.</div>
+          <div class="guide-row">• Laser beam — temporary laser (if you don't have LAZER PEW)</div>
+          <div class="guide-row">• <span class="guide-tag rare">RARE</span> SUPER LASER — if you have LAZER PEW: a single straight green beam for 4 seconds. One-shot kills everything it touches.</div>
           <div class="guide-row">• Extra Life — +1 life immediately</div>
           <div class="guide-row">• Shield charge — instant shield</div>
           <div class="guide-row">• Flare — +1 flare ammo</div>

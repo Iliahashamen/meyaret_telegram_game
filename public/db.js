@@ -32,7 +32,7 @@ async function supa(path, opts = {}) {
 // ── Store Catalog ─────────────────────────────────────────────────────────────
 // 4 boosts · 14 upgrades · 17 skins · 4 planes (starter is free/default)
 export const CATALOG = [
-  // ── Boosts (per-run, max 1 applied per game) ─────────────────────────────
+  // ── Boosts (per-run) ─────────────────────────────────────────────────
   { id: 'extra_life',   name: 'Extra Life',   category: 'boost', cost: 10,  description: '+1 life for your next run',    stackable: true },
   { id: 'extra_flare',  name: 'Extra Flare',  category: 'boost', cost: 5,   description: '+1 flare for your next run',   stackable: true },
   { id: 'extra_shield', name: 'Run Shield',   category: 'boost', cost: 10,  description: '1 shield charge for your next run', stackable: true },

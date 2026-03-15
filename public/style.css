@@ -163,6 +163,11 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   pointer-events: none;
 }
 #loading-screen > * { position: relative; z-index: 1; }
+#loading-version {
+  position: fixed; bottom: calc(32px + var(--safe-bottom));
+  left: 0; right: 0; text-align: center;
+  font-size: 7px; letter-spacing: 1.5px; color: var(--muted);
+}
 #loading-madeby {
   position: fixed; bottom: calc(16px + var(--safe-bottom));
   left: 0; right: 0; text-align: center;
@@ -273,28 +278,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   box-shadow: 2px 2px 0 #ff007722;
 }
 .back-btn:active { color: var(--cyan); }
-
-/* PC mode: bigger buttons, back/close spacing */
-body.pc-mode .back-btn {
-  top: calc(20px + var(--safe-top)); left: calc(20px + var(--safe-left));
-  font-size: 12px; padding: 12px 20px; min-height: 44px;
-}
-body.pc-mode .btn-primary,
-body.pc-mode .btn-secondary {
-  font-size: 13px; padding: 18px 28px; min-height: 48px;
-}
-body.pc-mode .btn-big { font-size: 14px; padding: 20px 28px; min-height: 52px; }
-body.pc-mode .btn-ghost { font-size: 12px; padding: 18px 24px; min-height: 48px; }
-body.pc-mode .mute-btn,
-body.pc-mode .guide-btn {
-  min-width: 78px; height: 42px; font-size: 11px;
-  bottom: calc(20px + var(--safe-bottom));
-}
-body.pc-mode .guide-btn { left: calc(20px + var(--safe-left)); }
-body.pc-mode .mute-btn { right: calc(20px + var(--safe-right)); }
-body.pc-mode .screen-title { margin-top: 52px; }
-body.pc-mode .top5-modal .btn-primary,
-body.pc-mode #top5-close { font-size: 13px; padding: 14px 24px; min-height: 46px; }
 
 /* ── GIFT SCREEN ──────────────────────────────────────────── */
 #gift-box-area {
@@ -436,32 +419,7 @@ body.pc-mode #top5-close { font-size: 13px; padding: 14px 24px; min-height: 46px
 /* legacy class stubs — colors now set per #id above */
 .ctrl-shield-btn, .ctrl-flare-btn, .ctrl-fire-btn, .ctrl-thrust-btn, .ctrl-rocket-btn {}
 
-/* ── PC CONTROLS BOX (sandbox / ?pc=1) ───────────────────────── */
-.pc-controls-box {
-  position: fixed;
-  bottom: calc(80px + var(--safe-bottom));
-  left: calc(20px + var(--safe-left));
-  z-index: 150;
-  pointer-events: none;
-  font-family: var(--font);
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: var(--cyan);
-  background: rgba(8, 0, 22, 0.92);
-  border: 2px solid rgba(0, 255, 204, 0.5);
-  padding: 12px 18px;
-  line-height: 2.4;
-  box-shadow: 0 0 20px rgba(0, 255, 204, 0.25);
-}
-.pc-controls-box.hidden { display: none !important; }
-.pc-controls-box .pc-ctrl-row span {
-  display: inline-block;
-  min-width: 80px;
-  color: var(--yellow);
-  margin-right: 10px;
-}
-
-/* ── MOBILE CONTROLS ──────────────────────────────────────── */
+/* ── MOBILE / TABLET CONTROLS ───────────────────────────────── */
 #controls-overlay {
   position: fixed;
   bottom: 0; left: 0; right: 0;
@@ -604,16 +562,6 @@ body.pc-mode #top5-close { font-size: 13px; padding: 14px 24px; min-height: 46px
   border: var(--px) solid var(--border-m); padding: 10px 14px;
   width: min(290px, 90vw); box-shadow: 4px 4px 0 #ff007722;
 }
-
-/* PC mode: bigger game over for fullscreen */
-body.pc-mode .go-title { font-size: clamp(22px, 5vw, 32px); margin-bottom: 16px; }
-body.pc-mode .go-score { font-size: clamp(20px, 3vw, 28px); }
-body.pc-mode .go-shmips { font-size: clamp(14px, 2.5vw, 18px); margin-bottom: 14px; }
-body.pc-mode #go-leaderboard { font-size: 11px; padding: 16px 20px; width: min(360px, 90vw); }
-body.pc-mode #go-leaderboard pre { font-size: 11px !important; }
-body.pc-mode #gameover-screen .btn-primary,
-body.pc-mode #gameover-screen .btn-secondary { font-size: 12px; padding: 14px 24px; }
-body.pc-mode .layout-btn { display: none; }
 
 /* ── Top 5 Modal ──────────────────────────────────────────── */
 .top5-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 300; padding: 20px; }
@@ -762,25 +710,17 @@ body.pc-mode .layout-btn { display: none; }
   pointer-events: none;
 }
 .goodluck-splash.hidden { display: none; }
+.goodluck-splash .gl-wrap {
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 0 20px;
+}
 .goodluck-splash .gl-text {
   font-family: var(--font);
-  font-size: clamp(28px, 9vw, 52px);
+  font-size: clamp(22px, 7vw, 42px);
   font-weight: 900;
-  letter-spacing: 4px;
-  color: #00ff66;
-  text-shadow: 0 0 20px #00ff66, 0 0 40px #33ff88, 0 0 80px #33ff88cc, 0 0 120px #00ff6655;
-  text-align: center;
-  animation: glSplash 2s ease-out forwards;
-}
-.goodluck-splash .gl-sub {
-  font-family: var(--font);
-  font-size: clamp(16px, 5vw, 28px);
-  font-weight: 700;
   letter-spacing: 3px;
-  color: #66ffaa;
-  text-shadow: 0 0 16px #00ff88, 0 0 32px #66ffaa88;
-  text-align: center;
-  margin-top: 8px;
+  color: #00ff66;
+  text-shadow: 0 0 24px #00ff66, 0 0 48px #33ff88, 0 0 96px #33ff88cc, 0 0 140px #00ff6666;
   animation: glSplash 2s ease-out forwards;
 }
 @keyframes glSplash {
@@ -794,26 +734,29 @@ body.pc-mode .layout-btn { display: none; }
 /* ── LANDSCAPE / HORIZONTAL LAYOUT ────────────────────────── */
 @media (orientation: landscape) {
   #controls-overlay {
-    height: calc(160px + var(--safe-bottom));
-    padding-bottom: calc(6px + var(--safe-bottom));
-    padding-left: calc(10px + var(--safe-left));
-    padding-right: calc(10px + var(--safe-right));
-    align-items: center;
+    height: calc(150px + var(--safe-bottom));
+    padding-bottom: calc(8px + var(--safe-bottom));
+    padding-left: calc(12px + var(--safe-left));
+    padding-right: calc(12px + var(--safe-right));
+    align-items: center; justify-content: space-between;
   }
-  #ctrl-left { gap: 8px; }
-  #vjoy-base { width: 95px; height: 95px; }
-  #vjoy-knob { width: 38px; height: 38px; }
-  /* Right: tighter cluster — direction-only left, actions right */
-  #ctrl-right { width: 130px; height: 165px; }
-  #ctrl-rocket { width: 44px; height: 44px; font-size: 7px; right: 2px; top: 2px; }
-  #ctrl-flare  { width: 42px; height: 42px; font-size: 7px; left: 2px; top: 48px; }
-  #ctrl-fire   { width: 58px; height: 58px; font-size: 9px; right: 2px; top: 52px; }
-  #ctrl-shield { width: 42px; height: 42px; font-size: 6px; left: 2px; top: 98px; }
-  #ctrl-thrust { width: 50px; height: 50px; font-size: 7px; right: 2px; bottom: 2px; }
+  #ctrl-left { gap: 6px; }
+  #vjoy-base { width: 90px; height: 90px; flex-shrink: 0; }
+  #vjoy-knob { width: 36px; height: 36px; }
+  /* Right: tight cluster — thrust, shoot, rocket, flare, shield */
+  #ctrl-right { width: 120px; height: 140px; flex-shrink: 0; }
+  #ctrl-rocket { width: 40px; height: 40px; font-size: 6px; right: 0; top: 0; }
+  #ctrl-flare  { width: 38px; height: 38px; font-size: 6px; left: 0; top: 42px; }
+  #ctrl-fire   { width: 52px; height: 52px; font-size: 8px; right: 0; top: 46px; }
+  #ctrl-shield { width: 38px; height: 38px; font-size: 5px; left: 0; top: 90px; }
+  #ctrl-thrust { width: 46px; height: 46px; font-size: 6px; right: 0; bottom: 0; }
 }
 
-/* Optional: compact layout (localStorage meyaret_layout=compact) */
-body.layout-compact #controls-overlay { height: calc(170px + var(--safe-bottom)); padding-bottom: 8px; }
-body.layout-compact #vjoy-base { width: 100px; height: 100px; }
-body.layout-compact #vjoy-knob { width: 40px; height: 40px; }
-body.layout-compact #ctrl-right { width: 135px; height: 170px; }
+/* Optional: compact layout (LAYOUT button) */
+body.layout-compact #controls-overlay {
+  height: calc(155px + var(--safe-bottom));
+  padding-bottom: 8px;
+}
+body.layout-compact #vjoy-base { width: 92px; height: 92px; }
+body.layout-compact #vjoy-knob { width: 38px; height: 38px; }
+body.layout-compact #ctrl-right { width: 122px; height: 145px; }
