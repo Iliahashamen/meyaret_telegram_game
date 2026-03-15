@@ -90,7 +90,7 @@ export const SFX = {
     _volumeMode = mode;
     this.muted = mode === 'mute';
     const c = _getCtx();
-    const target = mode === 'high' ? 0.7 : mode === 'low' ? 0.32 : 0.0;
+    const target = mode === 'high' ? 0.7 : mode === 'med' ? 0.5 : mode === 'low' ? 0.32 : 0.0;
     _master.gain.setTargetAtTime(target, c.currentTime, 0.02);
     try { localStorage.setItem('meyaret_volume_mode', mode); } catch (_) {}
   },
@@ -100,7 +100,7 @@ export const SFX = {
   },
 
   cycleVolume() {
-    const next = _volumeMode === 'high' ? 'low' : _volumeMode === 'low' ? 'mute' : 'high';
+    const next = _volumeMode === 'high' ? 'med' : _volumeMode === 'med' ? 'low' : _volumeMode === 'low' ? 'mute' : 'high';
     this._applyVolumeMode(next);
     if (next !== 'mute') this.btnClick();
     return next;
@@ -535,6 +535,36 @@ export const SFX = {
     _getCtx();
   },
 
+  // ── Opening theme (3 sec, fast retro loop) ──────────────────────────────────
+  startOpeningMusic() {
+    if (this.muted || _musicMode === 'opening') return;
+    _stopMusicLoop();
+    _musicMode = 'opening';
+    const arp = [392, 523, 659, 784, 523, 659, 392, 349];
+    let i = 0;
+    _musicTimer = setInterval(() => {
+      if (this.muted || _musicMode !== 'opening') return;
+      const t = _now();
+      _playTone(arp[i % arp.length], t, 0.15, 'square', 0.04);
+      _playTone(arp[i % arp.length] * 0.5, t, 0.2, 'sine', 0.02);
+      if (i % 2 === 0) {
+        const hg = _gain(0.025);
+        const hf = _filter('highpass', 5000, hg);
+        const hn = _noise(0.03, hf);
+        hf.connect(hg);
+        hn.start(t); hn.stop(t + 0.03);
+      }
+      i++;
+    }, 140);
+  },
+
+  stopOpeningMusic() {
+    if (_musicMode === 'opening') {
+      _stopMusicLoop();
+      _musicMode = null;
+    }
+  },
+
   startMenuMusic() {
     if (this.muted || _musicMode === 'menu') return;
     _stopMusicLoop();
@@ -674,7 +704,7 @@ export const SFX = {
 // Restore mute preference
 try {
   const saved = localStorage.getItem('meyaret_volume_mode');
-  if (saved === 'high' || saved === 'low' || saved === 'mute') {
+  if (saved === 'high' || saved === 'med' || saved === 'low' || saved === 'mute') {
     SFX._applyVolumeMode(saved);
   } else if (localStorage.getItem('meyaret_muted') === '1') {
     SFX._applyVolumeMode('mute');

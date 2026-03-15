@@ -412,12 +412,13 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 }
 .store-msg.success { color: var(--cyan); border: var(--px) solid var(--border-c); background: #00ffcc08; box-shadow: 3px 3px 0 #00ffcc11; }
 .store-msg.fail    { color: var(--magenta); border: var(--px) solid var(--border-m); background: #ff007708; box-shadow: 3px 3px 0 #ff007711; }
+.store-weekly-soon { font-size: 14px; letter-spacing: 3px; color: var(--muted2); text-align: center; padding: 40px 20px; }
 
 /* ── GAME CANVAS ──────────────────────────────────────────── */
 #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 10; }
 
 /* legacy class stubs — colors now set per #id above */
-.ctrl-shield-btn, .ctrl-flare-btn, .ctrl-fire-btn, .ctrl-thrust-btn, .ctrl-rocket-btn {}
+.ctrl-shield-btn, .ctrl-flare-btn, .ctrl-fire-btn, .ctrl-thrust-btn, .ctrl-rocket-btn, .ctrl-xforce-btn {}
 
 /* ── MOBILE / TABLET CONTROLS ───────────────────────────────── */
 #controls-overlay {
@@ -520,6 +521,16 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   box-shadow: 0 0 12px #38b9ff55;
 }
 #ctrl-thrust:active { box-shadow: 0 0 26px #38b9ff; }
+
+/* XFORCE LAVIAN — small X button */
+#ctrl-xforce {
+  width: 36px; height: 36px;
+  left: 0; top: 0;
+  font-size: 14px; font-weight: bold;
+  color: #ff4444; border-color: #ff2222;
+  box-shadow: 0 0 8px #ff222244;
+}
+#ctrl-xforce:active { box-shadow: 0 0 14px #ff4444; }
 
 /* Virtual Joystick */
 #vjoy-base {
@@ -750,6 +761,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   #ctrl-fire   { width: 52px; height: 52px; font-size: 8px; right: 0; top: 46px; }
   #ctrl-shield { width: 38px; height: 38px; font-size: 5px; left: 0; top: 90px; }
   #ctrl-thrust { width: 46px; height: 46px; font-size: 6px; right: 0; bottom: 0; }
+  #ctrl-xforce { width: 28px; height: 28px; font-size: 11px; left: 0; top: 0; }
 }
 
 /* Optional: compact layout (LAYOUT button) */

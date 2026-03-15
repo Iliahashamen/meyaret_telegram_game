@@ -87,12 +87,6 @@
         <div class="stat"><span class="stat-label">GAMES PLAYED</span><span id="prof-games">0</span></div>
       </div>
     </div>
-    <button id="change-nick-btn" class="btn-secondary">CHANGE CALL SIGN (1,000 $$)</button>
-    <div id="change-nick-area" class="hidden">
-      <input id="new-nick-input" type="text" maxlength="12" placeholder="NEW CALL SIGN" />
-      <button id="new-nick-confirm" class="btn-primary">CONFIRM</button>
-      <div id="new-nick-error" class="error-msg"></div>
-    </div>
   </div>
 
   <!-- Arsenal Screen -->
@@ -139,8 +133,11 @@
     <div class="store-tabs">
       <button class="tab-btn active" data-tab="boost">BOOSTS</button>
       <button class="tab-btn" data-tab="upgrade">UPGRADES</button>
+      <button class="tab-btn" data-tab="thrust">THRUST</button>
+      <button class="tab-btn" data-tab="bullet">BULLETS</button>
       <button class="tab-btn" data-tab="skin">SKINS</button>
       <button class="tab-btn" data-tab="plane">JETS</button>
+      <button class="tab-btn" data-tab="weekly">WEEKLY</button>
     </div>
     <div id="store-items" class="store-grid"></div>
     <div id="store-msg" class="store-msg hidden"></div>
@@ -181,6 +178,7 @@
       <button id="ctrl-fire"   class="ctrl-abs ctrl-fire-btn">SHOOT</button>
       <button id="ctrl-rocket" class="ctrl-abs ctrl-rocket-btn">ROCKET</button>
       <button id="ctrl-thrust" class="ctrl-abs ctrl-thrust-btn">THRUST</button>
+      <button id="ctrl-xforce" class="ctrl-abs ctrl-xforce-btn" title="XFORCE LAVIAN">X</button>
     </div>
   </div>
 
