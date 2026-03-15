@@ -15,7 +15,7 @@
 <body>
   <!-- Loading Screen -->
   <div id="loading-screen">
-    <div class="logo-text">MEYARET</div>
+    <div id="loading-logo" class="logo-text">MEYARET</div>
     <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
     <div class="loading-label" id="loading-label">INITIALIZING SYSTEMS...</div>
     <div id="loading-status" style="font-size:0.45rem;color:#00ffcc;margin-top:8px;letter-spacing:0.05em;min-height:1.2em;text-align:center;"></div>
@@ -44,7 +44,7 @@
     <!-- Top 5 button (top left) -->
     <button id="leaderboard-strip" type="button">TOP 5</button>
 
-    <div class="logo-menu">MEYARET</div>
+    <div id="menu-logo" class="logo-menu">MEYARET</div>
     <div class="logo-trust">WE TRUST YOU <span id="menu-trust-name">PILOT</span></div>
 
     <div class="menu-buttons">
@@ -158,6 +158,16 @@
   <!-- Good Luck Splash (centered, shown for 2s on game start) -->
   <div id="goodluck-splash" class="goodluck-splash hidden"></div>
 
+  <!-- PC Controls Box (sandbox mode only) -->
+  <div id="pc-controls-box" class="pc-controls-box hidden">
+    <div class="pc-ctrl-row"><span>WASD / Arrows</span> Move</div>
+    <div class="pc-ctrl-row"><span>SPACE</span> Shoot</div>
+    <div class="pc-ctrl-row"><span>CTRL</span> Thrust</div>
+    <div class="pc-ctrl-row"><span>E</span> Flare</div>
+    <div class="pc-ctrl-row"><span>R</span> Rocket</div>
+    <div class="pc-ctrl-row"><span>Q</span> Shield</div>
+  </div>
+
   <!-- Mobile Controls Overlay -->
   <div id="controls-overlay" class="hidden">
     <!-- Left: joystick only -->
@@ -192,7 +202,7 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="sounds.js?v=20260311h"></script>
-  <script type="module" src="game.js?v=20260311h"></script>
+  <script type="module" src="sounds.js?v=20260313a"></script>
+  <script type="module" src="game.js?v=20260313a"></script>
 </body>
 </html>

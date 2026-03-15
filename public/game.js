@@ -1678,6 +1678,8 @@ function drawGrid(ctx, W, H, tick) {
 // ── HUD ───────────────────────────────────────────────────────────────────────
 function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, warnings }) {
   const FONT = '"Press Start 2P", "Courier New", monospace';
+  const s = SANDBOX_MODE ? 1.5 : 1; // PC mode: bigger HUD (1.5 not 1.7 — less lag)
+  const glowCap = (b) => Math.min(b * s, 14); // cap blur to reduce lag
 
   // Build ordered warning list
   // warnings: { jets, rockets, aliens, asteroids, overdrive, monsterFuel, lowLife }
@@ -1690,108 +1692,100 @@ function drawHUD(ctx, W, { score, lives, maxLives, flares, multiplier, multiplie
   if (warnings?.asteroids)  warnLines.push({ text: 'ASTEROID STORM',  col: '#ff8800' });
   if (warnings?.lowLife)    warnLines.push({ text: 'LOW LIFE!',       col: '#ff1111' });
 
-  // Panel height grows with warning lines
-  const panelH = 74 + warnLines.length * 15 + (warnLines.length > 0 ? 4 : 0);
+  const panelW = Math.round(168 * s), panelH = Math.round((74 + warnLines.length * 15 + (warnLines.length > 0 ? 4 : 0)) * s);
   ctx.globalAlpha = 0.52;
   ctx.fillStyle = '#080016';
-  roundRect(ctx, 6, 6, 168, panelH, 0); ctx.fill();
+  roundRect(ctx, 6, 6, panelW, panelH, 0); ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#00ffcc2a'; ctx.lineWidth = 1;
-  roundRect(ctx, 6, 6, 168, panelH, 0); ctx.stroke();
+  ctx.strokeStyle = '#00ffcc2a'; ctx.lineWidth = s;
+  roundRect(ctx, 6, 6, panelW, panelH, 0); ctx.stroke();
 
   ctx.textAlign = 'left';
 
   // ── SCORE (big) ──
-  ctx.font = `7px ${FONT}`; glow(ctx, C.hud, 4);
-  ctx.fillStyle = '#00ffcc55'; ctx.fillText('SCORE', 14, 20);
-  ctx.font = `15px ${FONT}`; glow(ctx, C.hud, 14);
+  ctx.font = `${Math.round(7 * s)}px ${FONT}`; glow(ctx, C.hud, glowCap(4));
+  ctx.fillStyle = '#00ffcc55'; ctx.fillText('SCORE', 14, 20 * s);
+  ctx.font = `${Math.round(15 * s)}px ${FONT}`; glow(ctx, C.hud, glowCap(8));
   ctx.fillStyle = C.hud;
-  ctx.fillText(score.toLocaleString(), 14, 42);
-  // score multiplier badge — shows exact multiplier (x2, x3, or x6)
+  ctx.fillText(score.toLocaleString(), 14, 42 * s);
   if (scoreX2 && scoreX2 > 1) {
-    ctx.font = `7px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', 10);
-    ctx.fillText(`x${scoreX2}`, 150, 20);
+    ctx.font = `${Math.round(7 * s)}px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', glowCap(6));
+    ctx.fillText(`x${scoreX2}`, 6 + panelW - 12, 20 * s);
   }
 
-  // ── LIVES — "LIFE :" + always 5 triangles, fill light blue for current lives ──
-  const MAX_TRI   = 5;
-  const lifeBaseY = 63;
-  ctx.font = `7px ${FONT}`; glow(ctx, C.hud, 5);
+  // ── LIVES ──
+  const MAX_TRI = 5, lifeBaseY = 63 * s, triStartX = 62 * s, triStep = 14 * s;
+  ctx.font = `${Math.round(7 * s)}px ${FONT}`; glow(ctx, C.hud, glowCap(5));
   ctx.fillStyle = '#00ffcc88';
   ctx.fillText('LIFE :', 14, lifeBaseY);
-  const triStartX = 62;
   for (let i = 0; i < MAX_TRI; i++) {
-    const lx = triStartX + i * 14;
+    const lx = triStartX + i * triStep;
     const alive = i < lives;
     ctx.fillStyle   = alive ? '#44ccff' : '#111133';
-    ctx.shadowBlur  = alive ? 10 : 0;
+    ctx.shadowBlur  = alive ? glowCap(8) : 0;
     ctx.shadowColor = '#44ccff';
     ctx.beginPath();
-    ctx.moveTo(lx + 5, lifeBaseY - 8);
-    ctx.lineTo(lx + 11, lifeBaseY + 2);
-    ctx.lineTo(lx,      lifeBaseY + 2);
+    ctx.moveTo(lx + 5 * s, lifeBaseY - 8 * s);
+    ctx.lineTo(lx + 11 * s, lifeBaseY + 2 * s);
+    ctx.lineTo(lx, lifeBaseY + 2 * s);
     ctx.closePath(); ctx.fill();
-    // dim border for empty triangles
     if (!alive) {
-      ctx.strokeStyle = '#222255'; ctx.lineWidth = 1;
+      ctx.strokeStyle = '#222255'; ctx.lineWidth = s;
       ctx.beginPath();
-      ctx.moveTo(lx + 5, lifeBaseY - 8);
-      ctx.lineTo(lx + 11, lifeBaseY + 2);
-      ctx.lineTo(lx,      lifeBaseY + 2);
+      ctx.moveTo(lx + 5 * s, lifeBaseY - 8 * s);
+      ctx.lineTo(lx + 11 * s, lifeBaseY + 2 * s);
+      ctx.lineTo(lx, lifeBaseY + 2 * s);
       ctx.closePath(); ctx.stroke();
     }
   }
   ctx.shadowBlur = 0;
 
-  // ── WARNINGS (flashing red/colored text) ──
+  // ── WARNINGS ──
   const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 240);
-  let wy = 78;
+  let wy = 78 * s;
   for (const w of warnLines) {
-    ctx.font = `7px ${FONT}`;
-    ctx.globalAlpha = w.col === '#33ff88' ? 0.85 : pulse; // beast mode steady, dangers flash
-    glow(ctx, w.col, 12);
+    ctx.font = `${Math.round(7 * s)}px ${FONT}`;
+    ctx.globalAlpha = w.col === '#33ff88' ? 0.85 : pulse;
+    glow(ctx, w.col, glowCap(10));
     ctx.fillStyle = w.col;
     ctx.fillText(w.text, 14, wy);
     ctx.globalAlpha = 1;
-    wy += 15;
+    wy += 15 * s;
   }
 
   ctx.shadowBlur = 0; ctx.globalAlpha = 1;
 
   // ── RIGHT-SIDE COUNTERS ──
-  const dimAlpha = 0.32;
-  ctx.font = `8px ${FONT}`;
+  const dimAlpha = 0.32, rightX = W - 14 * s;
+  ctx.font = `${Math.round(8 * s)}px ${FONT}`;
   ctx.textAlign = 'right';
 
   ctx.globalAlpha = flares > 0 ? 1 : dimAlpha;
-  ctx.fillStyle = C.hudFlare; glow(ctx, C.hudFlare, flares > 0 ? 8 : 2);
-  ctx.fillText(`FLARE ${flares}`, W - 10, 24);
+  ctx.fillStyle = C.hudFlare; glow(ctx, C.hudFlare, flares > 0 ? glowCap(6) : 2);
+  ctx.fillText(`FLARE ${flares}`, rightX, 24 * s);
 
   ctx.globalAlpha = rocketAmmo > 0 ? 1 : dimAlpha;
-  ctx.fillStyle = '#ffaa00'; glow(ctx, '#ffaa00', rocketAmmo > 0 ? 8 : 2);
-  ctx.fillText(`ROCKET ${rocketAmmo}`, W - 10, 42);
+  ctx.fillStyle = '#ffaa00'; glow(ctx, '#ffaa00', rocketAmmo > 0 ? glowCap(6) : 2);
+  ctx.fillText(`ROCKET ${rocketAmmo}`, rightX, 42 * s);
 
   ctx.globalAlpha = shieldCharges > 0 ? 1 : dimAlpha;
-  ctx.fillStyle = '#00aaff'; glow(ctx, '#00aaff', shieldCharges > 0 ? 8 : 2);
-  ctx.fillText(`SHLD ${shieldCharges}`, W - 10, 60);
+  ctx.fillStyle = '#00aaff'; glow(ctx, '#00aaff', shieldCharges > 0 ? glowCap(6) : 2);
+  ctx.fillText(`SHLD ${shieldCharges}`, rightX, 60 * s);
 
   ctx.globalAlpha = 1;
 
-  // Multiplier countdown
   if (multiplier > 1) {
     const remainMs  = Math.max(0, (multiplierEndMs || 0) - Date.now());
     const remainMin = Math.floor(remainMs / 60000);
     const remainSec = Math.floor((remainMs % 60000) / 1000);
-    const timeStr   = remainMs > 0
-      ? `${String(remainMin).padStart(2,'0')}:${String(remainSec).padStart(2,'0')}`
-      : '';
+    const timeStr   = remainMs > 0 ? `${String(remainMin).padStart(2,'0')}:${String(remainSec).padStart(2,'0')}` : '';
     const mp = 0.7 + 0.3 * Math.sin(Date.now() / 350);
     ctx.globalAlpha = mp;
-    ctx.font = `9px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', 12);
-    ctx.fillText(`${multiplier}x BONUS`, W - 10, 78);
+    ctx.font = `${Math.round(9 * s)}px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', glowCap(10));
+    ctx.fillText(`${multiplier}x BONUS`, rightX, 78 * s);
     if (timeStr) {
-      ctx.font = `7px ${FONT}`; ctx.fillStyle = '#ffcc44'; glow(ctx, '#ffcc44', 6);
-      ctx.fillText(timeStr, W - 10, 91);
+      ctx.font = `${Math.round(7 * s)}px ${FONT}`; ctx.fillStyle = '#ffcc44'; glow(ctx, '#ffcc44', glowCap(4));
+      ctx.fillText(timeStr, rightX, 91 * s);
     }
     ctx.globalAlpha = 1;
   }
@@ -2002,22 +1996,39 @@ class Game {
     if (tgUser) TG_USER = tgUser;
 
     const tid = TG_USER?.id;
-    const initData = window.Telegram?.WebApp?.initData || '';
+    const initData = window.Telegram?.WebApp?.initData || INIT_DATA || '';
+    const debugMode = typeof URLSearchParams !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
+    if (!tid || !initData) {
+      if (debugMode && status) { status.textContent = `sandbox skip: tid=${!!tid} initData=${!!initData}`; await this._sleep(4000); }
+    }
     if (tid && initData) {
       try {
-        const res = await fetch(`${API_BASE}/api/sandbox`, {
-          headers: { 'X-Telegram-Init-Data': initData },
-        });
-        if (res.ok) {
-          const { sandbox } = await res.json();
-          SANDBOX_MODE = !!sandbox;
-          this.sandboxMode = SANDBOX_MODE;
-          if (SANDBOX_MODE) {
-            const logo = document.querySelector('#loading-screen .logo-text');
-            if (logo) logo.textContent = 'MEYARET 2 BETA';
-          }
+        const base = API_BASE || window.location.origin;
+        const url = `${base}/api/sandbox`;
+        const res = await fetch(url, { headers: { 'X-Telegram-Init-Data': initData } });
+        const data = res.ok ? await res.json() : null;
+        const sandbox = !!(data && data.sandbox);
+        SANDBOX_MODE = sandbox;
+        this.sandboxMode = sandbox;
+        if (debugMode && status) { status.textContent = `sandbox: ${res.status} → BETA ${sandbox}`; await this._sleep(4000); }
+        const forcePC = typeof URLSearchParams !== 'undefined' && new URLSearchParams(window.location.search).get('pc') === '1';
+        if (sandbox || forcePC) {
+          if (forcePC && !sandbox) { SANDBOX_MODE = true; this.sandboxMode = true; }
+          document.body.classList.add('pc-mode');
+          const loadLogo = document.getElementById('loading-logo');
+          const menuLogo = document.getElementById('menu-logo');
+          if (loadLogo) loadLogo.textContent = 'MEYARET 2 BETA';
+          if (menuLogo) menuLogo.textContent = 'MEYARET 2 BETA';
         }
-      } catch (_) { /* ignore */ }
+      } catch (e) {
+        if (debugMode && status) { status.textContent = `sandbox err: ${e?.message || 'failed'}`; await this._sleep(4000); }
+      }
+    }
+    const forcePC = typeof URLSearchParams !== 'undefined' && new URLSearchParams(window.location.search).get('pc') === '1';
+    if (forcePC && !document.body.classList.contains('pc-mode')) {
+      document.body.classList.add('pc-mode');
+      SANDBOX_MODE = true;
+      this.sandboxMode = true;
     }
     const hasWebApp = !!window.Telegram?.WebApp;
     _ss(tid ? 'PILOT LINK ESTABLISHED' : (hasWebApp ? 'WAITING FOR PILOT LINK...' : 'COMM CHANNEL OFFLINE'), tid ? '#00ffcc' : '#ff4466');
@@ -2107,11 +2118,20 @@ class Game {
       if (el) el.classList.add('hidden');
     });
     this.canvas.style.display = 'none';
-    document.getElementById('controls-overlay').classList.add('hidden');
+    document.getElementById('controls-overlay')?.classList.add('hidden');
+    document.getElementById('pc-controls-box')?.classList.add('hidden');
 
     if (name === 'game') {
       this.canvas.style.display = 'block';
-      if (this._isMobile()) document.getElementById('controls-overlay').classList.remove('hidden');
+      const ctrl = document.getElementById('controls-overlay');
+      const pcBox = document.getElementById('pc-controls-box');
+      if (this.sandboxMode) {
+        ctrl?.classList.add('hidden');
+        pcBox?.classList.remove('hidden');
+      } else {
+        pcBox?.classList.add('hidden');
+        if (this._isMobile()) ctrl?.classList.remove('hidden');
+      }
       SFX.startGameMusic(this.level);
     } else {
       const el = document.getElementById(`${name}-screen`);
@@ -2180,8 +2200,9 @@ class Game {
 
   _bindInputs() {
     const kmap = { ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right',
-                   ArrowUp:'up', KeyW:'up', Space:'fire', KeyF:'flare', ShiftLeft:'flare',
-                   KeyR:'rocket', KeyE:'shield' };
+                   ArrowUp:'up', KeyW:'up', ControlLeft:'up', ControlRight:'up',
+                   Space:'fire', KeyE:'flare', KeyF:'flare', ShiftLeft:'flare',
+                   KeyR:'rocket', KeyQ:'shield' };
     const isTyping = () => ['INPUT','TEXTAREA'].includes(document.activeElement?.tagName);
     window.addEventListener('keydown', e => { if(isTyping()) return; const k=kmap[e.code]; if(k){this.keys[k]=true; e.preventDefault();} });
     window.addEventListener('keyup',   e => { if(isTyping()) return; const k=kmap[e.code]; if(k) this.keys[k]=false; });
@@ -2272,6 +2293,10 @@ class Game {
   // ── Menu ───────────────────────────────────────────────────────────────────
   _loadMenu() {
     if (!this.userData) return;
+    if (this.sandboxMode) {
+      const menuLogo = document.getElementById('menu-logo');
+      if (menuLogo) menuLogo.textContent = 'MEYARET 2 BETA';
+    }
     const nick = this.userData.nickname || localStorage.getItem('meyaret_callsign') || 'PILOT';
     document.getElementById('menu-nickname').textContent  = nick;
     document.getElementById('menu-trust-name').textContent = nick;

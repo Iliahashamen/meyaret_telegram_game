@@ -274,6 +274,28 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 }
 .back-btn:active { color: var(--cyan); }
 
+/* PC mode: bigger buttons, back/close spacing */
+body.pc-mode .back-btn {
+  top: calc(20px + var(--safe-top)); left: calc(20px + var(--safe-left));
+  font-size: 12px; padding: 12px 20px; min-height: 44px;
+}
+body.pc-mode .btn-primary,
+body.pc-mode .btn-secondary {
+  font-size: 13px; padding: 18px 28px; min-height: 48px;
+}
+body.pc-mode .btn-big { font-size: 14px; padding: 20px 28px; min-height: 52px; }
+body.pc-mode .btn-ghost { font-size: 12px; padding: 18px 24px; min-height: 48px; }
+body.pc-mode .mute-btn,
+body.pc-mode .guide-btn {
+  min-width: 78px; height: 42px; font-size: 11px;
+  bottom: calc(20px + var(--safe-bottom));
+}
+body.pc-mode .guide-btn { left: calc(20px + var(--safe-left)); }
+body.pc-mode .mute-btn { right: calc(20px + var(--safe-right)); }
+body.pc-mode .screen-title { margin-top: 52px; }
+body.pc-mode .top5-modal .btn-primary,
+body.pc-mode #top5-close { font-size: 13px; padding: 14px 24px; min-height: 46px; }
+
 /* ── GIFT SCREEN ──────────────────────────────────────────── */
 #gift-box-area {
   position: relative;
@@ -413,6 +435,31 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 
 /* legacy class stubs — colors now set per #id above */
 .ctrl-shield-btn, .ctrl-flare-btn, .ctrl-fire-btn, .ctrl-thrust-btn, .ctrl-rocket-btn {}
+
+/* ── PC CONTROLS BOX (sandbox / ?pc=1) ───────────────────────── */
+.pc-controls-box {
+  position: fixed;
+  bottom: calc(80px + var(--safe-bottom));
+  left: calc(20px + var(--safe-left));
+  z-index: 150;
+  pointer-events: none;
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--cyan);
+  background: rgba(8, 0, 22, 0.92);
+  border: 2px solid rgba(0, 255, 204, 0.5);
+  padding: 12px 18px;
+  line-height: 2.4;
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.25);
+}
+.pc-controls-box.hidden { display: none !important; }
+.pc-controls-box .pc-ctrl-row span {
+  display: inline-block;
+  min-width: 80px;
+  color: var(--yellow);
+  margin-right: 10px;
+}
 
 /* ── MOBILE CONTROLS ──────────────────────────────────────── */
 #controls-overlay {
@@ -557,6 +604,15 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   border: var(--px) solid var(--border-m); padding: 10px 14px;
   width: min(290px, 90vw); box-shadow: 4px 4px 0 #ff007722;
 }
+
+/* PC mode: bigger game over for fullscreen */
+body.pc-mode .go-title { font-size: clamp(22px, 5vw, 32px); margin-bottom: 16px; }
+body.pc-mode .go-score { font-size: clamp(20px, 3vw, 28px); }
+body.pc-mode .go-shmips { font-size: clamp(14px, 2.5vw, 18px); margin-bottom: 14px; }
+body.pc-mode #go-leaderboard { font-size: 11px; padding: 16px 20px; width: min(360px, 90vw); }
+body.pc-mode #go-leaderboard pre { font-size: 11px !important; }
+body.pc-mode #gameover-screen .btn-primary,
+body.pc-mode #gameover-screen .btn-secondary { font-size: 12px; padding: 14px 24px; }
 
 /* ── Top 5 Modal ──────────────────────────────────────────── */
 .top5-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 300; padding: 20px; }
