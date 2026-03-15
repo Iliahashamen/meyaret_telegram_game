@@ -42,8 +42,11 @@
       <span id="menu-shmips" class="shmips-count">0 $$</span>
     </button>
 
-    <!-- Top 5 button (top left) -->
-    <button id="leaderboard-strip" type="button">TOP 5</button>
+    <!-- Top 5 + Weekly Top 3 (top left) -->
+    <div id="leaderboard-strip-wrap" class="leaderboard-strip-wrap">
+      <button id="leaderboard-strip" type="button">TOP 5</button>
+      <button id="btn-weekly-top3" type="button" class="btn-weekly-strip">WEEKLY TOP 3</button>
+    </div>
 
     <div id="menu-logo" class="logo-menu">MEYARET</div>
     <div class="logo-trust">WE TRUST YOU <span id="menu-trust-name">PILOT</span></div>
@@ -70,19 +73,18 @@
     <div class="top5-panel">
       <div class="top5-title">TOP 5 PILOTS</div>
       <div id="top5-entries" class="top5-entries"></div>
-      <button id="btn-weekly-best" type="button" class="btn-weekly-best">WEEKLY BEST</button>
       <button id="top5-close" class="btn-primary">OK</button>
     </div>
   </div>
 
-  <!-- Weekly Best Modal -->
+  <!-- Weekly Top 3 Modal -->
   <div id="weekly-modal" class="top5-modal hidden">
     <div class="top5-backdrop"></div>
     <div class="top5-panel">
-      <div class="top5-title">6-WEEKLY EVENT — TOP 3</div>
+      <div class="top5-title">WEEKLY TOP 3</div>
       <div id="weekly-timer" class="weekly-timer"></div>
       <div id="weekly-entries" class="top5-entries"></div>
-      <div class="weekly-info">Top 3 pilots each week get 6,500 $$. Closes Tue 10:00.</div>
+      <div class="weekly-info">Top 3 pilots each week get 6,500 $$. Closes Tuesday 10:00.</div>
       <button id="weekly-close" class="btn-primary">OK</button>
     </div>
   </div>

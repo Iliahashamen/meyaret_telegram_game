@@ -2281,7 +2281,7 @@ class Game {
     document.getElementById('btn-quit').addEventListener('click',    () => { if (tg) tg.close(); });
     document.getElementById('profile-btn').addEventListener('click', () => this._openProfile());
     document.getElementById('leaderboard-strip').addEventListener('click', () => this._showTop5Popup());
-    document.getElementById('btn-weekly-best')?.addEventListener('click', () => this._showWeeklyPopup());
+    document.getElementById('btn-weekly-top3')?.addEventListener('click', () => this._showWeeklyPopup());
     document.getElementById('weekly-close')?.addEventListener('click', () => document.getElementById('weekly-modal')?.classList.add('hidden'));
     document.getElementById('weekly-modal')?.querySelector('.top5-backdrop')?.addEventListener('click', () => document.getElementById('weekly-modal')?.classList.add('hidden'));
 
@@ -2477,7 +2477,7 @@ class Game {
     this.asteroidSpawnTimer=0; this._lastMusicTier=1;
     this.xforceCooldownUntil=0; this.xforceActiveUntil=0;
     this.ripFullLivesSince=0; this.ripCountdownRemain=0; this.ripFuryUntil=0;
-    this.ramboActive=false; this.slowMoUntil=0; this.slowMoAccum=0; this._ramboRocketCooldown=0;
+    this.ramboActive=false; this._ramboRocketCooldown=0;
     this.greenStarTimer=rngInt(60 * 90, 60 * 150);
     this.monsterFuelTimer=rngInt(60 * 120, 60 * 180);
     this.runScoreMultiplier=1; // set to 2 if x2 score boost active
@@ -2939,21 +2939,8 @@ class Game {
     }
     } // end spawn-freeze guard
 
-    // Slow motion: world runs at 30% speed, player unaffected. Smooth in/out over 4 sec.
-    const inSlowMo = this.slowMoUntil > 0 && this.gameTime < this.slowMoUntil;
-    let runWorld = true;
-    if (inSlowMo) {
-      const remain = this.slowMoUntil - this.gameTime;
-      let factor = 0.3;
-      if (remain > 210) factor = 0.3 + 0.7 * (1 - Math.min(1, (240 - remain) / 30)); // smooth in
-      else if (remain < 30) factor = 0.3 + 0.7 * (remain / 30); // smooth out
-      this.slowMoAccum = (this.slowMoAccum || 0) + factor;
-      runWorld = this.slowMoAccum >= 1;
-      if (runWorld) this.slowMoAccum -= 1;
-    }
-
     // Update entities
-    if (runWorld) {
+    {
     this.asteroids.forEach(a => a.update(this.W, this.H));
     this.bullets.forEach(b => b.update(this.W, this.H));
     this.bullets = this.bullets.filter(b => !b.dead);
@@ -3036,7 +3023,7 @@ class Game {
     this.greenStars = this.greenStars.filter(s => !s.dead);
     this.monsterFuels.forEach(m => m.update());
     this.monsterFuels = this.monsterFuels.filter(m => !m.dead);
-    } // end runWorld (slow mo gate)
+    }
 
     // Green Star booster spawn: one star every 3-5 minutes, stays 3s
     this.greenStarTimer--;
@@ -3565,7 +3552,6 @@ class Game {
     else if (roll < 0.84) { ship.tempPowerBoostUntil = 1200;                       label = '2X DAMAGE!'; }
     else if (roll < 0.90) { ship.fireballReady = true;                             label = 'FIREBALL READY!'; }
     else if (roll < 0.94) { ship.tempRamboUntil   = 300; this.ramboActive = true;  label = 'RAMBO!'; }
-    else if (roll < 0.98) { this.slowMoUntil     = this.gameTime + 240;            label = 'SLOW MO!'; }
     else                  { ship.superRaketaReady = true;                            label = 'SUPER RAKETA!'; }
     SFX.mysteryPickup();
     burst(this.particles, mx, my, '#aa00ff', 12, 3, 25);
