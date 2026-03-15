@@ -61,7 +61,6 @@
 
     <div id="multiplier-banner" class="hidden"></div>
     <button id="mute-btn" class="mute-btn" title="Volume">VOL HIGH</button>
-    <button id="btn-layout" class="layout-btn" title="Layout">LAYOUT</button>
     <button id="btn-guide" class="guide-btn" title="Guide">GUIDE</button>
   </div>
 
@@ -131,13 +130,20 @@
     <div class="screen-title">STORE</div>
     <div id="store-balance" class="store-balance"></div>
     <div class="store-tabs">
-      <button class="tab-btn active" data-tab="boost">BOOSTS</button>
-      <button class="tab-btn" data-tab="upgrade">UPGRADES</button>
-      <button class="tab-btn" data-tab="thrust">THRUST</button>
-      <button class="tab-btn" data-tab="bullet">BULLETS</button>
-      <button class="tab-btn" data-tab="skin">SKINS</button>
-      <button class="tab-btn" data-tab="plane">JETS</button>
-      <button class="tab-btn" data-tab="weekly">WEEKLY</button>
+      <div class="store-tabs-row">
+        <button class="tab-btn active" data-tab="boost">BOOSTS</button>
+        <button class="tab-btn" data-tab="upgrade">UPGRADES</button>
+        <button class="tab-btn" data-tab="thrust">THRUST</button>
+      </div>
+      <div class="store-tabs-row">
+        <button class="tab-btn" data-tab="bullet">BULLETS</button>
+        <button class="tab-btn" data-tab="skin">SKINS</button>
+        <button class="tab-btn" data-tab="plane">JETS</button>
+      </div>
+      <div class="store-tabs-row store-tabs-special">
+        <button class="tab-btn" data-tab="weekly">SPECIAL</button>
+        <span class="store-special-timer" id="store-special-timer"></span>
+      </div>
     </div>
     <div id="store-items" class="store-grid"></div>
     <div id="store-msg" class="store-msg hidden"></div>
@@ -161,6 +167,7 @@
   <div id="controls-overlay" class="hidden">
     <!-- Left: joystick only -->
     <div id="ctrl-left">
+      <button id="ctrl-xforce" class="ctrl-abs ctrl-xforce-btn" title="XFORCE LAVIAN">X</button>
       <div id="vjoy-base">
         <div id="vjoy-knob"></div>
       </div>
@@ -178,7 +185,6 @@
       <button id="ctrl-fire"   class="ctrl-abs ctrl-fire-btn">SHOOT</button>
       <button id="ctrl-rocket" class="ctrl-abs ctrl-rocket-btn">ROCKET</button>
       <button id="ctrl-thrust" class="ctrl-abs ctrl-thrust-btn">THRUST</button>
-      <button id="ctrl-xforce" class="ctrl-abs ctrl-xforce-btn" title="XFORCE LAVIAN">X</button>
     </div>
   </div>
 

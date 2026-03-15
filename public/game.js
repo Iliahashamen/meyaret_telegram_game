@@ -774,24 +774,25 @@ class Ship {
     if (this.effectiveLaser) {
       const pink = this.isPinkBeam;
       const starColor = this.isStarOverdrive ? '#b45cff' : null;
+      const laserColor = (this.bulletShape && this.bulletShape !== 'default' && this.bulletColor) ? this.bulletColor : starColor;
     if (this.hasTripple && this.hasShplit) {
       // laser + triple + shplit: 6 pink/laser beams
       [-0.22, 0, 0.22].forEach(spread => {
         const perp = (this.angle + spread) + Math.PI / 2;
         const ox = Math.cos(perp) * 9, oy = Math.sin(perp) * 9;
-        bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle + spread, pink, starColor));
-        bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle + spread, pink, starColor));
+        bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle + spread, pink, laserColor));
+        bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle + spread, pink, laserColor));
       });
     } else if (this.hasTripple) {
       [-0.22, 0, 0.22].forEach(spread =>
-        bullets.push(new Laser(nose.x, nose.y, this.angle + spread, pink, starColor)));
+        bullets.push(new Laser(nose.x, nose.y, this.angle + spread, pink, laserColor)));
     } else if (this.hasShplit) {
       const perp = this.angle + Math.PI / 2;
       const ox = Math.cos(perp) * 10, oy = Math.sin(perp) * 10;
-      bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle, pink, starColor));
-      bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle, pink, starColor));
+      bullets.push(new Laser(nose.x + ox, nose.y + oy, this.angle, pink, laserColor));
+      bullets.push(new Laser(nose.x - ox, nose.y - oy, this.angle, pink, laserColor));
     } else {
-      bullets.push(new Laser(nose.x, nose.y, this.angle, pink, starColor));
+      bullets.push(new Laser(nose.x, nose.y, this.angle, pink, laserColor));
     }
     SFX.laser();
     return;
@@ -2119,7 +2120,7 @@ class Game {
     } else {
       await this._sleep(1500);
     }
-    SFX.stopOpeningMusic && SFX.stopOpeningMusic();
+    // Opening music continues until main menu — stopped when SFX.startMenuMusic() runs
     bar.style.width = '15%'; label.textContent = 'WARMING ENGINES...';
     _ss('CALIBRATING RETRO RADAR...','#ffee00');
 
@@ -2248,6 +2249,7 @@ class Game {
     } else {
       const el = document.getElementById(`${name}-screen`);
       if (el) el.classList.remove('hidden');
+      SFX.stopOpeningMusic && SFX.stopOpeningMusic();
       SFX.startMenuMusic();
     }
     this.state = name;
@@ -2289,19 +2291,6 @@ class Game {
     document.getElementById('btn-store').addEventListener('click',   () => this._openStore());
     document.getElementById('btn-arsenal').addEventListener('click', () => this._openArsenal());
     document.getElementById('btn-guide').addEventListener('click',   () => this._openGuide());
-    const layoutBtn = document.getElementById('btn-layout');
-    if (layoutBtn) {
-      const isCompact = localStorage.getItem('meyaret_layout') === 'compact';
-      if (isCompact) { document.body.classList.add('layout-compact'); layoutBtn.classList.add('compact'); layoutBtn.textContent = 'COMPACT'; }
-      else layoutBtn.textContent = 'LAYOUT';
-      layoutBtn.addEventListener('click', () => {
-        const next = document.body.classList.toggle('layout-compact');
-        localStorage.setItem('meyaret_layout', next ? 'compact' : '');
-        layoutBtn.classList.toggle('compact', next);
-        layoutBtn.textContent = next ? 'COMPACT' : 'LAYOUT';
-        SFX.btnClick && SFX.btnClick();
-      });
-    }
     document.getElementById('btn-quit').addEventListener('click',    () => { if (tg) tg.close(); });
     document.getElementById('profile-btn').addEventListener('click', () => this._openProfile());
     document.getElementById('leaderboard-strip').addEventListener('click', () => this._showTop5Popup());
@@ -2708,7 +2697,7 @@ class Game {
     if (!this.upgrades?.xforce_lavian || !this.ship?.alive) return;
     if (this.xforceCooldownUntil > 0 && this.gameTime < this.xforceCooldownUntil) return;
     this.xforceActiveUntil = this.gameTime + 240; // 4 sec
-    this.xforceCooldownUntil = this.gameTime + 7 * 60 * 60; // 7 min
+    this.xforceCooldownUntil = this.gameTime + 6 * 60 * 60; // 6 min
     new FloatingText(this.W/2, this.H/2, 'XFORCE!', '#ff2222');
   }
 
@@ -2874,7 +2863,7 @@ class Game {
     if (this.keys.xforce){ this._activateXforce(); this.keys.xforce = false; }
 
     // Xforce Lavian — red lasers kill all for 4 sec
-    const XFORCE_COOLDOWN = 7 * 60 * 60; // 7 min in frames
+    const XFORCE_COOLDOWN = 6 * 60 * 60; // 6 min in frames
     if (this.upgrades?.xforce_lavian && this.xforceActiveUntil > 0 && this.gameTime < this.xforceActiveUntil) {
       this._processXforceLasers();
     }
@@ -4346,7 +4335,26 @@ class Game {
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────
+  _updateSpecialTimer() {
+    const el = document.getElementById('store-special-timer');
+    if (!el) return;
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(10, 0, 0, 0);
+    const day = now.getDay();
+    let daysToTue = (2 - day + 7) % 7;
+    if (daysToTue === 0 && now >= target) daysToTue = 7;
+    else if (daysToTue === 0 && now < target) daysToTue = 0;
+    target.setDate(target.getDate() + daysToTue);
+    const ms = target - now;
+    if (ms <= 0) { el.textContent = 'SOON'; return; }
+    const d = Math.floor(ms / 86400000);
+    const h = Math.floor((ms % 86400000) / 3600000);
+    el.textContent = `${String(d).padStart(2,'0')}d ${String(h).padStart(2,'0')}h`;
+  }
+
   async _openStore() {
+    this._updateSpecialTimer();
     this._showScreen('store');
     document.getElementById('store-balance').textContent =
       `BALANCE: ${(this.userData?.shmips||0).toLocaleString()} $$`;

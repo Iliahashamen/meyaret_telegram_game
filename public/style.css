@@ -367,18 +367,30 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 /* ── STORE SCREEN ─────────────────────────────────────────── */
 .store-balance { font-size: 9px; letter-spacing: 2px; color: var(--yellow); text-shadow: var(--glow-y); margin-bottom: 10px; text-align: center; line-height: 2; }
 .store-tabs {
-  display: flex; gap: 0; margin-bottom: 12px;
+  display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;
   border: var(--px) solid var(--border-m);
   width: min(330px, 90vw); box-shadow: 4px 4px 0 #ff007722;
+  padding: 4px;
+}
+.store-tabs-row {
+  display: flex; gap: 0; flex: 1;
+}
+.store-tabs-row .tab-btn { flex: 1; }
+.store-tabs-special {
+  align-items: center; gap: 8px;
+}
+.store-special-timer {
+  font-size: 7px; color: var(--muted2); font-family: var(--font);
+  letter-spacing: 1px;
 }
 .tab-btn {
   flex: 1; background: transparent; border: none;
   border-right: var(--px) solid var(--border-m);
   color: var(--muted2); font-family: var(--font);
-  font-size: 7px; letter-spacing: 0px; padding: 9px 2px;
+  font-size: 7px; letter-spacing: 0px; padding: 9px 4px;
   cursor: pointer; text-align: center; line-height: 2; transition: all 0.12s;
 }
-.tab-btn:last-child { border-right: none; }
+.store-tabs-row .tab-btn:last-child { border-right: none; }
 .tab-btn.active { color: var(--magenta); background: #ff007714; text-shadow: var(--glow-m); }
 
 .store-grid {
@@ -435,6 +447,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 #controls-overlay.hidden { display: none; }
 
 #ctrl-left {
+  position: relative;
   display: flex; flex-direction: column-reverse; align-items: center; gap: 14px;
   pointer-events: all;
 }
@@ -522,15 +535,16 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 }
 #ctrl-thrust:active { box-shadow: 0 0 26px #38b9ff; }
 
-/* XFORCE LAVIAN — small X button */
+/* XFORCE LAVIAN — above joystick wheel */
 #ctrl-xforce {
   width: 36px; height: 36px;
-  left: 0; top: 0;
+  left: 50%; top: -12px;
+  transform: translateX(-50%);
   font-size: 14px; font-weight: bold;
   color: #ff4444; border-color: #ff2222;
   box-shadow: 0 0 8px #ff222244;
 }
-#ctrl-xforce:active { box-shadow: 0 0 14px #ff4444; }
+#ctrl-xforce:active { box-shadow: 0 0 14px #ff4444; transform: translateX(-50%) scale(0.88); }
 
 /* Virtual Joystick */
 #vjoy-base {
@@ -594,16 +608,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 .mute-btn.low   { color: var(--yellow); border-color: var(--border-y); box-shadow: 2px 2px 0 #ffee0022; }
 .mute-btn.muted { color: var(--muted); border-color: var(--muted); box-shadow: none; }
 .mute-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #00ffcc22; }
-
-.layout-btn {
-  position: fixed; bottom: calc(14px + var(--safe-bottom)); right: calc(100px + var(--safe-right));
-  min-width: 58px; height: 34px; padding: 0 8px; font-size: 9px; line-height: 1;
-  background: rgba(7,0,15,0.88); border: var(--px) solid var(--border-m);
-  color: var(--muted2); display: flex; align-items: center; justify-content: center;
-  cursor: pointer; z-index: 200; box-shadow: 2px 2px 0 #ff007722;
-}
-.layout-btn:active { transform: translate(1px,1px); }
-.layout-btn.compact { color: var(--cyan); border-color: var(--border-c); box-shadow: 2px 2px 0 #00ffcc22; }
 
 /* ── GUIDE BUTTON + SCREEN ─────────────────────────────────── */
 .guide-btn {
@@ -761,14 +765,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   #ctrl-fire   { width: 52px; height: 52px; font-size: 8px; right: 0; top: 46px; }
   #ctrl-shield { width: 38px; height: 38px; font-size: 5px; left: 0; top: 90px; }
   #ctrl-thrust { width: 46px; height: 46px; font-size: 6px; right: 0; bottom: 0; }
-  #ctrl-xforce { width: 28px; height: 28px; font-size: 11px; left: 0; top: 0; }
+  #ctrl-xforce { width: 30px; height: 30px; font-size: 12px; top: -8px; }
 }
 
-/* Optional: compact layout (LAYOUT button) */
-body.layout-compact #controls-overlay {
-  height: calc(155px + var(--safe-bottom));
-  padding-bottom: 8px;
-}
-body.layout-compact #vjoy-base { width: 92px; height: 92px; }
-body.layout-compact #vjoy-knob { width: 38px; height: 38px; }
-body.layout-compact #ctrl-right { width: 122px; height: 145px; }
