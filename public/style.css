@@ -283,6 +283,66 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 }
 .back-btn:active { color: var(--cyan); }
 
+/* ── GIFT HUB ──────────────────────────────────────────────── */
+.gift-hub-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(300px, 88vw);
+  margin-top: 24px;
+}
+.gift-hub-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 20px;
+  background: rgba(10,0,20,0.7);
+  border: 2px solid var(--border-m);
+  border-radius: 8px;
+  color: var(--cyan);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+.gift-hub-card:hover, .gift-hub-card:active {
+  border-color: var(--cyan);
+  box-shadow: 0 0 20px rgba(0,255,204,0.3);
+}
+.gift-hub-icon { font-size: 28px; line-height: 1; }
+.gift-hub-title { font-size: 11px; letter-spacing: 2px; font-weight: bold; }
+.gift-hub-desc { font-size: 8px; color: var(--muted2); letter-spacing: 1px; }
+
+/* ── GIFT PAGES ────────────────────────────────────────────── */
+.drop-subtitle { font-size: 8px; color: var(--muted2); margin-bottom: 12px; letter-spacing: 1px; }
+#drop-symbols-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 20px;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--muted2);
+  margin: 10px 0;
+  padding: 10px 16px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border-m);
+  border-radius: 6px;
+  max-width: 280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.symbol-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.symbol-row .symbol-label { color: rgba(255,255,255,0.85); }
+.sym-$ { color: #00ff66; font-weight: bold; font-size: 10px; min-width: 14px; text-align: center; }
+.sym-^ { color: #ffcc00; font-weight: bold; font-size: 10px; min-width: 14px; text-align: center; }
+.sym-# { color: #ff4466; font-weight: bold; font-size: 10px; min-width: 14px; text-align: center; }
+.sym-* { color: #ffd700; font-weight: bold; font-size: 10px; min-width: 14px; text-align: center; text-shadow: 0 0 8px #8a2be2; }
+
 /* ── GIFT SCREEN ──────────────────────────────────────────── */
 .gift-section {
   margin-bottom: 20px;
@@ -332,17 +392,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 .drop-slot[data-slot="1"], .drop-slot[data-slot="2"], .drop-slot[data-slot="6"], .drop-slot[data-slot="7"] { color: #00ff66; background: rgba(0,255,100,0.15); }
 .drop-slot[data-slot="3"], .drop-slot[data-slot="5"] { color: #ff4466; background: rgba(255,68,102,0.2); }
 .drop-slot[data-slot="4"] { color: #ffd700; background: linear-gradient(135deg, rgba(255,215,0,0.3), rgba(138,43,226,0.3)); box-shadow: 0 0 12px #ffd70088, 0 0 8px #8a2be288; }
-#drop-symbols-legend {
-  font-size: 7px;
-  letter-spacing: 1px;
-  color: var(--muted2);
-  margin: 6px 0;
-  text-align: center;
-}
-.sym-$ { color: #00ff66; }
-.sym-^ { color: #ffcc00; }
-.sym-# { color: #ff4466; }
-.sym-* { color: #ffd700; text-shadow: 0 0 8px #8a2be2; }
 #drop-btn { margin-top: 6px; }
 #drop-result { margin-top: 8px; }
 #drop-again-wrap {

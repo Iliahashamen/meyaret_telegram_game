@@ -119,56 +119,74 @@
     <button id="arsenal-open-store" class="btn-primary">OPEN STORE</button>
   </div>
 
-  <!-- Gift Screen -->
-  <div id="spin-screen" class="screen hidden">
+  <!-- Gifts Hub (choose which gift) -->
+  <div id="gift-hub-screen" class="screen hidden">
     <button class="back-btn" data-back="menu">BACK</button>
     <div class="screen-title">GIFTS</div>
-
-    <!-- 4hr Gift Section -->
-    <div class="gift-section">
-      <div class="gift-section-label">4HR GIFT</div>
-      <div id="gift-box-area">
-        <div id="gift-box" class="gift-idle">
-          <div id="gift-lid"></div>
-          <div id="gift-body">
-            <div class="gift-ribbon-h"></div>
-            <div class="gift-ribbon-v"></div>
-          </div>
-        </div>
-        <div id="gift-sparks"></div>
-      </div>
-      <button id="spin-btn" class="btn-primary btn-big">OPEN GIFT</button>
-      <div id="spin-result" class="spin-result hidden"></div>
+    <div class="gift-hub-cards">
+      <button id="btn-gift-4hr" class="gift-hub-card">
+        <span class="gift-hub-icon">🎁</span>
+        <span class="gift-hub-title">4HR GIFT</span>
+        <span class="gift-hub-desc">Open every 4 hours</span>
+      </button>
+      <button id="btn-gift-drop" class="gift-hub-card">
+        <span class="gift-hub-icon">🎱</span>
+        <span class="gift-hub-title">DROP DA BALL</span>
+        <span class="gift-hub-desc">Every 7 hours · Plinko rewards</span>
+      </button>
     </div>
+  </div>
 
-    <!-- DROP DA BALL Section (7hr) -->
-    <div class="gift-section drop-section">
-      <div class="gift-section-label">DROP DA BALL <span class="drop-label-small">(7HR)</span></div>
-      <div id="drop-board-wrap">
-        <canvas id="drop-canvas" width="280" height="200"></canvas>
-        <div id="drop-slots">
-          <div class="drop-slot" data-slot="0" title="Boost">^</div>
-          <div class="drop-slot" data-slot="1">$</div>
-          <div class="drop-slot" data-slot="2">$</div>
-          <div class="drop-slot" data-slot="3">#</div>
-          <div class="drop-slot" data-slot="4">*</div>
-          <div class="drop-slot" data-slot="5">#</div>
-          <div class="drop-slot" data-slot="6">$</div>
-          <div class="drop-slot" data-slot="7">$</div>
-          <div class="drop-slot" data-slot="8">^</div>
+  <!-- 4hr Gift Page (full screen) -->
+  <div id="gift-4hr-screen" class="screen hidden">
+    <button class="back-btn" data-back="gift-hub">BACK</button>
+    <div class="screen-title">4HR GIFT</div>
+    <div id="gift-box-area">
+      <div id="gift-box" class="gift-idle">
+        <div id="gift-lid"></div>
+        <div id="gift-body">
+          <div class="gift-ribbon-h"></div>
+          <div class="gift-ribbon-v"></div>
         </div>
       </div>
-      <div id="drop-symbols-legend">
-        <span class="sym-$">$</span> Money &nbsp; <span class="sym-^">^</span> Boost &nbsp; <span class="sym-#">#</span> Skin &nbsp; <span class="sym-*">*</span> Upgrade
+      <div id="gift-sparks"></div>
+    </div>
+    <button id="spin-btn" class="btn-primary btn-big">OPEN GIFT</button>
+    <div id="spin-result" class="spin-result hidden"></div>
+  </div>
+
+  <!-- DROP DA BALL Page (full screen) -->
+  <div id="gift-drop-screen" class="screen hidden">
+    <button class="back-btn" data-back="gift-hub">BACK</button>
+    <div class="screen-title">DROP DA BALL</div>
+    <div class="drop-subtitle">Every 7 hours</div>
+    <div id="drop-board-wrap">
+      <canvas id="drop-canvas" width="280" height="200"></canvas>
+      <div id="drop-slots">
+        <div class="drop-slot" data-slot="0" title="Boost">^</div>
+        <div class="drop-slot" data-slot="1">$</div>
+        <div class="drop-slot" data-slot="2">$</div>
+        <div class="drop-slot" data-slot="3">#</div>
+        <div class="drop-slot" data-slot="4">*</div>
+        <div class="drop-slot" data-slot="5">#</div>
+        <div class="drop-slot" data-slot="6">$</div>
+        <div class="drop-slot" data-slot="7">$</div>
+        <div class="drop-slot" data-slot="8">^</div>
       </div>
-      <button id="drop-btn" class="btn-primary btn-big">DROP!</button>
-      <div id="drop-result" class="spin-result hidden"></div>
-      <div id="drop-again-wrap" class="hidden">
-        <span class="drop-again-text">Drop again? 650$$</span>
-        <div class="drop-again-btns">
-          <button id="drop-yes" class="btn-primary">YES</button>
-          <button id="drop-no" class="btn-secondary">NO</button>
-        </div>
+    </div>
+    <div id="drop-symbols-legend">
+      <div class="symbol-row"><span class="sym-$">$</span> <span class="symbol-label">Money</span></div>
+      <div class="symbol-row"><span class="sym-^">^</span> <span class="symbol-label">One-run Boost</span></div>
+      <div class="symbol-row"><span class="sym-#">#</span> <span class="symbol-label">Skin</span></div>
+      <div class="symbol-row"><span class="sym-*">*</span> <span class="symbol-label">Upgrade</span></div>
+    </div>
+    <button id="drop-btn" class="btn-primary btn-big">DROP!</button>
+    <div id="drop-result" class="spin-result hidden"></div>
+    <div id="drop-again-wrap" class="hidden">
+      <span class="drop-again-text">Drop again? 650$$</span>
+      <div class="drop-again-btns">
+        <button id="drop-yes" class="btn-primary">YES</button>
+        <button id="drop-no" class="btn-secondary">NO</button>
       </div>
     </div>
   </div>

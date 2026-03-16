@@ -55,6 +55,7 @@ export const CATALOG = [
   { id: 'hornet_assistant', name: 'HORNET ASSISTANT', category: 'upgrade', cost: 5586, description: 'At 2 lives or less, a friendly jet spawns for 20 sec to help' },
   { id: 'xforce_lavian',  name: 'XFORCE LAVIAN',   category: 'upgrade', cost: 4332, description: 'X button: red lasers kill all for 4 sec (5 min cooldown)' },
   { id: 'rip_n_dip',      name: 'RIP N DIP',       category: 'upgrade', cost: 6666, description: 'Full lives 2 min → 10s countdown. Survive = rainbow fury 8 sec' },
+  { id: 'lucky_bstrd',    name: 'LUCKY BSTRD',     category: 'upgrade', cost: 888,  description: '70% chance to survive a hit when at 1 life' },
 
   // ── Thrust colors ────────────────────────────────────────────────────────
   { id: 'thrust_default', name: 'DEFAULT',    category: 'thrust', cost: 0,   description: 'Default orange thrust',   color: '#ff6600' },

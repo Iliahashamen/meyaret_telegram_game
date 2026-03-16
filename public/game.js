@@ -104,7 +104,7 @@ function auroraColor(t) {
   return `hsl(${h}, 95%, 55%)`;
 }
 function spectrumColor(t) {
-  return rainbowColor(t, 0.8);
+  return rainbowColor(t, 1.6);
 }
 function acidColor(t) {
   const h = (t * 0.45) % 360;
@@ -227,6 +227,7 @@ class Ship {
     this.hasMagnet      = !!(upgrades.jew_method);
     this.hasCollector   = !!(upgrades.collector);
     this.hasAce         = !!(upgrades.ace_upgrade);
+    this.hasLuckyBstrd  = !!(upgrades.lucky_bstrd);
     this.hasZepZep      = !!(upgrades.zep_zep_zep);
     this.hasHornetAssistant = !!(upgrades.hornet_assistant);
 
@@ -891,6 +892,14 @@ class Ship {
       return false;
     }
     burst(particles, this.x, this.y, this.golden ? C.golden : this.color, 20, 4, 40);
+    if (this.lives === 1 && this.hasLuckyBstrd && Math.random() < 0.7) {
+      new FloatingText(this.x, this.y - 30, 'LUCKY!', '#ffcc00');
+      this.invincible = true;
+      this.invTimer  = Math.floor(CFG.invincibleMs / 16);
+      this.blinkTimer = 0;
+      this.vx = 0; this.vy = 0;
+      return false;
+    }
     this.lives--;
     SFX.playerHit();
     if (this.lives <= 0) { this.alive = false; return true; }
@@ -2230,7 +2239,7 @@ class Game {
 
   // ── Screen Management ──────────────────────────────────────────────────────
   _showScreen(name) {
-    ['onboarding','menu','profile','spin','store','arsenal','guide','gameover'].forEach(s => {
+    ['onboarding','menu','profile','gift-hub','gift-4hr','gift-drop','store','arsenal','guide','gameover'].forEach(s => {
       const el = document.getElementById(`${s}-screen`);
       if (el) el.classList.add('hidden');
     });
@@ -2310,9 +2319,15 @@ class Game {
     }
 
     document.querySelectorAll('.back-btn').forEach(btn => {
-      btn.addEventListener('click', () => { this._loadMenu(); this._showScreen('menu'); });
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.back || 'menu';
+        if (target === 'menu') this._loadMenu();
+        this._showScreen(target);
+      });
     });
 
+    document.getElementById('btn-gift-4hr')?.addEventListener('click', () => this._openGift4hr());
+    document.getElementById('btn-gift-drop')?.addEventListener('click', () => this._openGiftDrop());
     document.getElementById('spin-btn').addEventListener('click', () => this._doOpenGift());
     document.getElementById('drop-btn')?.addEventListener('click', () => this._doDropBall());
     document.getElementById('drop-yes')?.addEventListener('click', () => this._doDropAgain());
@@ -2531,7 +2546,7 @@ class Game {
     // ── Permanent upgrades ────────────────────────────────────────────────
     ['magen','pew_pew_15','pew_pew_3','jew_method','kurwa_raketa',
      'ace_upgrade','zep_zep_zep','shplit','tripple_threat',
-     'smart_rocket','collector','score_x2','score_x3','hornet_assistant','xforce_lavian','rip_n_dip'].forEach(id => {
+     'smart_rocket','collector','score_x2','score_x3','hornet_assistant','xforce_lavian','rip_n_dip','lucky_bstrd'].forEach(id => {
       if (this.upgrades[id]) ups[id] = 1;
     });
     // Score multiplier: x2 and x3 are permanent, stack to x6
@@ -2742,20 +2757,20 @@ class Game {
 
   _maintainAsteroids() {
     const timeS = this.gameTime / 60;
-    const chaos = timeS >= 660; // 11 min+ = chaos mode (30% harder)
+    const chaos = timeS >= 600; // 10 min+ = chaos mode (40% harder)
 
     // During dogfight (red fighters or homing rockets active) keep the field sparse —
     // just enough rocks to use as cover; in chaos mode allow more
     const dogfight = (this.redFighters?.length > 0) || (this.orangeRockets?.length > 0);
-    const baseRamp = 5 + Math.floor(timeS / 8); // ramp faster (30% harder)
+    const baseRamp = 5 + Math.floor(timeS / 7); // ramp faster (40% harder)
     const targetCount = dogfight
       ? (chaos ? 8 : 4)                                           // dogfight: 4 rocks normally, 8 in chaos
       : Math.min(baseRamp + (chaos ? 10 : 2), chaos ? 32 : 24);  // chaos: +10 target, cap 32; else 24
 
     // Note: we never cull existing asteroids — they stay as cover during dogfights
 
-    const baseInterval = Math.max(100 - Math.floor(timeS * 0.65), 22); // ramp spawn speed faster (30% harder)
-    const spawnInterval = chaos ? Math.max(Math.floor((baseInterval - 15) / 1.15), 16) : Math.floor(baseInterval / 1.15);
+    const baseInterval = Math.max(100 - Math.floor(timeS * 0.72), 20); // ramp spawn speed faster (40% harder)
+    const spawnInterval = chaos ? Math.max(Math.floor((baseInterval - 18) / 1.2), 14) : Math.floor(baseInterval / 1.2);
     this.asteroidSpawnTimer++;
     if (this.asteroidSpawnTimer >= spawnInterval && this.asteroids.length < targetCount) {
       this.asteroidSpawnTimer = 0;
@@ -2780,7 +2795,7 @@ class Game {
     this._lastFrameTs = ts;
     this._accum += frameMs;
     if (this.state !== 'game') {
-      if (['menu','profile','store','spin','arsenal','guide','onboarding'].includes(this.state))
+      if (['menu','profile','store','gift-hub','gift-4hr','gift-drop','arsenal','guide','onboarding'].includes(this.state))
         drawGrid(this.ctx, this.W, this.H, this.tick++);
       return;
     }
@@ -2909,39 +2924,39 @@ class Game {
     // Skip enemy spawns during spawn-freeze grace period
     if (this._spawnFrozen) { /* no spawns */ }
     else {
-    const chaos = timeS >= 660; // 11 min+ = chaos mode (30% harder — earlier chaos)
-    const dMult = 1.3; // 30% harder: faster spawns, more enemies
+    const chaos = timeS >= 600; // 10 min+ = chaos mode (40% harder)
+    const dMult = 1.4; // 40% harder: faster spawns, more enemies
 
     // Yellow aliens: appear after 35 seconds; in chaos allow 2
     const alienMax = chaos ? 2 : 1;
     const alienInterval = Math.floor((chaos
-      ? Math.max(800 - Math.floor(timeS * 2), 350)
-      : Math.max(1200 - Math.floor(timeS * 1.5), 500)) / dMult);
+      ? Math.max(800 - Math.floor(timeS * 2.2), 320)
+      : Math.max(1200 - Math.floor(timeS * 1.7), 450)) / dMult);
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > alienInterval && timeS >= 35) {
+    if (this.yellowAlienTimer > alienInterval && timeS >= 30) {
       this.yellowAlienTimer = 0;
       if (this.yellowAliens.length < alienMax) {
         const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
     }
-    // Red fighters: appear after 2.1 min, scale with time; chaos = higher cap + faster (30% harder)
-    const redCapBase = Math.max(1, Math.floor((timeS - 110) / 55));
+    // Red fighters: appear after 2 min, scale with time; chaos = higher cap + faster (40% harder)
+    const redCapBase = Math.max(1, Math.floor((timeS - 100) / 48));
     const redCap = chaos ? redCapBase + Math.floor(timeS / 450) : redCapBase;
     const redInterval = Math.floor((chaos
       ? Math.max(900 - Math.floor(timeS * 2), 320)
       : Math.max(1200 - Math.floor(timeS * 1.2), 450)) / dMult);
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && timeS >= 126) {
+    if (this.redFighterTimer > redInterval && timeS >= 120) {
       this.redFighterTimer = 0;
       if (this.redFighters.length < redCap) {
         const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
-    // Orange homing rockets: appear after 2.5 min; chaos = more rockets (30% harder)
-    const orangeStart = 150;
-    const orangeCapBase = 1 + Math.floor((timeS - orangeStart) / 65);
+    // Orange homing rockets: appear after 2.2 min; chaos = more rockets (40% harder)
+    const orangeStart = 132;
+    const orangeCapBase = 1 + Math.floor((timeS - orangeStart) / 55);
     const orangeCap = Math.min(chaos ? orangeCapBase + 2 : orangeCapBase + 1, chaos ? 7 : 5);
     const orangeInterval = Math.floor((chaos
       ? Math.max(700 - Math.floor((timeS - orangeStart) * 2), 220)
@@ -3741,9 +3756,10 @@ class Game {
       const res = await fetch(base + '/api/scores/weekly');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
-      entriesEl.innerHTML = (data.top3 || []).map(e =>
-        `${e.rank}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`
-      ).join('<br>') || 'NO SCORES THIS WEEK';
+      const top3 = data.top3 || [];
+      entriesEl.innerHTML = top3.length > 0
+        ? top3.map(e => `${e.rank}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`).join('<br>')
+        : 'NO SCORES THIS WEEK';
       const ms = data.countdownMs || 0;
       const d = Math.floor(ms / 86400000);
       const h = Math.floor((ms % 86400000) / 3600000);
@@ -4184,10 +4200,13 @@ class Game {
     h.textContent = title; area.appendChild(h);
   }
 
-  // ── Daily Gift Box ─────────────────────────────────────────────────────────
+  // ── Gifts ──────────────────────────────────────────────────────────────────
   async _openGift() {
-    this._showScreen('spin');
+    this._showScreen('gift-hub');
+  }
 
+  async _openGift4hr() {
+    this._showScreen('gift-4hr');
     // Reset box state
     const box  = document.getElementById('gift-box');
     const lid  = document.getElementById('gift-lid');
@@ -4214,6 +4233,10 @@ class Game {
     } else if (status) {
       btn.disabled = true; btn.style.opacity = '0.4';
     }
+  }
+
+  async _openGiftDrop() {
+    this._showScreen('gift-drop');
     this._refreshDropSection();
   }
 
@@ -4432,7 +4455,6 @@ class Game {
     this._loadMenu();
 
     btn.disabled = true; btn.style.opacity = '0.4';
-    this._refreshDropSection();
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────

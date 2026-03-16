@@ -1,7 +1,8 @@
 // ============================================================
-// MEYARET — 6-Weekly Event: Top 3 Pilots
-// Runs Tuesday 10:00 -> next Tuesday 10:00. Payout every Tuesday 10am.
-// Excludes ADMIN_TELEGRAM_ID from participation.
+// MEYARET — Weekly Top 3 Event
+// Resets each Tuesday 10:00 (WEEKLY_EVENT_TZ). Top 5 global is UNCHANGED.
+// Display rules: blank until first real score; after 24h with no scores, fill
+// with bots; if 1–2 players enter, fill remaining slots with bots.
 // ============================================================
 
 import cron from 'node-cron';
@@ -55,8 +56,27 @@ function getPreviousWeekBounds() {
   return { start: prevStart, end: prevEnd };
 }
 
-export async function getWeeklyTop3(weekBounds) {
+function pickBotEntry(rank, usedFake) {
+  let callsign = FAKE_CALLSIGNS[rank % FAKE_CALLSIGNS.length];
+  let j = 0;
+  while (usedFake.has(callsign) && j < FAKE_CALLSIGNS.length) {
+    callsign = FAKE_CALLSIGNS[(rank + j) % FAKE_CALLSIGNS.length];
+    j++;
+  }
+  usedFake.add(callsign);
+  const fakeScore = Math.floor(50000 - rank * 12000 + Math.random() * 3000);
+  return {
+    rank: rank + 1,
+    nickname: callsign,
+    best_score: fakeScore,
+    telegram_id: null,
+    isBot: true,
+  };
+}
+
+export async function getWeeklyTop3(weekBounds, options = {}) {
   const { start, end } = weekBounds;
+  const { forDisplay = false } = options;
   const startIso = start.toISOString();
   const endIso = end.toISOString();
 
@@ -82,6 +102,12 @@ export async function getWeeklyTop3(weekBounds) {
     .sort((a, b) => b.best_score - a.best_score)
     .slice(0, 3);
 
+  // Display rules: blank until first score; 24h no scores → fill bots; 1–2 players → fill rest
+  if (forDisplay && entries.length === 0) {
+    const hoursSinceStart = (Date.now() - start.getTime()) / (3600 * 1000);
+    if (hoursSinceStart < 24) return { top3: [], error: null };
+  }
+
   const realIds = entries.map(e => e.telegram_id).filter(Boolean);
   const nickMap = new Map();
   if (realIds.length && supabase) {
@@ -94,6 +120,9 @@ export async function getWeeklyTop3(weekBounds) {
 
   const top3 = [];
   const usedFake = new Set();
+  const realCount = entries.length;
+  const fillWithBots = !forDisplay || realCount === 0 || realCount < 3;
+
   for (let i = 0; i < 3; i++) {
     if (entries[i]) {
       top3.push({
@@ -103,22 +132,8 @@ export async function getWeeklyTop3(weekBounds) {
         telegram_id: entries[i].telegram_id,
         isBot: false,
       });
-    } else {
-      let callsign = FAKE_CALLSIGNS[i % FAKE_CALLSIGNS.length];
-      let j = 0;
-      while (usedFake.has(callsign) && j < FAKE_CALLSIGNS.length) {
-        callsign = FAKE_CALLSIGNS[(i + j) % FAKE_CALLSIGNS.length];
-        j++;
-      }
-      usedFake.add(callsign);
-      const fakeScore = Math.floor(50000 - i * 12000 + Math.random() * 3000);
-      top3.push({
-        rank: i + 1,
-        nickname: callsign,
-        best_score: fakeScore,
-        telegram_id: null,
-        isBot: true,
-      });
+    } else if (fillWithBots) {
+      top3.push(pickBotEntry(i, usedFake));
     }
   }
   return { top3, error: null };
@@ -164,7 +179,7 @@ export async function getWeeklyEventData() {
   const { start, end } = getCurrentWeekBounds();
   const nextClose = getNextTuesday10am();
   const countdownMs = Math.max(0, nextClose.getTime() - Date.now());
-  const { top3 } = await getWeeklyTop3({ start, end });
+  const { top3 } = await getWeeklyTop3({ start, end }, { forDisplay: true });
   return {
     closesAt: nextClose.toISOString(),
     countdownMs,
