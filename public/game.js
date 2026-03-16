@@ -4251,7 +4251,7 @@ class Game {
     try {
       const [s4, sDrop] = await Promise.all([dbGiftStatus(tid), dbDropStatus(tid)]);
       if (hub4) hub4.textContent = s4?.available ? 'READY · Open every 4 hours' : s4?.remainingMs > 0 ? this._formatRemaining(s4.remainingMs) + ' until next' : 'Open every 4 hours';
-      if (hubDrop) hubDrop.textContent = sDrop?.available ? 'READY · Every 8 hours' : sDrop?.remainingMs > 0 ? this._formatRemaining(sDrop.remainingMs) + ' until next' : 'Every 8 hours · Spin for rewards';
+      if (hubDrop) hubDrop.textContent = sDrop?.available ? 'READY · Every 8 hours' : sDrop?.remainingMs > 0 ? this._formatRemaining(sDrop.remainingMs) + ' until next' : 'Every 8 hours · Risky rewards';
     } catch {
       if (hub4) hub4.textContent = 'Open every 4 hours';
       if (hubDrop) hubDrop.textContent = 'Every 7 hours · Plinko rewards';
@@ -4299,66 +4299,27 @@ class Game {
       try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
     }
     this._showScreen('gift-drop');
-    this._drawDropBoardIdle();
+    this._initSlots();
     this._refreshDropSection();
   }
 
-  _drawDropBoardIdle() {
-    this._drawWheel(0);
-  }
-
-  _drawWheel(rotationRad) {
-    const canvas = document.getElementById('drop-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const W = 240, H = 240;
-    const cx = W / 2, cy = H / 2;
-    const symbols = ['^','$','$','#','*','#','$','$','^'];
-    const colors = ['#ffcc00','#00ff66','#00ff66','#ff4466','#ffd700','#ff4466','#00ff66','#00ff66','#ffcc00'];
-    const segments = 9;
-    const sliceAngle = (2 * Math.PI) / segments;
-    ctx.fillStyle = '#0a0f1a';
-    ctx.fillRect(0, 0, W, H);
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(rotationRad);
-    ctx.translate(-cx, -cy);
-    for (let i = 0; i < segments; i++) {
-      const start = i * sliceAngle - Math.PI / 2;
-      const end = start + sliceAngle;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, Math.min(W, H) / 2 - 4, start, end);
-      ctx.closePath();
-      ctx.fillStyle = colors[i];
-      ctx.globalAlpha = 0.85;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      const mid = start + sliceAngle / 2;
-      const tx = cx + (Math.min(W, H) / 2 - 24) * Math.cos(mid);
-      const ty = cy + (Math.min(W, H) / 2 - 24) * Math.sin(mid);
-      ctx.save();
-      ctx.translate(tx, ty);
-      ctx.rotate(mid + Math.PI / 2);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 18px "Press Start 2P"';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(symbols[i], 0, 0);
-      ctx.restore();
+  _initSlots() {
+    const symbols = ['^','$','#','*'];
+    const symClasses = ['sym-^','sym-$','sym-#','sym-*'];
+    for (let r = 0; r < 3; r++) {
+      const strip = document.querySelector(`#slot-reel-${r} .slot-strip`);
+      if (!strip) return;
+      strip.innerHTML = '';
+      for (let i = 0; i < 20; i++) {
+        const idx = i % 4;
+        const div = document.createElement('div');
+        div.className = `slot-symbol ${symClasses[idx]}`;
+        div.textContent = symbols[idx];
+        strip.appendChild(div);
+      }
+      strip.style.transition = 'none';
+      strip.style.transform = 'translateY(0)';
     }
-    ctx.restore();
-    ctx.beginPath();
-    ctx.arc(cx, cy, 28, 0, Math.PI * 2);
-    ctx.fillStyle = '#1a1030';
-    ctx.fill();
-    ctx.strokeStyle = '#ff44aa';
-    ctx.lineWidth = 3;
-    ctx.stroke();
   }
 
   _refreshDropSection() {
@@ -4410,7 +4371,7 @@ class Game {
     try {
       data = await dbDoDropBall(tid, isPaidDrop);
     } catch (e) {
-      if (dropResult) { dropResult.textContent = (e.message || 'DROP FAILED').toUpperCase(); dropResult.classList.remove('hidden'); }
+      if (dropResult) { dropResult.textContent = (e.message || 'SLOTS FAILED').toUpperCase(); dropResult.classList.remove('hidden'); }
       this._refreshDropSection();
       return;
     }
@@ -4421,8 +4382,7 @@ class Game {
     }
 
     const { slotIdx, reward } = data;
-    this._drawDropBoardIdle();
-    await this._animateDropBall(slotIdx);
+    await this._animateSlots(slotIdx);
     const typeColors = { skin: '#ff4466', boost: '#ff7700', shmips: '#00ff66', upgrade: '#ffd700' };
     const col = typeColors[reward.type] || '#ffee00';
     dropResult.style.color = col;
@@ -4461,36 +4421,36 @@ class Game {
     await this._doDropBall(true);
   }
 
-  _animateDropBall(targetSlotIdx) {
-    return new Promise((resolve) => {
-      const canvas = document.getElementById('drop-canvas');
-      const ctx = canvas?.getContext('2d');
-      if (!canvas || !ctx) { resolve(); return; }
-      const self = this;
-      const segments = 9;
-      const sliceAngle = (2 * Math.PI) / segments;
-      const fullSpins = 5;
-      const finalRotation = -fullSpins * 2 * Math.PI - targetSlotIdx * sliceAngle - sliceAngle / 2;
-      const duration = 180;
-      let frame = 0;
+  _animateSlots(targetSlotIdx) {
+    const symbolMap = [0,1,1,2,3,2,1,1,0];
+    const symIdx = symbolMap[targetSlotIdx];
+    const SYMBOL_H = 72;
+    const CYCLES = 10;
+    const finalY = -(CYCLES * 4 + symIdx) * SYMBOL_H;
 
-      const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+    const reelEls = [0,1,2].map(r => document.querySelector(`#slot-reel-${r} .slot-strip`));
+    if (!reelEls[0]) return Promise.resolve();
 
-      const tick = () => {
-        frame++;
-        const t = Math.min(1, frame / duration);
-        const eased = easeOutCubic(t);
-        const rotation = finalRotation * eased;
-        self._drawWheel(rotation);
-        if (frame < duration) {
-          requestAnimationFrame(tick);
-        } else {
-          self._drawDropBoardIdle();
-          resolve();
-        }
-      };
-      tick();
+    reelEls.forEach(strip => {
+      strip.style.transition = 'none';
+      strip.style.transform = 'translateY(0)';
     });
+
+    const spinReel = (reelIdx, delayMs) => {
+      return new Promise(r => {
+        setTimeout(() => {
+          const strip = reelEls[reelIdx];
+          strip.style.transition = 'transform 1s cubic-bezier(0.15, 0.9, 0.35, 1)';
+          strip.style.transform = `translateY(${finalY}px)`;
+          strip.ontransitionend = () => {
+            strip.ontransitionend = null;
+            r();
+          };
+        }, delayMs);
+      });
+    };
+
+    return spinReel(0, 0).then(() => spinReel(1, 120)).then(() => spinReel(2, 240));
   }
 
   _startGiftCountdown(ms, el) {

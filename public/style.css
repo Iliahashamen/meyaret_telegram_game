@@ -363,32 +363,66 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 }
 .drop-label-small { font-size: 7px; opacity: 0.8; }
 .drop-section { border-top: 1px solid var(--border-m); padding-top: 16px; margin-top: 12px; }
-.wheel-wrap {
+/* ── 8HR SLOTS (slot machine) ─────────────────────────────────────────── */
+.slots-wrap {
   position: relative;
-  margin: 12px auto;
-  width: 240px;
+  margin: 16px auto;
+  width: 260px;
 }
-.wheel-pointer {
+.slots-payline {
   position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 18px;
-  color: #ff44aa;
-  text-shadow: 0 0 10px #ff44aa;
-  z-index: 2;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  margin-top: -2px;
+  background: linear-gradient(90deg, transparent, #ff44aa, #ff44aa, transparent);
+  box-shadow: 0 0 12px #ff44aa;
+  z-index: 3;
+  pointer-events: none;
 }
-.wheel-canvas {
-  display: block;
-  width: 240px;
-  height: 240px;
-  background: linear-gradient(180deg, #0d1220 0%, #1a1f35 100%);
+.slots-machine {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 20px;
+  background: linear-gradient(180deg, #1a0a20 0%, #0d0515 100%);
   border: 3px solid var(--magenta);
-  box-shadow: 0 0 12px rgba(255,0,119,0.5), inset 0 0 20px rgba(0,0,0,0.5);
-  border-radius: 50%;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
+  box-shadow: 0 0 20px rgba(255,0,119,0.4), inset 0 0 30px rgba(0,0,0,0.6);
+  border-radius: 12px;
 }
+.slot-reel {
+  width: 64px;
+  height: 72px;
+  overflow: hidden;
+  background: #0a0610;
+  border: 2px solid rgba(255,68,170,0.5);
+  border-radius: 6px;
+  position: relative;
+}
+.slot-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  transition: transform 0.1s linear;
+  will-change: transform;
+}
+.slot-symbol {
+  width: 64px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: bold;
+  font-family: "Press Start 2P", monospace;
+  flex-shrink: 0;
+}
+.slot-symbol.sym-^ { color: #ffcc00; text-shadow: 0 0 12px #ffcc00; }
+.slot-symbol.sym-\$ { color: #00ff66; text-shadow: 0 0 12px #00ff66; }
+.slot-symbol.sym-# { color: #ff4466; text-shadow: 0 0 12px #ff4466; }
+.slot-symbol.sym-* { color: #ffd700; text-shadow: 0 0 12px #ffd700; }
 #drop-btn { margin-top: 6px; }
 #drop-result { margin-top: 8px; }
 #drop-again-wrap {
