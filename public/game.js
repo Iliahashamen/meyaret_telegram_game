@@ -738,6 +738,7 @@ class Ship {
     if (this.ripFuryActive) return Math.max(Math.floor(this.fireRate / 3), 2);
     if (this.isStarOverdrive) return Math.max(Math.floor(this.fireRate / 2), 2);
     if (this.tempRapidUntil > 0) return Math.max(Math.floor(this.fireRate / 3), 2);
+    if (this.tempMonsterFuelUntil > 0) return Math.max(Math.floor(this.fireRate / 3), 2);
     return this.fireRate;
   }
 
@@ -775,7 +776,7 @@ class Ship {
 
     if (this.effectiveLaser) {
       const pink = this.isPinkBeam;
-      let laserColor = this.isStarOverdrive ? '#b45cff' : (this.bulletColor || null);
+      let laserColor = this.isStarOverdrive ? '#b45cff' : (this.tempMonsterFuelUntil > 0 ? '#ffffff' : (this.bulletColor || null));
       if (laserColor === 'aurora') laserColor = auroraColor(this.bobTimer);
       else if (laserColor === 'spectrum') laserColor = spectrumColor(this.bobTimer);
     if (this.hasTripple && this.hasShplit) {
@@ -801,7 +802,7 @@ class Ship {
     return;
   }
 
-    let bcol = this.ripFuryActive ? rainbowColor(this.bobTimer, 3) : this.bulletColor;
+    let bcol = this.ripFuryActive ? rainbowColor(this.bobTimer, 3) : (this.tempMonsterFuelUntil > 0 ? '#ffffff' : this.bulletColor);
     if (bcol === 'aurora') bcol = auroraColor(this.bobTimer);
     else if (bcol === 'spectrum') bcol = spectrumColor(this.bobTimer);
     if (this.hasTripple && this.hasShplit) {
@@ -1937,9 +1938,11 @@ function roundRect(ctx, x, y, w, h, r) {
 // ── Gift box animation helpers ─────────────────────────────────────────────────
 function _spawnGiftSparks(container, type) {
   const palettes = {
-    skin_grant:  ['#cc44ff', '#ff44ff', '#aa00ff'],
-    boost_grant: ['#ff6600', '#ffaa00', '#ffee00'],
-    shmips:      ['#ffee00', '#00ffcc', '#ffcc00'],
+    skin_grant:    ['#cc44ff', '#ff44ff', '#aa00ff'],
+    bullet_grant:  ['#00aaff', '#0088ff', '#00ccff'],
+    thrust_grant:  ['#ff6600', '#ffaa00', '#ffee00'],
+    upgrade_grant: ['#ffd700', '#ffcc00', '#ffaa00'],
+    shmips:        ['#ffee00', '#00ffcc', '#ffcc00'],
   };
   const cols = palettes[type] || palettes.shmips;
   for (let i = 0; i < 16; i++) {
@@ -2338,7 +2341,7 @@ class Game {
     document.getElementById('btn-gift-drop')?.addEventListener('click', () => this._openGiftDrop());
     document.getElementById('spin-btn').addEventListener('click', () => this._doOpenGift());
     document.getElementById('drop-yes')?.addEventListener('click', () => this._doDropAgain());
-    document.getElementById('drop-no')?.addEventListener('click', () => { document.getElementById('drop-again-wrap')?.classList.add('hidden'); this._refreshDropSection(); });
+    document.getElementById('drop-ok')?.addEventListener('click', () => { document.getElementById('drop-result-area')?.classList.add('hidden'); this._showScreen('gift-hub'); });
     document.getElementById('arsenal-open-store').addEventListener('click', () => this._openStore());
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -4304,27 +4307,22 @@ class Game {
 
   _initSmack() {
     const bank = document.getElementById('smack-target');
-    const prompt = document.getElementById('smack-prompt');
-    const tapCount = document.getElementById('smack-tap-count');
     const coins = document.getElementById('smack-coins');
     const wrap = document.getElementById('smack-target-wrap');
+    const dropResultArea = document.getElementById('drop-result-area');
     if (bank) {
       bank.classList.remove('smack-shake', 'smack-splat');
       bank.dataset.taps = '0';
     }
     if (wrap) wrap.style.transform = 'scale(1)';
-    if (prompt) prompt.textContent = 'TAP FAST! 10 TAPS TO BREAK IT!';
-    if (tapCount) { tapCount.textContent = ''; tapCount.classList.add('hidden'); }
     if (coins) coins.classList.add('hidden');
+    dropResultArea?.classList.add('hidden');
   }
 
   _refreshDropSection() {
     const bank = document.getElementById('smack-target');
-    const dropAgainWrap = document.getElementById('drop-again-wrap');
-    const dropResult = document.getElementById('drop-result');
+    const dropResultArea = document.getElementById('drop-result-area');
     const dropTimerEl = document.getElementById('drop-timer');
-    dropAgainWrap?.classList.add('hidden');
-    dropResult?.classList.add('hidden');
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (!tid) {
       if (bank) { bank.disabled = true; bank.style.opacity = '0.4'; }
@@ -4358,8 +4356,6 @@ class Game {
       const scale = 1 + taps * 0.09;
       const wrap = document.getElementById('smack-target-wrap');
       if (wrap) wrap.style.transform = `scale(${scale})`;
-      const tapEl = document.getElementById('smack-tap-count');
-      if (tapEl) { tapEl.textContent = `${taps}/10`; tapEl.classList.remove('hidden'); }
       if (taps >= 10) {
         bank._piggaHandler = null;
         bank.removeEventListener('click', handler);
@@ -4375,20 +4371,22 @@ class Game {
   }
 
   async _doPiggaBreak(isPaidDrop = false) {
+    const dropResultArea = document.getElementById('drop-result-area');
     const dropResult = document.getElementById('drop-result');
-    const dropAgainWrap = document.getElementById('drop-again-wrap');
+    const dropAgainInline = document.querySelector('.drop-again-inline');
     const bank = document.getElementById('smack-target');
-    dropResult?.classList.add('hidden');
-    dropAgainWrap?.classList.add('hidden');
+    dropResultArea?.classList.add('hidden');
     if (bank) bank.disabled = true;
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (!tid) {
-      if (dropResult) { dropResult.textContent = 'OPEN VIA TELEGRAM'; dropResult.classList.remove('hidden'); }
+      if (dropResult) { dropResult.textContent = 'OPEN VIA TELEGRAM'; }
+      dropResultArea?.classList.remove('hidden');
       return;
     }
     if (OFFLINE_MODE) {
-      if (dropResult) { dropResult.textContent = 'OFFLINE — REQUIRES CONNECTION'; dropResult.classList.remove('hidden'); }
+      if (dropResult) { dropResult.textContent = 'OFFLINE — REQUIRES CONNECTION'; }
+      dropResultArea?.classList.remove('hidden');
       return;
     }
 
@@ -4396,24 +4394,24 @@ class Game {
     try {
       data = await dbDoDropBall(tid, isPaidDrop);
     } catch (e) {
-      if (dropResult) { dropResult.textContent = (e.message || 'BREAK FAILED').toUpperCase(); dropResult.classList.remove('hidden'); }
+      if (dropResult) { dropResult.textContent = (e.message || 'BREAK FAILED').toUpperCase(); }
+      dropResultArea?.classList.remove('hidden');
       this._refreshDropSection();
       return;
     }
     if (data?.error) {
-      if (dropResult) { dropResult.textContent = data.error.toUpperCase(); dropResult.classList.remove('hidden'); }
+      if (dropResult) { dropResult.textContent = data.error.toUpperCase(); }
+      dropResultArea?.classList.remove('hidden');
       this._refreshDropSection();
       return;
     }
 
     const { reward } = data;
-    const typeColors = { skin: '#ff4466', boost: '#ff7700', shmips: '#00ff66', upgrade: '#ffd700' };
-    const col = typeColors[reward.type] || '#ffee00';
-    dropResult.style.color = col;
-    dropResult.style.textShadow = `0 0 12px ${col}`;
-    dropResult.textContent = `YOU GOT: ${reward.label}!`;
-    dropResult.classList.remove('hidden');
+    dropResult.style.color = '#00ff66';
+    dropResult.style.textShadow = '0 0 12px #00ff66';
+    dropResult.textContent = `${reward.label}!`;
     dropResult.classList.add('gift-reward-reveal');
+    dropResultArea?.classList.remove('hidden');
 
     try {
       const me = await dbGetOrCreateUser(tid);
@@ -4421,15 +4419,17 @@ class Game {
     } catch { /* non-critical */ }
     this._loadMenu();
 
-    if (!isPaidDrop) this._refreshDropSection();
     if (!isPaidDrop) {
-      dropAgainWrap?.classList.remove('hidden');
+      this._refreshDropSection();
+      if (dropAgainInline) dropAgainInline.style.display = 'flex';
       const dropYes = document.getElementById('drop-yes');
       if (dropYes) {
         const canAfford = Number(this.userData?.shmips || 0) >= 700;
         dropYes.disabled = !canAfford;
         dropYes.style.opacity = canAfford ? '1' : '0.5';
       }
+    } else if (dropAgainInline) {
+      dropAgainInline.style.display = 'none';
     }
   }
 
@@ -4437,11 +4437,12 @@ class Game {
     const bal = Number(this.userData?.shmips || 0);
     if (bal < 700) {
       const dropResult = document.getElementById('drop-result');
-      if (dropResult) { dropResult.textContent = 'NEED 700 $$!'; dropResult.classList.remove('hidden'); }
+      const dropResultArea = document.getElementById('drop-result-area');
+      if (dropResult) { dropResult.textContent = 'NEED 700 $$!'; }
+      dropResultArea?.classList.remove('hidden');
       return;
     }
-    document.getElementById('drop-again-wrap')?.classList.add('hidden');
-    document.getElementById('drop-result')?.classList.add('hidden');
+    document.getElementById('drop-result-area')?.classList.add('hidden');
     this._initSmack();
     const bank = document.getElementById('smack-target');
     if (bank) {
@@ -4466,8 +4467,6 @@ class Game {
       const scale = 1 + taps * 0.09;
       const wrap = document.getElementById('smack-target-wrap');
       if (wrap) wrap.style.transform = `scale(${scale})`;
-      const tapEl = document.getElementById('smack-tap-count');
-      if (tapEl) { tapEl.textContent = `${taps}/10`; tapEl.classList.remove('hidden'); }
       if (taps >= 10) {
         bank.removeEventListener('click', handler);
         bank.classList.add('smack-splat');
@@ -4549,7 +4548,7 @@ class Game {
     await _animateGiftOpen(reward.type);
 
     // Show glowing reward text
-    const typeColors = { skin_grant: '#cc44ff', boost_grant: '#ff7700', shmips: '#ffee00' };
+    const typeColors = { skin_grant: '#cc44ff', bullet_grant: '#00aaff', thrust_grant: '#ff7700', upgrade_grant: '#ffd700', shmips: '#ffee00' };
     const col = typeColors[reward.type] || '#ffee00';
     result.style.color = col;
     result.style.textShadow = `0 0 18px ${col}, 0 0 36px ${col}88`;

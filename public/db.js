@@ -114,19 +114,13 @@ export const CATALOG = [
     description: '5 lives · 9 flares · 11 rockets · 7 Shields · ×2 fire', lives: 5, flares: 9, rockets: 11, shield: true, jetShieldBase: 7, fireMult: 2 },
 ];
 
-// ── Spin Wheel — 13 segments: shmips 5-30 + one-time boosts, every 6h ────────
-// ── Daily Gift reward table ────────────────────────────────────────────────────
+// ── 4hr Gift reward table: 60% shmips 50-250, 15% skin, 10% bullet, 10% thrust, 5% upgrade ───
 const GIFT_REWARDS = [
-  { id: 'cash_12',  weight: 28, type: 'shmips',      value: 12 },
-  { id: 'cash_25',  weight: 22, type: 'shmips',      value: 25 },
-  { id: 'cash_38',  weight: 16, type: 'shmips',      value: 38 },
-  { id: 'cash_50',  weight: 8,  type: 'shmips',      value: 50 },
-  { id: 'cash_65',  weight: 5,  type: 'shmips',      value: 65 },
-  { id: 'cash_120', weight: 3,  type: 'shmips',      value: 120 },
-  { id: 'cash_250', weight: 2,  type: 'shmips',      value: 250 },
-  { id: 'cash_350', weight: 1,  type: 'shmips',      value: 350 },
-  { id: 'boost',    weight: 9,  type: 'boost_grant'             },
-  { id: 'skin',     weight: 6,  type: 'skin_grant'              },
+  { weight: 60, type: 'shmips',  valueMin: 50, valueMax: 250 },
+  { weight: 15, type: 'skin_grant' },
+  { weight: 10, type: 'bullet_grant' },
+  { weight: 10, type: 'thrust_grant' },
+  { weight: 5,  type: 'upgrade_grant' },
 ];
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;  // 4 hours (applies to everyone)
 const DROP_COOLDOWN_MS = 8 * 60 * 60 * 1000;  // 8 hours for 8HR WHEEL
@@ -366,30 +360,60 @@ export async function dbOpenGift(telegramId) {
   const updates = { last_spin_at: now.toISOString() };
   let label = '';
   let type  = reward.type;
+  const ownedIds = new Set((upgradeRows || []).map(u => u.upgrade_id));
 
   if (reward.type === 'shmips') {
-    updates.shmips = Math.round((Number(user.shmips) + reward.value) * 100) / 100;
-    label = `+${reward.value} $$`;
-
-  } else if (reward.type === 'boost_grant') {
-    const boostPool = ['extra_life', 'extra_flare', 'extra_shield', 'extra_rocket'];
-    const grantedId = boostPool[Math.floor(Math.random() * boostPool.length)];
-    const item = CATALOG.find(c => c.id === grantedId);
-    label = item?.name || grantedId;
-    await _grantUpgrade(id, grantedId);
+    const value = reward.value ?? Math.floor((reward.valueMin ?? 50) + Math.random() * ((reward.valueMax ?? 250) - (reward.valueMin ?? 50) + 1));
+    updates.shmips = Math.round((Number(user.shmips) + value) * 100) / 100;
+    label = `+${value} $$`;
 
   } else if (reward.type === 'skin_grant') {
-    const allSkins  = CATALOG.filter(c => c.category === 'skin');
-    const ownedIds  = new Set(upgradeRows.map(u => u.upgrade_id));
-    const skin      = allSkins[Math.floor(Math.random() * allSkins.length)];
+    const allSkins = CATALOG.filter(c => c.category === 'skin');
+    const skin = allSkins[Math.floor(Math.random() * allSkins.length)];
     if (ownedIds.has(skin.id)) {
-      // Already owned — compensate with the skin's cost in shmips
       updates.shmips = Math.round((Number(user.shmips) + skin.cost) * 100) / 100;
       label = `${skin.name} (OWNED) +${skin.cost} $$`;
-      type  = 'shmips';
+      type = 'shmips';
     } else {
       label = skin.name;
       await _grantUpgrade(id, skin.id);
+    }
+  } else if (reward.type === 'bullet_grant') {
+    const allBullets = CATALOG.filter(c => c.category === 'bullet' && c.id !== 'bullet_default');
+    const unowned = allBullets.filter(b => !ownedIds.has(b.id));
+    const bullet = unowned.length > 0 ? unowned[Math.floor(Math.random() * unowned.length)] : allBullets[0];
+    if (!bullet || ownedIds.has(bullet.id)) {
+      const cost = bullet?.cost ?? 100;
+      updates.shmips = Math.round((Number(user.shmips) + cost) * 100) / 100;
+      label = `${bullet?.name ?? 'Bullet'} (OWNED) +${cost} $$`;
+      type = 'shmips';
+    } else {
+      label = bullet.name;
+      await _grantUpgrade(id, bullet.id);
+    }
+  } else if (reward.type === 'thrust_grant') {
+    const allThrusts = CATALOG.filter(c => c.category === 'thrust' && c.id !== 'thrust_default');
+    const unowned = allThrusts.filter(t => !ownedIds.has(t.id));
+    const thrust = unowned.length > 0 ? unowned[Math.floor(Math.random() * unowned.length)] : allThrusts[0];
+    if (!thrust || ownedIds.has(thrust.id)) {
+      const cost = thrust?.cost ?? 95;
+      updates.shmips = Math.round((Number(user.shmips) + cost) * 100) / 100;
+      label = `${thrust?.name ?? 'Thrust'} (OWNED) +${cost} $$`;
+      type = 'shmips';
+    } else {
+      label = thrust.name;
+      await _grantUpgrade(id, thrust.id);
+    }
+  } else if (reward.type === 'upgrade_grant') {
+    const allUpg = CATALOG.filter(c => c.category === 'upgrade');
+    const upg = allUpg[Math.floor(Math.random() * allUpg.length)];
+    if (ownedIds.has(upg.id)) {
+      updates.shmips = Math.round((Number(user.shmips) + upg.cost) * 100) / 100;
+      label = `${upg.name} (OWNED) +${upg.cost} $$`;
+      type = 'shmips';
+    } else {
+      label = upg.name;
+      await _grantUpgrade(id, upg.id);
     }
   }
 

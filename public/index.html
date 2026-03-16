@@ -143,7 +143,6 @@
     <div class="screen-title">4HR GIFT</div>
     <div id="gift-box-area">
       <div id="gift-box" class="gift-idle">
-        <div class="gift-banner">פפיון</div>
         <div class="gift-rope gift-rope-l"></div>
         <div class="gift-rope gift-rope-r"></div>
         <div id="gift-lid"></div>
@@ -167,31 +166,31 @@
   <!-- BREAK DA PIGGA Page (full screen) -->
   <div id="gift-drop-screen" class="screen hidden">
     <button class="back-btn" data-back="gift-hub">BACK</button>
-    <div class="screen-title">BREAK DA PIGGA</div>
-    <div class="drop-subtitle">Once per 8 hrs · Tap fast!</div>
+    <div class="screen-title pigga-title">BREAK THAT PIG!!</div>
     <div id="drop-board-wrap" class="smack-wrap">
-      <div id="smack-prompt" class="smack-prompt">TAP FAST! 10 TAPS TO BREAK IT!</div>
+      <div id="smack-prompt" class="smack-prompt pigga-subtitle">Tap fast on the pig</div>
       <div id="smack-target-wrap" class="smack-wrap-inner">
-        <button id="smack-target" class="smack-bank" type="button">
-          <span class="smack-bank-body">🐷</span>
+        <button id="smack-target" class="smack-bank pig-retro-btn" type="button">
+          <div class="pig-retro">
+            <span class="pig-ear pig-ear-l"></span>
+            <span class="pig-ear pig-ear-r"></span>
+            <span class="pig-eye pig-eye-l"></span>
+            <span class="pig-eye pig-eye-r"></span>
+            <span class="pig-snout"></span>
+          </div>
         </button>
       </div>
-      <div id="smack-tap-count" class="smack-tap-count"></div>
       <div id="smack-coins" class="smack-coins hidden"></div>
     </div>
-    <div id="drop-symbols-legend">
-      <div class="symbol-row"><span class="sym-$">$</span> <span class="symbol-label">Money</span></div>
-      <div class="symbol-row"><span class="sym-^">^</span> <span class="symbol-label">Boost</span></div>
-      <div class="symbol-row"><span class="sym-#">#</span> <span class="symbol-label">Skin</span></div>
-      <div class="symbol-row"><span class="sym-*">*</span> <span class="symbol-label">Upgrade</span></div>
-    </div>
     <div id="drop-timer" class="gift-timer"></div>
-    <div id="drop-result" class="spin-result hidden"></div>
-    <div id="drop-again-wrap" class="hidden">
-      <span class="drop-again-text">Break again? 700$$ (one time)</span>
-      <div class="drop-again-btns">
-        <button id="drop-yes" class="btn-primary">YES</button>
-        <button id="drop-no" class="btn-secondary">NO</button>
+    <div id="drop-result-area" class="hidden">
+      <div id="drop-result" class="pigga-reward-text"></div>
+      <div class="drop-result-btns">
+        <button id="drop-ok" class="btn-primary">OK</button>
+      </div>
+      <div id="drop-again-wrap" class="drop-again-inline">
+        <span class="drop-again-text">Break again? 700$$ (one time)</span>
+        <button id="drop-yes" class="btn-primary btn-small">YES</button>
       </div>
     </div>
   </div>
