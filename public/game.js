@@ -4307,24 +4307,24 @@ class Game {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const W = 280, H = 200;
-    ctx.fillStyle = '#0d1220';
+    ctx.fillStyle = '#0a0f1a';
     ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    ctx.lineWidth = 2;
     const pegs = [];
     for (let row = 0; row < 8; row++) {
       const n = row + 3;
       for (let i = 0; i < n; i++) {
-        const py = 35 + row * 20;
+        const py = 38 + row * 20;
         const px = (W / (n + 1)) * (i + 1);
         pegs.push({ x: px, y: py });
       }
     }
     pegs.forEach(p => {
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
       ctx.fill();
+      ctx.strokeStyle = 'rgba(255,200,255,0.6)';
+      ctx.lineWidth = 1;
       ctx.stroke();
     });
   }
@@ -4389,6 +4389,7 @@ class Game {
     }
 
     const { slotIdx, reward } = data;
+    this._drawDropBoardIdle();
     await this._animateDropBall(slotIdx);
     const typeColors = { skin: '#ff4466', boost: '#ff7700', shmips: '#00ff66', upgrade: '#ffd700' };
     const col = typeColors[reward.type] || '#ffee00';
@@ -4428,58 +4429,121 @@ class Game {
   }
 
   _animateDropBall(targetSlotIdx) {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       const canvas = document.getElementById('drop-canvas');
-      if (!canvas) { resolve(); return; }
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas?.getContext('2d');
+      if (!canvas || !ctx) { resolve(); return; }
+      const self = this;
       const W = 280, H = 200;
       const slotW = W / 9;
-      const targetX = (targetSlotIdx + 0.5) * slotW;
-      const startX = W / 2;
-      const startY = 25;
-      const endY = H - 25;
-      const ballR = 8;
+      const ballR = 10;
+      const pegR = 6;
+      const GRAVITY = 0.42;
+      const BOUNCE = 0.7;
+      const FRICTION = 0.998;
+      const lastHitFrame = {};
+
       const pegs = [];
       for (let row = 0; row < 8; row++) {
         const n = row + 3;
         for (let i = 0; i < n; i++) {
-          const py = 35 + row * 20;
+          const py = 38 + row * 20;
           const px = (W / (n + 1)) * (i + 1);
           pegs.push({ x: px, y: py });
         }
       }
-      let t = 0;
-      const duration = 100;
-      const tick = () => {
-        t++;
-        ctx.fillStyle = '#0d1220';
-        ctx.fillRect(0, 0, W, H);
-        pegs.forEach(p => {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.9)';
-          ctx.fill();
-          ctx.strokeStyle = '#ff00ff44';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        });
-        const progress = Math.min(1, t / duration);
-        const ease = 1 - Math.pow(1 - progress, 1.5);
-        const x = startX + (targetX - startX) * ease + (Math.random() - 0.5) * 6;
-        const y = startY + (endY - startY) * progress;
+
+      const targetSlotCenter = (targetSlotIdx + 0.5) * slotW;
+      let ball = { x: W / 2, y: 22, vx: (Math.random() - 0.5) * 1.5, vy: 0 };
+      let frameCount = 0;
+      const MAX_FRAMES = 600;
+
+      const drawBall = (x, y) => {
+        ctx.save();
         ctx.fillStyle = '#ff2222';
-        ctx.shadowColor = '#ff4444';
-        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#ff5555';
+        ctx.shadowBlur = 14;
         ctx.beginPath();
         ctx.arc(x, y, ballR, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
-        if (t < duration) {
-          requestAnimationFrame(tick);
-        } else {
-          this._drawDropBoardIdle();
-          resolve();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      const drawPegs = () => {
+        pegs.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, pegR, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,200,255,0.6)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        });
+      };
+
+      const tick = () => {
+        frameCount++;
+        ball.vy += GRAVITY;
+        ball.vx *= FRICTION;
+        ball.vy *= FRICTION;
+        ball.x += ball.vx;
+        ball.y += ball.vy;
+
+        pegs.forEach((p, i) => {
+          if (frameCount - (lastHitFrame[i] || 0) < 8) return;
+          const dx = ball.x - p.x;
+          const dy = ball.y - p.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < ballR + pegR) {
+            lastHitFrame[i] = frameCount;
+            const nx = (dx / dist) || 0;
+            const ny = (dy / dist) || 0;
+            const dot = ball.vx * nx + ball.vy * ny;
+            ball.vx = (ball.vx - 2 * dot * nx) * BOUNCE;
+            ball.vy = (ball.vy - 2 * dot * ny) * BOUNCE;
+            const bias = (targetSlotCenter - ball.x) * 0.025;
+            ball.vx += bias + (Math.random() - 0.5) * 1.5;
+            ball.x = p.x + nx * (ballR + pegR + 2);
+            ball.y = p.y + ny * (ballR + pegR + 2);
+          }
+        });
+
+        ball.x = Math.max(ballR, Math.min(W - ballR, ball.x));
+        ball.y = Math.min(H - ballR - 5, ball.y);
+        if (ball.x <= ballR || ball.x >= W - ballR) ball.vx *= -0.8;
+
+        ctx.fillStyle = '#0a0f1a';
+        ctx.fillRect(0, 0, W, H);
+        drawPegs();
+        drawBall(ball.x, ball.y);
+
+        const inSlotZone = ball.y >= H - 38 && ball.vy >= -2;
+        if (inSlotZone || frameCount >= MAX_FRAMES) {
+          const slotX = (targetSlotIdx + 0.5) * slotW;
+          let settleT = 0;
+          const settle = () => {
+            settleT++;
+            const t = Math.min(1, settleT / 20);
+            ball.x += (slotX - ball.x) * 0.15;
+            ball.y = Math.min(H - 28, ball.y + 2);
+            ctx.fillStyle = '#0a0f1a';
+            ctx.fillRect(0, 0, W, H);
+            drawPegs();
+            drawBall(ball.x, ball.y);
+            if (settleT < 20) requestAnimationFrame(settle);
+            else {
+              self._drawDropBoardIdle();
+              resolve();
+            }
+          };
+          requestAnimationFrame(settle);
+          return;
         }
+        requestAnimationFrame(tick);
       };
       tick();
     });
