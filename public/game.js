@@ -4670,23 +4670,26 @@ class Game {
       const qty = this.upgrades[item.id] || 0;
       const freeDefault = (item.category === 'thrust' || item.category === 'bullet') && item.cost === 0;
       const locked = item.category === 'boost'
-        ? qty >= 1
+        ? false
         : freeDefault || (!item.stackable && qty > 0);
       const el = document.createElement('div'); el.className = 'store-item';
       const colorDot = ((item.category==='skin' || item.category==='thrust' || item.category==='bullet') && item.color)
         ? `<span style="display:inline-block;width:10px;height:10px;background:${item.color};border-radius:50%;margin-right:4px;vertical-align:middle;"></span>`
         : '';
+      const canAfford = Number(this.userData?.shmips || 0) >= (item.cost || 0);
+      const boostQty = item.category === 'boost' ? qty : 0;
       const btnLabel = locked
-        ? (item.category === 'boost' ? 'READY' : freeDefault ? 'DEFAULT' : 'OWNED')
-        : 'BUY';
+        ? (freeDefault ? 'DEFAULT' : 'OWNED')
+        : (item.category === 'boost' && boostQty > 0 ? `BUY (×${boostQty})` : 'BUY');
       const costStr = item.cost === 0 ? 'FREE' : `${item.cost} $$`;
+      const isDisabled = locked || (item.cost > 0 && !canAfford);
       el.innerHTML = `
         <div class="store-item-info">
           <div class="store-item-name">${colorDot}${item.name}</div>
           <div class="store-item-desc">${item.description}</div>
         </div>
         <span class="store-item-cost">${costStr}</span>
-        <button class="store-buy-btn${locked ? ' owned' : ''}" data-id="${item.id}">
+        <button class="store-buy-btn${locked ? ' owned' : ''}${isDisabled && !locked ? ' disabled' : ''}" data-id="${item.id}" ${isDisabled && !locked ? 'disabled' : ''}>
           ${btnLabel}
         </button>`;
       if (!locked) el.querySelector('button').addEventListener('click', () => this._buyItem(item));
@@ -4713,7 +4716,14 @@ class Game {
       SFX.shmipEarn && SFX.shmipEarn();
       setTimeout(() => msg.classList.add('hidden'), 2500);
       this._renderStoreTab(document.querySelector('.tab-btn.active')?.dataset.tab || 'boost');
-    } catch(_) { /* no error popups — just wait */ }
+    } catch (e) {
+      if (msg) {
+        msg.textContent = (e?.message || 'PURCHASE FAILED').toUpperCase();
+        msg.className = 'store-msg fail';
+        msg.classList.remove('hidden');
+        setTimeout(() => msg?.classList.add('hidden'), 2500);
+      }
+    }
     setTimeout(() => { this._buyingInProgress = false; }, 1500); // debounce 1.5s
   }
 }

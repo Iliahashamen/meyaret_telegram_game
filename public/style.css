@@ -418,7 +418,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 #gift-box-area {
   position: relative;
   display: flex; align-items: center; justify-content: center;
-  height: 160px; margin: 12px auto;
+  height: 180px; margin: 12px auto;
 }
 #gift-box {
   position: relative; width: 88px; height: 80px;
@@ -606,6 +606,8 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   box-shadow: 2px 2px 0 #ff007733; transition: transform 0.08s;
 }
 .store-buy-btn.owned { border-color: var(--muted); color: var(--muted); background: transparent; cursor: default; box-shadow: none; }
+.store-buy-btn.disabled,
+.store-buy-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .store-buy-btn:active:not(.owned) { transform: translate(1px,1px); box-shadow: 1px 1px 0 #ff007733; background: #ff007714; }
 
 .store-msg {
