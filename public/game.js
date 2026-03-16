@@ -1934,7 +1934,14 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
 }
 
-// ── Star explosion burst (daily gift) ──────────────────────────────────────────
+async function _animateStarOpen(starNum, starEl, wrap) {
+  if (!starEl) return;
+  starEl.classList.add('star-explode');
+  SFX.rocketExplode && SFX.rocketExplode();
+  if (wrap) _spawnStarBurst(wrap, starEl);
+  await new Promise(r => setTimeout(r, 550));
+}
+
 function _spawnStarBurst(wrap, starEl) {
   if (!wrap || !starEl) return;
   const rect = starEl.getBoundingClientRect();
@@ -2366,12 +2373,11 @@ class Game {
     document.getElementById('btn-gift-daily')?.addEventListener('click', () => this._openGiftDaily());
     document.getElementById('spin-btn').addEventListener('click', () => this._doOpenGift());
     document.getElementById('daily-ok')?.addEventListener('click', () => { document.getElementById('daily-result-area')?.classList.add('hidden'); this._showScreen('gift-hub'); });
-    document.getElementById('daily-stars-wrap')?.addEventListener('click', (e) => {
-      const btn = e.target.closest('.daily-star');
-      if (!btn || btn.disabled) return;
-      const n = parseInt((btn.id || '').replace('daily-star-', ''), 10);
-      if (n >= 1 && n <= 3) this._onDailyStarPick(n);
+    [1, 2, 3].forEach(n => {
+      const el = document.getElementById(`daily-star-${n}`);
+      if (el) el.addEventListener('click', () => this._selectDailyStar(n));
     });
+    document.getElementById('daily-open-btn')?.addEventListener('click', () => this._doOpenDailyGift());
     document.getElementById('arsenal-open-store').addEventListener('click', () => this._openStore());
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -4325,68 +4331,106 @@ class Game {
     }
   }
 
+  _selectDailyStar(n) {
+    if (this._dailyGiftBusy) return;
+    this._dailyStarPicked = n;
+    [1, 2, 3].forEach(i => {
+      const el = document.getElementById(`daily-star-${i}`);
+      if (el) el.classList.toggle('daily-star-selected', i === n);
+    });
+    const btn = document.getElementById('daily-open-btn');
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+  }
+
   async _openGiftDaily() {
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (tid && !OFFLINE_MODE) {
       try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
     }
+    this._dailyGiftBusy = false;
+    this._dailyStarPicked = 1;
     this._showScreen('gift-drop');
     const resultArea = document.getElementById('daily-result-area');
     resultArea?.classList.add('hidden');
     resultArea?.classList.remove('daily-reward-pop');
     [1, 2, 3].forEach(n => {
       const star = document.getElementById(`daily-star-${n}`);
-      if (star) { star.disabled = false; star.classList.remove('star-explode'); }
+      if (star) { star.disabled = false; star.classList.remove('star-explode', 'daily-star-selected'); }
     });
+    const openBtn = document.getElementById('daily-open-btn');
+    if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
+    [1, 2, 3].forEach(i => {
+      const el = document.getElementById(`daily-star-${i}`);
+      if (el) el.classList.remove('daily-star-selected');
+    });
+    this._dailyStarPicked = 1;
     this._refreshDailySection();
   }
 
   _refreshDailySection() {
     const stars = [1, 2, 3].map(n => document.getElementById(`daily-star-${n}`));
+    const openBtn = document.getElementById('daily-open-btn');
     const timerEl = document.getElementById('daily-timer');
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (!tid) {
       stars.forEach(s => { if (s) { s.disabled = true; s.style.opacity = '0.5'; } });
+      if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
       if (timerEl) timerEl.textContent = '';
       return;
     }
     dbDropStatus(tid).then(status => {
       if (status?.available) {
         stars.forEach(s => { if (s) { s.disabled = false; s.style.opacity = '1'; } });
+        if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
         if (timerEl) { timerEl.textContent = ''; timerEl.style.color = ''; }
       } else if (status?.remainingMs > 0) {
         stars.forEach(s => { if (s) { s.disabled = true; s.style.opacity = '0.5'; } });
+        if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
         if (timerEl) this._startDailyCountdown(status.remainingMs, timerEl);
       }
-    }).catch(() => { stars.forEach(s => { if (s) s.disabled = true; }); if (timerEl) timerEl.textContent = ''; });
+    }).catch(() => { stars.forEach(s => { if (s) s.disabled = true; }); if (openBtn) openBtn.disabled = true; if (timerEl) timerEl.textContent = ''; });
   }
 
-  async _onDailyStarPick(starNum) {
+  async _doOpenDailyGift() {
+    if (this._dailyGiftBusy) return;
+    const starNum = this._dailyStarPicked || 1;
+    this._dailyGiftBusy = true;
+
     const stars = [1, 2, 3].map(n => document.getElementById(`daily-star-${n}`));
     const resultArea = document.getElementById('daily-result-area');
     const resultEl = document.getElementById('daily-result');
-    const starsWrap = document.getElementById('daily-stars-wrap');
-    const tid = TG_USER?.id || this.userData?.telegram_id;
-    if (!tid) { if (resultEl) resultEl.textContent = 'OPEN VIA TELEGRAM'; resultArea?.classList.remove('hidden'); return; }
-    if (OFFLINE_MODE) { if (resultEl) resultEl.textContent = 'OFFLINE — REQUIRES CONNECTION'; resultArea?.classList.remove('hidden'); return; }
-
+    const openBtn = document.getElementById('daily-open-btn');
     const clickedStar = document.getElementById(`daily-star-${starNum}`);
-    if (!clickedStar || clickedStar.disabled) return;
+    const tid = TG_USER?.id || this.userData?.telegram_id;
 
     stars.forEach(s => { if (s) s.disabled = true; });
-    clickedStar.classList.add('star-explode');
-    SFX.rocketExplode && SFX.rocketExplode();
+    if (openBtn) openBtn.disabled = true;
+    resultArea?.classList.add('hidden');
 
-    _spawnStarBurst(starsWrap, clickedStar);
-
-    await new Promise(r => setTimeout(r, 550));
+    if (!tid) {
+      if (resultEl) resultEl.textContent = 'OPEN VIA TELEGRAM';
+      resultArea?.classList.remove('hidden');
+      this._refreshDailySection();
+      this._dailyGiftBusy = false;
+      return;
+    }
+    if (OFFLINE_MODE) {
+      if (resultEl) resultEl.textContent = 'OFFLINE — REQUIRES CONNECTION';
+      resultArea?.classList.remove('hidden');
+      this._refreshDailySection();
+      this._dailyGiftBusy = false;
+      return;
+    }
 
     let data = null;
-    try { data = await dbDoDropBall(tid); } catch (e) {
-      if (resultEl) resultEl.textContent = (e.message || 'FAILED').toUpperCase();
+    try {
+      data = await dbDoDropBall(tid);
+    } catch (e) {
+      if (resultEl) resultEl.textContent = (e.message || 'GIFT FAILED').toUpperCase();
       resultArea?.classList.remove('hidden');
       resultArea?.classList.add('daily-reward-pop');
       this._refreshDailySection();
+      this._dailyGiftBusy = false;
       return;
     }
     if (data?.error) {
@@ -4394,21 +4438,27 @@ class Game {
       resultArea?.classList.remove('hidden');
       resultArea?.classList.add('daily-reward-pop');
       this._refreshDailySection();
+      this._dailyGiftBusy = false;
       return;
     }
 
-    const { reward } = data;
+    const reward = data?.reward;
+    if (!reward) { this._dailyGiftBusy = false; return; }
+
+    await _animateStarOpen(starNum, clickedStar, document.getElementById('daily-stars-wrap'));
+
     const typeColors = { skin_grant: '#cc44ff', bullet_grant: '#00aaff', thrust_grant: '#ff7700', upgrade_grant: '#ffd700', shmips: '#ffee00' };
-    const col = typeColors[reward.type] || '#00ff66';
+    const col = typeColors[reward.type] || '#ffee00';
     resultEl.style.color = col;
-    resultEl.style.textShadow = `0 0 20px ${col}, 0 0 40px ${col}88`;
-    resultEl.textContent = reward.label.includes('$$') ? reward.label : reward.label + '!';
+    resultEl.style.textShadow = `0 0 18px ${col}, 0 0 36px ${col}88`;
+    resultEl.textContent = `YOU GOT: ${reward.label}!`;
     resultArea?.classList.remove('hidden');
-    resultArea?.classList.add('daily-reward-pop');
+    resultArea?.classList.add('daily-reward-pop', 'gift-reward-reveal');
     SFX.shmipEarn && SFX.shmipEarn();
 
     try { const me = await dbGetOrCreateUser(tid); if (me) { this.userData = me.user; this._parseUpgrades(me.upgrades || []); } } catch { /* non-critical */ }
     this._loadMenu();
+    this._dailyGiftBusy = false;
   }
 
   _startDailyCountdown(ms, el) {

@@ -426,6 +426,13 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   cursor: not-allowed;
   animation: none;
 }
+.daily-star.daily-star-selected {
+  box-shadow: 0 0 0 3px #ffdd00, 0 0 24px rgba(255,221,0,0.9), 0 0 48px rgba(255,170,0,0.5);
+  filter: brightness(1.2);
+}
+#daily-open-btn {
+  margin-top: 16px;
+}
 .daily-star.star-explode {
   animation: starExplode 0.5s ease-out forwards;
   pointer-events: none;

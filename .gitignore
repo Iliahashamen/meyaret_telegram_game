@@ -6,4 +6,5 @@ Thumbs.db
 .cursor/
 scripts/
 supabase-full-wipe.sql
+supabase-soft-reset.sql
 MEYARET_FULL_DOCUMENT.html
