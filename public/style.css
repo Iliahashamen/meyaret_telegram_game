@@ -365,6 +365,8 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 }
 #drop-canvas {
   display: block;
+  width: 280px;
+  height: 200px;
   background: linear-gradient(180deg, #0d1220 0%, #1a1f35 100%);
   border: 3px solid var(--magenta);
   box-shadow: 0 0 12px rgba(255,0,119,0.5), inset 0 0 20px rgba(0,0,0,0.5);

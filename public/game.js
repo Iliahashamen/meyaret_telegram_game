@@ -4221,6 +4221,10 @@ class Game {
 
   // ── Gifts ──────────────────────────────────────────────────────────────────
   async _openGift() {
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    if (tid && !OFFLINE_MODE) {
+      try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
+    }
     this._showScreen('gift-hub');
   }
 
@@ -4255,6 +4259,10 @@ class Game {
   }
 
   async _openGiftDrop() {
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    if (tid && !OFFLINE_MODE) {
+      try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
+    }
     this._showScreen('gift-drop');
     this._drawDropBoardIdle();
     this._refreshDropSection();
@@ -4264,6 +4272,7 @@ class Game {
     const canvas = document.getElementById('drop-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     const W = 280, H = 200;
     ctx.fillStyle = '#0d1220';
     ctx.fillRect(0, 0, W, H);

@@ -425,10 +425,11 @@ function _pickDropSlot() {
 }
 
 export async function dbDropStatus(telegramId) {
-  const rows = await supa(`users?telegram_id=eq.${String(telegramId)}&select=last_drop_at`);
+  const rows = await supa(`users?telegram_id=eq.${String(telegramId)}&select=*`);
   const user = rows[0];
-  if (!user?.last_drop_at) return { available: true, remainingMs: 0 };
-  const next = new Date(user.last_drop_at).getTime() + DROP_COOLDOWN_MS;
+  const lastDrop = user?.last_drop_at;
+  if (!lastDrop) return { available: true, remainingMs: 0 };
+  const next = new Date(lastDrop).getTime() + DROP_COOLDOWN_MS;
   const now  = Date.now();
   return { available: now >= next, remainingMs: Math.max(0, next - now) };
 }
@@ -436,7 +437,7 @@ export async function dbDropStatus(telegramId) {
 export async function dbDoDropBall(telegramId, isPaidDrop = false) {
   const id = String(telegramId);
   const [userRows, upgradeRows] = await Promise.all([
-    supa(`users?telegram_id=eq.${id}&select=shmips,last_drop_at`),
+    supa(`users?telegram_id=eq.${id}&select=*`),
     supa(`user_upgrades?telegram_id=eq.${id}&select=upgrade_id`),
   ]);
   const user = userRows[0];
@@ -508,7 +509,13 @@ export async function dbDoDropBall(telegramId, isPaidDrop = false) {
   }
 
   if (Object.keys(updates).length > 0) {
-    await supa(`users?telegram_id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    try {
+      await supa(`users?telegram_id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    } catch (e) {
+      if (/last_drop_at|column/i.test(e.message))
+        throw new Error('DROP needs DB update. Run: ALTER TABLE users ADD COLUMN last_drop_at TIMESTAMPTZ;');
+      throw e;
+    }
   }
   const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
   return { reward: { label, type: slot.type, symbol: slot.symbol, refund }, slotIdx, user: updated[0] };
