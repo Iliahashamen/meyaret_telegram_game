@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.7.6" />
+  <link rel="stylesheet" href="style.css?v=1.7.7" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="config.js"></script>
 </head>
@@ -21,7 +21,7 @@
     <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
     <div class="loading-label" id="loading-label">INITIALIZING SYSTEMS...</div>
     <div id="loading-status" style="font-size:0.45rem;color:#00ffcc;margin-top:8px;letter-spacing:0.05em;min-height:1.2em;text-align:center;"></div>
-    <div id="loading-version">ver 1.7.6</div>
+    <div id="loading-version">ver 1.7.7</div>
     <div id="loading-madeby">MADE BY SHAMEN</div>
   </div>
 
@@ -131,8 +131,8 @@
         <span class="gift-hub-desc" id="hub-4hr-status">Open every 4 hours</span>
       </button>
       <button id="btn-gift-drop" class="gift-hub-card">
-        <span class="gift-hub-title">8HR SLOTS</span>
-        <span class="gift-hub-desc" id="hub-drop-status">Every 8 hours · Risky rewards</span>
+        <span class="gift-hub-title">SMACK DA BANK</span>
+        <span class="gift-hub-desc" id="hub-drop-status">Every 8 hours · Tap to crack</span>
       </button>
     </div>
   </div>
@@ -164,36 +164,29 @@
     <div id="spin-result" class="spin-result hidden"></div>
   </div>
 
-  <!-- 8HR SLOTS Page (full screen) -->
+  <!-- SMACK DA BANK Page (full screen) -->
   <div id="gift-drop-screen" class="screen hidden">
     <button class="back-btn" data-back="gift-hub">BACK</button>
-    <div class="screen-title">8HR SLOTS</div>
-    <div class="drop-subtitle">Every 8 hours · Risky rewards</div>
-    <div id="drop-board-wrap" class="slots-wrap">
-      <div class="slots-payline"></div>
-      <div class="slots-machine">
-        <div class="slot-reel" id="slot-reel-0">
-          <div class="slot-strip"></div>
-        </div>
-        <div class="slot-reel" id="slot-reel-1">
-          <div class="slot-strip"></div>
-        </div>
-        <div class="slot-reel" id="slot-reel-2">
-          <div class="slot-strip"></div>
-        </div>
-      </div>
+    <div class="screen-title">SMACK DA BANK</div>
+    <div class="drop-subtitle">Once per 8 hrs · Tap to crack, smack to splat</div>
+    <div id="drop-board-wrap" class="smack-wrap">
+      <div id="smack-prompt" class="smack-prompt hidden">TAP THE BANK 3× TO CRACK IT!</div>
+      <button id="smack-target" class="smack-bank hidden" type="button">
+        <span class="smack-bank-body">🐷</span>
+      </button>
+      <div id="smack-coins" class="smack-coins hidden"></div>
     </div>
     <div id="drop-symbols-legend">
       <div class="symbol-row"><span class="sym-$">$</span> <span class="symbol-label">Money</span></div>
-      <div class="symbol-row"><span class="sym-^">^</span> <span class="symbol-label">One-run Boost</span></div>
+      <div class="symbol-row"><span class="sym-^">^</span> <span class="symbol-label">Boost</span></div>
       <div class="symbol-row"><span class="sym-#">#</span> <span class="symbol-label">Skin</span></div>
       <div class="symbol-row"><span class="sym-*">*</span> <span class="symbol-label">Upgrade</span></div>
     </div>
-    <button id="drop-btn" class="btn-primary btn-big">PULL!</button>
+    <button id="drop-btn" class="btn-primary btn-big">SMACK IT!</button>
     <div id="drop-timer" class="gift-timer"></div>
     <div id="drop-result" class="spin-result hidden"></div>
     <div id="drop-again-wrap" class="hidden">
-      <span class="drop-again-text">One more pull? 700$$ (one time)</span>
+      <span class="drop-again-text">Smack again? 700$$ (one time)</span>
       <div class="drop-again-btns">
         <button id="drop-yes" class="btn-primary">YES</button>
         <button id="drop-no" class="btn-secondary">NO</button>
@@ -274,7 +267,7 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="sounds.js?v=1.7.6"></script>
-  <script type="module" src="game.js?v=1.7.6"></script>
+  <script type="module" src="sounds.js?v=1.7.7"></script>
+  <script type="module" src="game.js?v=1.7.7"></script>
 </body>
 </html>

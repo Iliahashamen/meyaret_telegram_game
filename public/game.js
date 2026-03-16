@@ -4251,7 +4251,7 @@ class Game {
     try {
       const [s4, sDrop] = await Promise.all([dbGiftStatus(tid), dbDropStatus(tid)]);
       if (hub4) hub4.textContent = s4?.available ? 'READY · Open every 4 hours' : s4?.remainingMs > 0 ? this._formatRemaining(s4.remainingMs) + ' until next' : 'Open every 4 hours';
-      if (hubDrop) hubDrop.textContent = sDrop?.available ? 'READY · Every 8 hours' : sDrop?.remainingMs > 0 ? this._formatRemaining(sDrop.remainingMs) + ' until next' : 'Every 8 hours · Risky rewards';
+      if (hubDrop) hubDrop.textContent = sDrop?.available ? 'READY · Every 8 hours' : sDrop?.remainingMs > 0 ? this._formatRemaining(sDrop.remainingMs) + ' until next' : 'Every 8 hours · Tap to crack';
     } catch {
       if (hub4) hub4.textContent = 'Open every 4 hours';
       if (hubDrop) hubDrop.textContent = 'Every 7 hours · Plinko rewards';
@@ -4299,26 +4299,17 @@ class Game {
       try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
     }
     this._showScreen('gift-drop');
-    this._initSlots();
+    this._initSmack();
     this._refreshDropSection();
   }
 
-  _initSlots() {
-    const symbols = ['^','$','#','*'];
-    const symClasses = ['sym-^','sym-$','sym-#','sym-*'];
-    for (let r = 0; r < 3; r++) {
-      const strip = document.querySelector(`#slot-reel-${r} .slot-strip`);
-      if (!strip) return;
-      strip.innerHTML = '';
-      for (let i = 0; i < 20; i++) {
-        const idx = i % 4;
-        const div = document.createElement('div');
-        div.className = `slot-symbol ${symClasses[idx]}`;
-        div.textContent = symbols[idx];
-        strip.appendChild(div);
-      }
-      strip.style.transition = 'none';
-      strip.style.transform = 'translateY(0)';
+  _initSmack() {
+    document.getElementById('drop-btn')?.classList.remove('hidden');
+    document.getElementById('smack-prompt')?.classList.add('hidden');
+    document.getElementById('smack-target')?.classList.add('hidden');
+    const bank = document.getElementById('smack-target');
+    if (bank) {
+      bank.classList.remove('crack-1', 'crack-2', 'smack-shake', 'smack-splat');
     }
   }
 
@@ -4371,7 +4362,7 @@ class Game {
     try {
       data = await dbDoDropBall(tid, isPaidDrop);
     } catch (e) {
-      if (dropResult) { dropResult.textContent = (e.message || 'SLOTS FAILED').toUpperCase(); dropResult.classList.remove('hidden'); }
+      if (dropResult) { dropResult.textContent = (e.message || 'SMACK FAILED').toUpperCase(); dropResult.classList.remove('hidden'); }
       this._refreshDropSection();
       return;
     }
@@ -4382,7 +4373,7 @@ class Game {
     }
 
     const { slotIdx, reward } = data;
-    await this._animateSlots(slotIdx);
+    await this._playSmackDaBank(reward);
     const typeColors = { skin: '#ff4466', boost: '#ff7700', shmips: '#00ff66', upgrade: '#ffd700' };
     const col = typeColors[reward.type] || '#ffee00';
     dropResult.style.color = col;
@@ -4421,36 +4412,40 @@ class Game {
     await this._doDropBall(true);
   }
 
-  _animateSlots(targetSlotIdx) {
-    const symbolMap = [0,1,1,2,3,2,1,1,0];
-    const symIdx = symbolMap[targetSlotIdx];
-    const SYMBOL_H = 72;
-    const CYCLES = 10;
-    const finalY = -(CYCLES * 4 + symIdx) * SYMBOL_H;
+  _playSmackDaBank(reward) {
+    return new Promise((resolve) => {
+      const btn = document.getElementById('drop-btn');
+      const prompt = document.getElementById('smack-prompt');
+      const bank = document.getElementById('smack-target');
+      const coins = document.getElementById('smack-coins');
+      if (!bank) { resolve(); return; }
 
-    const reelEls = [0,1,2].map(r => document.querySelector(`#slot-reel-${r} .slot-strip`));
-    if (!reelEls[0]) return Promise.resolve();
+      btn?.classList.add('hidden');
+      prompt?.classList.remove('hidden');
+      bank.classList.remove('hidden');
 
-    reelEls.forEach(strip => {
-      strip.style.transition = 'none';
-      strip.style.transform = 'translateY(0)';
+      let taps = 0;
+      const onTap = () => {
+        taps++;
+        bank.classList.remove('smack-shake');
+        void bank.offsetWidth;
+        bank.classList.add('smack-shake');
+        if (taps === 1) bank.classList.add('crack-1');
+        if (taps === 2) bank.classList.add('crack-2');
+        if (taps >= 3) {
+          bank.removeEventListener('click', onTap);
+          bank.classList.add('smack-splat');
+          if (coins) {
+            coins.textContent = '🪙💰✨';
+            coins.classList.remove('hidden');
+            coins.classList.add('burst');
+          }
+          SFX.shmipEarn && SFX.shmipEarn();
+          setTimeout(() => resolve(), 500);
+        }
+      };
+      bank.addEventListener('click', onTap);
     });
-
-    const spinReel = (reelIdx, delayMs) => {
-      return new Promise(r => {
-        setTimeout(() => {
-          const strip = reelEls[reelIdx];
-          strip.style.transition = 'transform 1s cubic-bezier(0.15, 0.9, 0.35, 1)';
-          strip.style.transform = `translateY(${finalY}px)`;
-          strip.ontransitionend = () => {
-            strip.ontransitionend = null;
-            r();
-          };
-        }, delayMs);
-      });
-    };
-
-    return spinReel(0, 0).then(() => spinReel(1, 120)).then(() => spinReel(2, 240));
   }
 
   _startGiftCountdown(ms, el) {
