@@ -4251,7 +4251,7 @@ class Game {
     try {
       const [s4, sDrop] = await Promise.all([dbGiftStatus(tid), dbDropStatus(tid)]);
       if (hub4) hub4.textContent = s4?.available ? 'READY · Open every 4 hours' : s4?.remainingMs > 0 ? this._formatRemaining(s4.remainingMs) + ' until next' : 'Open every 4 hours';
-      if (hubDrop) hubDrop.textContent = sDrop?.available ? 'READY · Every 7 hours' : sDrop?.remainingMs > 0 ? this._formatRemaining(sDrop.remainingMs) + ' until next' : 'Every 7 hours · Plinko rewards';
+      if (hubDrop) hubDrop.textContent = sDrop?.available ? 'READY · Every 8 hours' : sDrop?.remainingMs > 0 ? this._formatRemaining(sDrop.remainingMs) + ' until next' : 'Every 8 hours · Spin for rewards';
     } catch {
       if (hub4) hub4.textContent = 'Open every 4 hours';
       if (hubDrop) hubDrop.textContent = 'Every 7 hours · Plinko rewards';
@@ -4304,31 +4304,61 @@ class Game {
   }
 
   _drawDropBoardIdle() {
+    this._drawWheel(0);
+  }
+
+  _drawWheel(rotationRad) {
     const canvas = document.getElementById('drop-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const W = 280, H = 200;
+    const W = 240, H = 240;
+    const cx = W / 2, cy = H / 2;
+    const symbols = ['^','$','$','#','*','#','$','$','^'];
+    const colors = ['#ffcc00','#00ff66','#00ff66','#ff4466','#ffd700','#ff4466','#00ff66','#00ff66','#ffcc00'];
+    const segments = 9;
+    const sliceAngle = (2 * Math.PI) / segments;
     ctx.fillStyle = '#0a0f1a';
     ctx.fillRect(0, 0, W, H);
-    const pegs = [];
-    for (let row = 0; row < 8; row++) {
-      const n = row + 3;
-      for (let i = 0; i < n; i++) {
-        const py = 38 + row * 20;
-        const px = (W / (n + 1)) * (i + 1);
-        pegs.push({ x: px, y: py });
-      }
-    }
-    pegs.forEach(p => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotationRad);
+    ctx.translate(-cx, -cy);
+    for (let i = 0; i < segments; i++) {
+      const start = i * sliceAngle - Math.PI / 2;
+      const end = start + sliceAngle;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, Math.min(W, H) / 2 - 4, start, end);
+      ctx.closePath();
+      ctx.fillStyle = colors[i];
+      ctx.globalAlpha = 0.85;
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,200,255,0.6)';
-      ctx.lineWidth = 1;
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
       ctx.stroke();
-    });
+      const mid = start + sliceAngle / 2;
+      const tx = cx + (Math.min(W, H) / 2 - 24) * Math.cos(mid);
+      const ty = cy + (Math.min(W, H) / 2 - 24) * Math.sin(mid);
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.rotate(mid + Math.PI / 2);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 18px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(symbols[i], 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 28, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a1030';
+    ctx.fill();
+    ctx.strokeStyle = '#ff44aa';
+    ctx.lineWidth = 3;
+    ctx.stroke();
   }
 
   _refreshDropSection() {
@@ -4409,21 +4439,22 @@ class Game {
     this._loadMenu();
 
     if (!isPaidDrop) this._refreshDropSection();
-    dropAgainWrap?.classList.remove('hidden');
-    const dropYes = document.getElementById('drop-yes');
-    if (dropYes) {
-      const canAfford = Number(this.userData?.shmips || 0) >= 650;
-      dropYes.disabled = !canAfford;
-      dropYes.style.opacity = canAfford ? '1' : '0.5';
+    if (!isPaidDrop) {
+      dropAgainWrap?.classList.remove('hidden');
+      const dropYes = document.getElementById('drop-yes');
+      if (dropYes) {
+        const canAfford = Number(this.userData?.shmips || 0) >= 700;
+        dropYes.disabled = !canAfford;
+        dropYes.style.opacity = canAfford ? '1' : '0.5';
+      }
     }
   }
 
   async _doDropAgain() {
-    const tid = TG_USER?.id || this.userData?.telegram_id;
     const bal = Number(this.userData?.shmips || 0);
-    if (bal < 650) {
+    if (bal < 700) {
       const dropResult = document.getElementById('drop-result');
-      if (dropResult) { dropResult.textContent = 'NEED 650 $$!'; dropResult.classList.remove('hidden'); }
+      if (dropResult) { dropResult.textContent = 'NEED 700 $$!'; dropResult.classList.remove('hidden'); }
       return;
     }
     document.getElementById('drop-again-wrap')?.classList.add('hidden');
@@ -4436,116 +4467,27 @@ class Game {
       const ctx = canvas?.getContext('2d');
       if (!canvas || !ctx) { resolve(); return; }
       const self = this;
-      const W = 280, H = 200;
-      const slotW = W / 9;
-      const ballR = 10;
-      const pegR = 6;
-      const GRAVITY = 0.42;
-      const BOUNCE = 0.7;
-      const FRICTION = 0.998;
-      const lastHitFrame = {};
+      const segments = 9;
+      const sliceAngle = (2 * Math.PI) / segments;
+      const fullSpins = 5;
+      const finalRotation = -fullSpins * 2 * Math.PI - targetSlotIdx * sliceAngle - sliceAngle / 2;
+      const duration = 180;
+      let frame = 0;
 
-      const pegs = [];
-      for (let row = 0; row < 8; row++) {
-        const n = row + 3;
-        for (let i = 0; i < n; i++) {
-          const py = 38 + row * 20;
-          const px = (W / (n + 1)) * (i + 1);
-          pegs.push({ x: px, y: py });
-        }
-      }
-
-      const targetSlotCenter = (targetSlotIdx + 0.5) * slotW;
-      let ball = { x: W / 2, y: 22, vx: (Math.random() - 0.5) * 1.5, vy: 0 };
-      let frameCount = 0;
-      const MAX_FRAMES = 600;
-
-      const drawBall = (x, y) => {
-        ctx.save();
-        ctx.fillStyle = '#ff2222';
-        ctx.shadowColor = '#ff5555';
-        ctx.shadowBlur = 14;
-        ctx.beginPath();
-        ctx.arc(x, y, ballR, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
-      };
-
-      const drawPegs = () => {
-        pegs.forEach(p => {
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, pegR, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255,255,255,0.95)';
-          ctx.fill();
-          ctx.strokeStyle = 'rgba(255,200,255,0.6)';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        });
-      };
+      const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
 
       const tick = () => {
-        frameCount++;
-        ball.vy += GRAVITY;
-        ball.vx *= FRICTION;
-        ball.vy *= FRICTION;
-        ball.x += ball.vx;
-        ball.y += ball.vy;
-
-        pegs.forEach((p, i) => {
-          if (frameCount - (lastHitFrame[i] || 0) < 8) return;
-          const dx = ball.x - p.x;
-          const dy = ball.y - p.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < ballR + pegR) {
-            lastHitFrame[i] = frameCount;
-            const nx = (dx / dist) || 0;
-            const ny = (dy / dist) || 0;
-            const dot = ball.vx * nx + ball.vy * ny;
-            ball.vx = (ball.vx - 2 * dot * nx) * BOUNCE;
-            ball.vy = (ball.vy - 2 * dot * ny) * BOUNCE;
-            const bias = (targetSlotCenter - ball.x) * 0.025;
-            ball.vx += bias + (Math.random() - 0.5) * 1.5;
-            ball.x = p.x + nx * (ballR + pegR + 2);
-            ball.y = p.y + ny * (ballR + pegR + 2);
-          }
-        });
-
-        ball.x = Math.max(ballR, Math.min(W - ballR, ball.x));
-        ball.y = Math.min(H - ballR - 5, ball.y);
-        if (ball.x <= ballR || ball.x >= W - ballR) ball.vx *= -0.8;
-
-        ctx.fillStyle = '#0a0f1a';
-        ctx.fillRect(0, 0, W, H);
-        drawPegs();
-        drawBall(ball.x, ball.y);
-
-        const inSlotZone = ball.y >= H - 38 && ball.vy >= -2;
-        if (inSlotZone || frameCount >= MAX_FRAMES) {
-          const slotX = (targetSlotIdx + 0.5) * slotW;
-          let settleT = 0;
-          const settle = () => {
-            settleT++;
-            const t = Math.min(1, settleT / 20);
-            ball.x += (slotX - ball.x) * 0.15;
-            ball.y = Math.min(H - 28, ball.y + 2);
-            ctx.fillStyle = '#0a0f1a';
-            ctx.fillRect(0, 0, W, H);
-            drawPegs();
-            drawBall(ball.x, ball.y);
-            if (settleT < 20) requestAnimationFrame(settle);
-            else {
-              self._drawDropBoardIdle();
-              resolve();
-            }
-          };
-          requestAnimationFrame(settle);
-          return;
+        frame++;
+        const t = Math.min(1, frame / duration);
+        const eased = easeOutCubic(t);
+        const rotation = finalRotation * eased;
+        self._drawWheel(rotation);
+        if (frame < duration) {
+          requestAnimationFrame(tick);
+        } else {
+          self._drawDropBoardIdle();
+          resolve();
         }
-        requestAnimationFrame(tick);
       };
       tick();
     });

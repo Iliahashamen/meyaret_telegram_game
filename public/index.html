@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.7.2" />
+  <link rel="stylesheet" href="style.css?v=1.7.4" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="config.js"></script>
 </head>
@@ -129,8 +129,8 @@
         <span class="gift-hub-desc" id="hub-4hr-status">Open every 4 hours</span>
       </button>
       <button id="btn-gift-drop" class="gift-hub-card">
-        <span class="gift-hub-title">DROP DA BALL</span>
-        <span class="gift-hub-desc" id="hub-drop-status">Every 7 hours · Plinko rewards</span>
+        <span class="gift-hub-title">8HR WHEEL</span>
+        <span class="gift-hub-desc" id="hub-drop-status">Every 8 hours · Spin for rewards</span>
       </button>
     </div>
   </div>
@@ -162,24 +162,14 @@
     <div id="spin-result" class="spin-result hidden"></div>
   </div>
 
-  <!-- DROP DA BALL Page (full screen) -->
+  <!-- 8HR WHEEL Page (full screen) -->
   <div id="gift-drop-screen" class="screen hidden">
     <button class="back-btn" data-back="gift-hub">BACK</button>
-    <div class="screen-title">DROP DA BALL</div>
-    <div class="drop-subtitle">Every 7 hours</div>
-    <div id="drop-board-wrap">
-      <canvas id="drop-canvas" width="280" height="200"></canvas>
-      <div id="drop-slots">
-        <div class="drop-slot" data-slot="0" title="Boost">^</div>
-        <div class="drop-slot" data-slot="1">$</div>
-        <div class="drop-slot" data-slot="2">$</div>
-        <div class="drop-slot" data-slot="3">#</div>
-        <div class="drop-slot" data-slot="4">*</div>
-        <div class="drop-slot" data-slot="5">#</div>
-        <div class="drop-slot" data-slot="6">$</div>
-        <div class="drop-slot" data-slot="7">$</div>
-        <div class="drop-slot" data-slot="8">^</div>
-      </div>
+    <div class="screen-title">8HR WHEEL</div>
+    <div class="drop-subtitle">Every 8 hours</div>
+    <div id="drop-board-wrap" class="wheel-wrap">
+      <div class="wheel-pointer">▼</div>
+      <canvas id="drop-canvas" width="240" height="240" class="wheel-canvas"></canvas>
     </div>
     <div id="drop-symbols-legend">
       <div class="symbol-row"><span class="sym-$">$</span> <span class="symbol-label">Money</span></div>
@@ -187,11 +177,11 @@
       <div class="symbol-row"><span class="sym-#">#</span> <span class="symbol-label">Skin</span></div>
       <div class="symbol-row"><span class="sym-*">*</span> <span class="symbol-label">Upgrade</span></div>
     </div>
-    <button id="drop-btn" class="btn-primary btn-big">DROP!</button>
+    <button id="drop-btn" class="btn-primary btn-big">SPIN!</button>
     <div id="drop-timer" class="gift-timer"></div>
     <div id="drop-result" class="spin-result hidden"></div>
     <div id="drop-again-wrap" class="hidden">
-      <span class="drop-again-text">Drop again? 650$$</span>
+      <span class="drop-again-text">Spin again? 700$$ (one time)</span>
       <div class="drop-again-btns">
         <button id="drop-yes" class="btn-primary">YES</button>
         <button id="drop-no" class="btn-secondary">NO</button>

@@ -129,7 +129,7 @@ const GIFT_REWARDS = [
   { id: 'skin',     weight: 6,  type: 'skin_grant'              },
 ];
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;  // 4 hours (applies to everyone)
-const DROP_COOLDOWN_MS = 7 * 60 * 60 * 1000;  // 7 hours for DROP DA BALL
+const DROP_COOLDOWN_MS = 8 * 60 * 60 * 1000;  // 8 hours for 8HR WHEEL
 
 function _pickGiftReward() {
   const total = GIFT_REWARDS.reduce((a, r) => a + r.weight, 0);
@@ -447,8 +447,8 @@ export async function dbDoDropBall(telegramId, isPaidDrop = false) {
   const ownedIds = new Set((upgradeRows || []).map(u => u.upgrade_id));
 
   if (isPaidDrop) {
-    const cost = 650;
-    if (Number(user.shmips) < cost) throw new Error(`NEED 650 $$. YOU HAVE ${user.shmips}.`);
+    const cost = 700;
+    if (Number(user.shmips) < cost) throw new Error(`NEED 700 $$. YOU HAVE ${user.shmips}.`);
     // Deduct cost first
     await supa(`users?telegram_id=eq.${id}`, {
       method: 'PATCH',
@@ -464,7 +464,7 @@ export async function dbDoDropBall(telegramId, isPaidDrop = false) {
         const rem = next - now.getTime();
         const h = Math.floor(rem / 3_600_000);
         const m = Math.floor((rem % 3_600_000) / 60_000);
-        throw new Error(`DROP LOCKED — ${h}H ${m}M REMAINING`);
+        throw new Error(`WHEEL LOCKED — ${h}H ${m}M REMAINING`);
       }
     }
   }
