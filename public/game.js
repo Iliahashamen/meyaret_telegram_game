@@ -2757,7 +2757,8 @@ class Game {
 
   _maintainAsteroids() {
     const timeS = this.gameTime / 60;
-    const chaos = timeS >= 600; // 10 min+ = chaos mode (40% harder)
+    const chaos = timeS >= 900; // 15 min+ = chaos mode
+    const ramp5 = timeS >= 300 ? Math.floor(timeS / 300) * 0.2 : 0;
 
     // During dogfight (red fighters or homing rockets active) keep the field sparse —
     // just enough rocks to use as cover; in chaos mode allow more
@@ -2769,8 +2770,11 @@ class Game {
 
     // Note: we never cull existing asteroids — they stay as cover during dogfights
 
-    const baseInterval = Math.max(100 - Math.floor(timeS * 0.72), 20); // ramp spawn speed faster (40% harder)
-    const spawnInterval = chaos ? Math.max(Math.floor((baseInterval - 18) / 1.2), 14) : Math.floor(baseInterval / 1.2);
+    const spawnRamp = 1 + ramp5;
+    const baseInterval = Math.max(100 - Math.floor(timeS * 0.72), 20);
+    const spawnInterval = chaos
+      ? Math.max(Math.floor((baseInterval - 18) / (1.2 * spawnRamp)), 14)
+      : Math.floor(baseInterval / (1.15 * spawnRamp));
     this.asteroidSpawnTimer++;
     if (this.asteroidSpawnTimer >= spawnInterval && this.asteroids.length < targetCount) {
       this.asteroidSpawnTimer = 0;
@@ -2924,14 +2928,16 @@ class Game {
     // Skip enemy spawns during spawn-freeze grace period
     if (this._spawnFrozen) { /* no spawns */ }
     else {
-    const chaos = timeS >= 600; // 10 min+ = chaos mode (40% harder)
-    const dMult = 1.4; // 40% harder: faster spawns, more enemies
+    const chaos = timeS >= 900; // 15 min+ = chaos mode
+    const dMult = 1.4;
+    const ramp5 = timeS >= 300 ? Math.floor(timeS / 300) * 0.25 : 0; // +25% spawn rate every 5 min
+    const spawnMult = dMult + ramp5;
 
-    // Yellow aliens: appear after 35 seconds; in chaos allow 2
+    // Yellow aliens: appear after 30 seconds; in chaos allow 2
     const alienMax = chaos ? 2 : 1;
     const alienInterval = Math.floor((chaos
       ? Math.max(800 - Math.floor(timeS * 2.2), 320)
-      : Math.max(1200 - Math.floor(timeS * 1.7), 450)) / dMult);
+      : Math.max(1200 - Math.floor(timeS * 1.7), 450)) / spawnMult);
     this.yellowAlienTimer++;
     if (this.yellowAlienTimer > alienInterval && timeS >= 30) {
       this.yellowAlienTimer = 0;
@@ -2945,7 +2951,7 @@ class Game {
     const redCap = chaos ? redCapBase + Math.floor(timeS / 450) : redCapBase;
     const redInterval = Math.floor((chaos
       ? Math.max(900 - Math.floor(timeS * 2), 320)
-      : Math.max(1200 - Math.floor(timeS * 1.2), 450)) / dMult);
+      : Math.max(1200 - Math.floor(timeS * 1.2), 450)) / spawnMult);
     this.redFighterTimer++;
     if (this.redFighterTimer > redInterval && timeS >= 120) {
       this.redFighterTimer = 0;
@@ -2960,7 +2966,7 @@ class Game {
     const orangeCap = Math.min(chaos ? orangeCapBase + 2 : orangeCapBase + 1, chaos ? 7 : 5);
     const orangeInterval = Math.floor((chaos
       ? Math.max(700 - Math.floor((timeS - orangeStart) * 2), 220)
-      : Math.max(900 - Math.floor((timeS - orangeStart) * 1.2), 300)) / dMult);
+      : Math.max(900 - Math.floor((timeS - orangeStart) * 1.2), 300)) / spawnMult);
     this.orangeRocketTimer++;
     if (this.orangeRocketTimer > orangeInterval && timeS >= orangeStart) {
       this.orangeRocketTimer = 0;
@@ -4237,7 +4243,35 @@ class Game {
 
   async _openGiftDrop() {
     this._showScreen('gift-drop');
+    this._drawDropBoardIdle();
     this._refreshDropSection();
+  }
+
+  _drawDropBoardIdle() {
+    const canvas = document.getElementById('drop-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = 280, H = 200;
+    ctx.fillStyle = '#0d1220';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    const pegs = [];
+    for (let row = 0; row < 8; row++) {
+      const n = row + 3;
+      for (let i = 0; i < n; i++) {
+        const py = 35 + row * 20;
+        const px = (W / (n + 1)) * (i + 1);
+        pegs.push({ x: px, y: py });
+      }
+    }
+    pegs.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fill();
+      ctx.stroke();
+    });
   }
 
   _refreshDropSection() {
@@ -4343,39 +4377,40 @@ class Game {
       const slotW = W / 9;
       const targetX = (targetSlotIdx + 0.5) * slotW;
       const startX = W / 2;
-      const startY = 20;
-      const endY = H - 20;
-      const ballR = 6;
-      const pegR = 3;
+      const startY = 25;
+      const endY = H - 25;
+      const ballR = 8;
       const pegs = [];
-      for (let row = 0; row < 5; row++) {
-        const n = row + 4;
+      for (let row = 0; row < 8; row++) {
+        const n = row + 3;
         for (let i = 0; i < n; i++) {
-          const py = 45 + row * 28;
+          const py = 35 + row * 20;
           const px = (W / (n + 1)) * (i + 1);
           pegs.push({ x: px, y: py });
         }
       }
       let t = 0;
-      const duration = 90;
+      const duration = 100;
       const tick = () => {
         t++;
-        ctx.fillStyle = '#0a0a12';
+        ctx.fillStyle = '#0d1220';
         ctx.fillRect(0, 0, W, H);
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-        ctx.lineWidth = 1;
         pegs.forEach(p => {
           ctx.beginPath();
-          ctx.arc(p.x, p.y, pegR, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.fill();
+          ctx.strokeStyle = '#ff00ff44';
+          ctx.lineWidth = 1;
           ctx.stroke();
         });
         const progress = Math.min(1, t / duration);
         const ease = 1 - Math.pow(1 - progress, 1.5);
-        const x = startX + (targetX - startX) * ease + (Math.random() - 0.5) * 4;
+        const x = startX + (targetX - startX) * ease + (Math.random() - 0.5) * 6;
         const y = startY + (endY - startY) * progress;
-        ctx.fillStyle = '#ffcc00';
-        ctx.shadowColor = '#ffcc00';
-        ctx.shadowBlur = 8;
+        ctx.fillStyle = '#ff2222';
+        ctx.shadowColor = '#ff4444';
+        ctx.shadowBlur = 12;
         ctx.beginPath();
         ctx.arc(x, y, ballR, 0, Math.PI * 2);
         ctx.fill();
@@ -4383,6 +4418,7 @@ class Game {
         if (t < duration) {
           requestAnimationFrame(tick);
         } else {
+          this._drawDropBoardIdle();
           resolve();
         }
       };
