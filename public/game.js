@@ -8,7 +8,7 @@ import {
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
-  dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
+  dbGiftStatus, dbOpenGift, dbDropStatus, dbDoDropBall, dbAddBonusShmips, dbConsumeBoost,
 } from './db.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
@@ -98,6 +98,13 @@ function glow(ctx, color, blur = 12) { ctx.shadowColor = color; ctx.shadowBlur =
 function rainbowColor(t, speed = 1) {
   const h = (t * speed * 0.05) % 360;
   return `hsl(${h}, 100%, 60%)`;
+}
+function auroraColor(t) {
+  const h = 180 + (t * 0.4) % 180;
+  return `hsl(${h}, 95%, 55%)`;
+}
+function spectrumColor(t) {
+  return rainbowColor(t, 0.8);
 }
 function acidColor(t) {
   const h = (t * 0.45) % 360;
@@ -708,7 +715,9 @@ class Ship {
   _drawFlame(ctx, col, sz) {
     if (!this.thrusting) return;
     const flameSz = rng(6, 10);
-    const flameCol = this.thrustColor || (this.golden ? C.golden : '#ff6600');
+    let flameCol = this.thrustColor || (this.golden ? C.golden : '#ff6600');
+    if (flameCol === 'aurora') flameCol = auroraColor(this.bobTimer);
+    else if (flameCol === 'spectrum') flameCol = spectrumColor(this.bobTimer);
     ctx.strokeStyle = this.golden ? C.golden : flameCol;
     glow(ctx, flameCol, 16);
     ctx.lineWidth = 2;
@@ -764,8 +773,9 @@ class Ship {
 
     if (this.effectiveLaser) {
       const pink = this.isPinkBeam;
-      const starColor = this.isStarOverdrive ? '#b45cff' : null;
-      const laserColor = (this.bulletShape && this.bulletShape !== 'default' && this.bulletColor) ? this.bulletColor : starColor;
+      let laserColor = this.isStarOverdrive ? '#b45cff' : (this.bulletColor || null);
+      if (laserColor === 'aurora') laserColor = auroraColor(this.bobTimer);
+      else if (laserColor === 'spectrum') laserColor = spectrumColor(this.bobTimer);
     if (this.hasTripple && this.hasShplit) {
       // laser + triple + shplit: 6 pink/laser beams
       [-0.22, 0, 0.22].forEach(spread => {
@@ -789,7 +799,9 @@ class Ship {
     return;
   }
 
-    const bcol = this.ripFuryActive ? rainbowColor(this.bobTimer, 3) : this.bulletColor;
+    let bcol = this.ripFuryActive ? rainbowColor(this.bobTimer, 3) : this.bulletColor;
+    if (bcol === 'aurora') bcol = auroraColor(this.bobTimer);
+    else if (bcol === 'spectrum') bcol = spectrumColor(this.bobTimer);
     if (this.hasTripple && this.hasShplit) {
       // shplit + triple = 6 bullets: 2 parallel per direction
       [-0.22, 0, 0.22].forEach(spread => {
@@ -1754,7 +1766,7 @@ function drawGrid(ctx, W, H, tick) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, warnings, xforceCooldownSec, ripCountdownSec }) {
+function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, ripFuryActive, warnings, xforceCooldownSec, ripCountdownSec }) {
   const FONT = '"Press Start 2P", "Courier New", monospace';
   const s = 1;
   const glowCap = (b) => Math.min(b * s, 14); // cap blur to reduce lag
@@ -1788,7 +1800,8 @@ function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multip
   ctx.fillText(score.toLocaleString(), 14, 42 * s);
   if (scoreX2 && scoreX2 > 1) {
     ctx.font = `${Math.round(7 * s)}px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', glowCap(6));
-    ctx.fillText(`x${scoreX2}`, 6 + panelW - 28, 20 * s);
+    const mult = ripFuryActive ? scoreX2 * 10 : scoreX2;
+    ctx.fillText(`x${mult}`, 6 + panelW - 28, 20 * s);
   }
 
   // ── LIVES ──
@@ -2301,6 +2314,9 @@ class Game {
     });
 
     document.getElementById('spin-btn').addEventListener('click', () => this._doOpenGift());
+    document.getElementById('drop-btn')?.addEventListener('click', () => this._doDropBall());
+    document.getElementById('drop-yes')?.addEventListener('click', () => this._doDropAgain());
+    document.getElementById('drop-no')?.addEventListener('click', () => { document.getElementById('drop-again-wrap')?.classList.add('hidden'); this._refreshDropSection(); });
     document.getElementById('arsenal-open-store').addEventListener('click', () => this._openStore());
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -2726,20 +2742,20 @@ class Game {
 
   _maintainAsteroids() {
     const timeS = this.gameTime / 60;
-    const chaos = timeS >= 900; // 15 min+ = chaos mode
+    const chaos = timeS >= 660; // 11 min+ = chaos mode (30% harder)
 
     // During dogfight (red fighters or homing rockets active) keep the field sparse —
     // just enough rocks to use as cover; in chaos mode allow more
     const dogfight = (this.redFighters?.length > 0) || (this.orangeRockets?.length > 0);
-    const baseRamp = 4 + Math.floor(timeS / 10); // ramp a bit faster over time
+    const baseRamp = 5 + Math.floor(timeS / 8); // ramp faster (30% harder)
     const targetCount = dogfight
-      ? (chaos ? 6 : 3)                                           // dogfight: 3 rocks normally, 6 in chaos
-      : Math.min(baseRamp + (chaos ? 8 : 0), chaos ? 28 : 20);   // chaos: +8 target, cap 28
+      ? (chaos ? 8 : 4)                                           // dogfight: 4 rocks normally, 8 in chaos
+      : Math.min(baseRamp + (chaos ? 10 : 2), chaos ? 32 : 24);  // chaos: +10 target, cap 32; else 24
 
     // Note: we never cull existing asteroids — they stay as cover during dogfights
 
-    const baseInterval = Math.max(100 - Math.floor(timeS * 0.5), 25); // ramp spawn speed over time
-    const spawnInterval = chaos ? Math.max(baseInterval - 15, 18) : baseInterval;
+    const baseInterval = Math.max(100 - Math.floor(timeS * 0.65), 22); // ramp spawn speed faster (30% harder)
+    const spawnInterval = chaos ? Math.max(Math.floor((baseInterval - 15) / 1.15), 16) : Math.floor(baseInterval / 1.15);
     this.asteroidSpawnTimer++;
     if (this.asteroidSpawnTimer >= spawnInterval && this.asteroids.length < targetCount) {
       this.asteroidSpawnTimer = 0;
@@ -2893,42 +2909,43 @@ class Game {
     // Skip enemy spawns during spawn-freeze grace period
     if (this._spawnFrozen) { /* no spawns */ }
     else {
-    const chaos = timeS >= 900; // 15 min+ = chaos mode — more enemies, faster spawns
+    const chaos = timeS >= 660; // 11 min+ = chaos mode (30% harder — earlier chaos)
+    const dMult = 1.3; // 30% harder: faster spawns, more enemies
 
-    // Yellow aliens: appear after 50 seconds; in chaos allow 2
+    // Yellow aliens: appear after 35 seconds; in chaos allow 2
     const alienMax = chaos ? 2 : 1;
-    const alienInterval = chaos
+    const alienInterval = Math.floor((chaos
       ? Math.max(800 - Math.floor(timeS * 2), 350)
-      : Math.max(1200 - Math.floor(timeS * 1.5), 500);
+      : Math.max(1200 - Math.floor(timeS * 1.5), 500)) / dMult);
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > alienInterval && timeS >= 50) {
+    if (this.yellowAlienTimer > alienInterval && timeS >= 35) {
       this.yellowAlienTimer = 0;
       if (this.yellowAliens.length < alienMax) {
         const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
     }
-    // Red fighters: appear after 3 minutes, scale with time; chaos = higher cap + faster
-    const redCapBase = Math.max(1, Math.floor((timeS - 150) / 80));
-    const redCap = chaos ? redCapBase + Math.floor(timeS / 600) : redCapBase;
-    const redInterval = chaos
+    // Red fighters: appear after 2.1 min, scale with time; chaos = higher cap + faster (30% harder)
+    const redCapBase = Math.max(1, Math.floor((timeS - 110) / 55));
+    const redCap = chaos ? redCapBase + Math.floor(timeS / 450) : redCapBase;
+    const redInterval = Math.floor((chaos
       ? Math.max(900 - Math.floor(timeS * 2), 320)
-      : Math.max(1200 - Math.floor(timeS * 1.2), 450);
+      : Math.max(1200 - Math.floor(timeS * 1.2), 450)) / dMult);
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && timeS >= 180) {
+    if (this.redFighterTimer > redInterval && timeS >= 126) {
       this.redFighterTimer = 0;
       if (this.redFighters.length < redCap) {
         const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
-    // Orange homing rockets: appear after 3–4 minutes; chaos = more rockets (capped so it's playable)
-    const orangeStart = 210;
-    const orangeCapBase = 1 + Math.floor((timeS - orangeStart) / 90);
-    const orangeCap = Math.min(chaos ? orangeCapBase + 1 : orangeCapBase, chaos ? 6 : 4);
-    const orangeInterval = chaos
+    // Orange homing rockets: appear after 2.5 min; chaos = more rockets (30% harder)
+    const orangeStart = 150;
+    const orangeCapBase = 1 + Math.floor((timeS - orangeStart) / 65);
+    const orangeCap = Math.min(chaos ? orangeCapBase + 2 : orangeCapBase + 1, chaos ? 7 : 5);
+    const orangeInterval = Math.floor((chaos
       ? Math.max(700 - Math.floor((timeS - orangeStart) * 2), 220)
-      : Math.max(900 - Math.floor((timeS - orangeStart) * 1.2), 300);
+      : Math.max(900 - Math.floor((timeS - orangeStart) * 1.2), 300)) / dMult);
     this.orangeRocketTimer++;
     if (this.orangeRocketTimer > orangeInterval && timeS >= orangeStart) {
       this.orangeRocketTimer = 0;
@@ -3060,7 +3077,7 @@ class Game {
       this.pickupSpawnTimer = 0;
       const p = this._findSafeSpawnPoint(60, this.ship, 120);
       const x = p.x, y = p.y;
-      if (Math.random() < 0.6) this.coins.push(new CoinPickup(x, y));
+      if (Math.random() < 0.53) this.coins.push(new CoinPickup(x, y));
       else this.mysteryPickups.push(new MysteryPickup(x, y));
     }
 
@@ -3085,10 +3102,10 @@ class Game {
         let hit = false;
         for (let ci = this.coins.length-1; ci >= 0; ci--) {
           if (dist(b, this.coins[ci]) < this.coins[ci].radius + b.radius) {
-            this.runShmipsBonus++;
+            this.runShmipsBonus += 5;
             SFX.coinPickup();
             burst(this.particles, this.coins[ci].x, this.coins[ci].y, '#ffdd00', 6, 2, 15);
-            new FloatingText(this.coins[ci].x, this.coins[ci].y - 20, '+1 SHMIP', '#ffdd00');
+            new FloatingText(this.coins[ci].x, this.coins[ci].y - 20, '+5 SHMIP', '#ffdd00');
             this.coins.splice(ci, 1);
             hit = true; break;
           }
@@ -3129,11 +3146,11 @@ class Game {
     for (let ci = this.coins.length-1; ci >= 0; ci--) {
       if (dist(ship, this.coins[ci]) < ship.radius + this.coins[ci].radius) {
         const{x,y} = this.coins[ci];
-        this.runShmipsBonus++;
+        this.runShmipsBonus += 5;
         SFX.coinPickup();
         burst(this.particles, x, y, '#ffdd00', 8, 2, 20);
         this.coins.splice(ci, 1);
-        new FloatingText(x, y-20, '+1 SHMIP', '#ffdd00');
+        new FloatingText(x, y-20, '+5 SHMIP', '#ffdd00');
       }
     }
 
@@ -3601,6 +3618,7 @@ class Game {
       rocketAmmo:     this.ship?.rocketAmmo ?? 0,
       shieldCharges:  this.ship?.shieldCharges ?? 0,
       scoreX2:        (this.runScoreMultiplier || 1),
+      ripFuryActive:  this.ripFuryUntil > 0 && this.gameTime < this.ripFuryUntil,
       xforceCooldownSec: xforceSec,
       ripCountdownSec:   this.ripCountdownRemain > 0 ? Math.ceil(this.ripCountdownRemain / 60) : undefined,
       warnings: {
@@ -4182,24 +4200,171 @@ class Game {
     if (resultEl) { resultEl.classList.add('hidden'); resultEl.className = 'spin-result hidden'; }
 
     const btn   = document.getElementById('spin-btn');
-    const timer = document.getElementById('spin-countdown');
     const tid   = TG_USER?.id || this.userData?.telegram_id;
 
     if (!tid) {
       btn.disabled = true; btn.style.opacity = '0.4';
-      timer.textContent = 'OPEN VIA TELEGRAM'; timer.classList.remove('hidden');
       return;
     }
 
     let status = null;
     try { status = await dbGiftStatus(tid); } catch { /* non-critical */ }
     if (status?.available) {
-      btn.disabled = false; btn.style.opacity = '1'; timer.classList.add('hidden');
+      btn.disabled = false; btn.style.opacity = '1';
     } else if (status) {
       btn.disabled = true; btn.style.opacity = '0.4';
-      timer.classList.remove('hidden');
-      this._startGiftCountdown(status.remainingMs, timer);
     }
+    this._refreshDropSection();
+  }
+
+  _refreshDropSection() {
+    const dropBtn = document.getElementById('drop-btn');
+    const dropAgainWrap = document.getElementById('drop-again-wrap');
+    const dropResult = document.getElementById('drop-result');
+    if (!dropBtn) return;
+    dropAgainWrap?.classList.add('hidden');
+    dropResult?.classList.add('hidden');
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    if (!tid) {
+      dropBtn.disabled = true; dropBtn.style.opacity = '0.4';
+      return;
+    }
+    dbDropStatus(tid).then(status => {
+      if (status?.available) {
+        dropBtn.disabled = false; dropBtn.style.opacity = '1';
+      } else {
+        dropBtn.disabled = true; dropBtn.style.opacity = '0.4';
+      }
+    }).catch(() => { dropBtn.disabled = true; dropBtn.style.opacity = '0.4'; });
+  }
+
+  async _doDropBall(isPaidDrop = false) {
+    const dropBtn = document.getElementById('drop-btn');
+    const dropResult = document.getElementById('drop-result');
+    const dropAgainWrap = document.getElementById('drop-again-wrap');
+    if (dropBtn) { dropBtn.disabled = true; dropBtn.style.opacity = '0.4'; }
+    dropResult?.classList.add('hidden');
+    dropAgainWrap?.classList.add('hidden');
+
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    if (!tid) {
+      if (dropResult) { dropResult.textContent = 'OPEN VIA TELEGRAM'; dropResult.classList.remove('hidden'); }
+      dropBtn && (dropBtn.disabled = false, dropBtn.style.opacity = '1');
+      return;
+    }
+    if (OFFLINE_MODE) {
+      if (dropResult) { dropResult.textContent = 'OFFLINE — REQUIRES CONNECTION'; dropResult.classList.remove('hidden'); }
+      dropBtn && (dropBtn.disabled = false, dropBtn.style.opacity = '1');
+      return;
+    }
+
+    let data = null;
+    try {
+      data = await dbDoDropBall(tid, isPaidDrop);
+    } catch (e) {
+      if (dropResult) { dropResult.textContent = (e.message || 'DROP FAILED').toUpperCase(); dropResult.classList.remove('hidden'); }
+      this._refreshDropSection();
+      return;
+    }
+    if (data?.error) {
+      if (dropResult) { dropResult.textContent = data.error.toUpperCase(); dropResult.classList.remove('hidden'); }
+      this._refreshDropSection();
+      return;
+    }
+
+    const { slotIdx, reward } = data;
+    await this._animateDropBall(slotIdx);
+    const typeColors = { skin: '#ff4466', boost: '#ff7700', shmips: '#00ff66', upgrade: '#ffd700' };
+    const col = typeColors[reward.type] || '#ffee00';
+    dropResult.style.color = col;
+    dropResult.style.textShadow = `0 0 12px ${col}`;
+    dropResult.textContent = `YOU GOT: ${reward.label}!`;
+    dropResult.classList.remove('hidden');
+    dropResult.classList.add('gift-reward-reveal');
+    SFX.shmipEarn && SFX.shmipEarn();
+
+    try {
+      const me = await dbGetOrCreateUser(tid);
+      if (me) { this.userData = me.user; this._parseUpgrades(me.upgrades || []); }
+    } catch { /* non-critical */ }
+    this._loadMenu();
+
+    if (!isPaidDrop) this._refreshDropSection();
+    dropAgainWrap?.classList.remove('hidden');
+    const dropYes = document.getElementById('drop-yes');
+    if (dropYes) {
+      const canAfford = Number(this.userData?.shmips || 0) >= 650;
+      dropYes.disabled = !canAfford;
+      dropYes.style.opacity = canAfford ? '1' : '0.5';
+    }
+  }
+
+  async _doDropAgain() {
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    const bal = Number(this.userData?.shmips || 0);
+    if (bal < 650) {
+      const dropResult = document.getElementById('drop-result');
+      if (dropResult) { dropResult.textContent = 'NEED 650 $$!'; dropResult.classList.remove('hidden'); }
+      return;
+    }
+    document.getElementById('drop-again-wrap')?.classList.add('hidden');
+    await this._doDropBall(true);
+  }
+
+  _animateDropBall(targetSlotIdx) {
+    return new Promise(resolve => {
+      const canvas = document.getElementById('drop-canvas');
+      if (!canvas) { resolve(); return; }
+      const ctx = canvas.getContext('2d');
+      const W = 280, H = 200;
+      const slotW = W / 9;
+      const targetX = (targetSlotIdx + 0.5) * slotW;
+      const startX = W / 2;
+      const startY = 20;
+      const endY = H - 20;
+      const ballR = 6;
+      const pegR = 3;
+      const pegs = [];
+      for (let row = 0; row < 5; row++) {
+        const n = row + 4;
+        for (let i = 0; i < n; i++) {
+          const py = 45 + row * 28;
+          const px = (W / (n + 1)) * (i + 1);
+          pegs.push({ x: px, y: py });
+        }
+      }
+      let t = 0;
+      const duration = 90;
+      const tick = () => {
+        t++;
+        ctx.fillStyle = '#0a0a12';
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1;
+        pegs.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, pegR, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+        const progress = Math.min(1, t / duration);
+        const ease = 1 - Math.pow(1 - progress, 1.5);
+        const x = startX + (targetX - startX) * ease + (Math.random() - 0.5) * 4;
+        const y = startY + (endY - startY) * progress;
+        ctx.fillStyle = '#ffcc00';
+        ctx.shadowColor = '#ffcc00';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(x, y, ballR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        if (t < duration) {
+          requestAnimationFrame(tick);
+        } else {
+          resolve();
+        }
+      };
+      tick();
+    });
   }
 
   _startGiftCountdown(ms, el) {
@@ -4266,30 +4431,14 @@ class Game {
     } catch { /* non-critical */ }
     this._loadMenu();
 
-    // Start cooldown timer
     btn.disabled = true; btn.style.opacity = '0.4';
-    const timerEl = document.getElementById('spin-countdown');
-    timerEl.classList.remove('hidden');
-    this._startGiftCountdown(4 * 60 * 60 * 1000, timerEl);
+    this._refreshDropSection();
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────
   _updateSpecialTimer() {
     const el = document.getElementById('store-special-btn');
-    if (!el) return;
-    const now = new Date();
-    const target = new Date(now);
-    target.setHours(10, 0, 0, 0);
-    const day = now.getDay();
-    let daysToTue = (2 - day + 7) % 7;
-    if (daysToTue === 0 && now >= target) daysToTue = 7;
-    else if (daysToTue === 0 && now < target) daysToTue = 0;
-    target.setDate(target.getDate() + daysToTue);
-    const ms = target - now;
-    if (ms <= 0) { el.textContent = 'SPECIAL - SOON'; return; }
-    const d = Math.floor(ms / 86400000);
-    const h = Math.floor((ms % 86400000) / 3600000);
-    el.textContent = `SPECIAL - ${d}d ${h}h`;
+    if (el) el.textContent = 'SPECIAL';
   }
 
   async _openStore() {

@@ -64,6 +64,8 @@ export const CATALOG = [
   { id: 'thrust_yellow',  name: 'YELLOW',    category: 'thrust', cost: 114, description: 'Yellow thrust glow',     color: '#ffee00' },
   { id: 'thrust_blue',    name: 'BLUE',      category: 'thrust', cost: 133, description: 'Blue thrust glow',      color: '#0088ff' },
   { id: 'thrust_purple',  name: 'PURPLE',    category: 'thrust', cost: 152, description: 'Purple thrust glow',     color: '#aa44ff' },
+  { id: 'thrust_aurora',  name: 'AURORA',    category: 'thrust', cost: 228, description: 'Cyan-purple-blue cycling', color: 'aurora' },
+  { id: 'thrust_spectrum', name: 'SPECTRUM', category: 'thrust', cost: 266, description: 'Full rainbow cycling',    color: 'spectrum' },
 
   // ── Bullet shapes ────────────────────────────────────────────────────────
   { id: 'bullet_default', name: 'DEFAULT',    category: 'bullet', cost: 0,   description: 'Standard red bullets',     shape: 'default', color: '#ff2200' },
@@ -71,6 +73,8 @@ export const CATALOG = [
   { id: 'bullet_stars',   name: 'STARS',     category: 'bullet', cost: 171, description: 'Gold star-shaped bullets', shape: 'star',    color: '#ffd700' },
   { id: 'bullet_diamonds', name: 'DIAMONDS', category: 'bullet', cost: 133, description: 'Cyan diamond bullets',     shape: 'diamond', color: '#00ffee' },
   { id: 'bullet_circles', name: 'CIRCLES',  category: 'bullet', cost: 95,  description: 'Green circular bullets',    shape: 'circle',  color: '#00ff88' },
+  { id: 'bullet_aurora',  name: 'AURORA',   category: 'bullet', cost: 209, description: 'Cyan-purple cycling',      shape: 'default', color: 'aurora' },
+  { id: 'bullet_spectrum', name: 'SPECTRUM', category: 'bullet', cost: 247, description: 'Rainbow cycling bullets',   shape: 'default', color: 'spectrum' },
 
   // ── Skins (color palette for any jet) ────────────────────────────────────
   { id: 'skin_breast_cancer', name: 'I SUPPORT BREAST CANCER', category: 'skin', cost: 1,   description: 'Pink hull — fight the fight',         color: '#ff69b4', accent: '#ffffff' },
@@ -112,18 +116,19 @@ export const CATALOG = [
 // ── Spin Wheel — 13 segments: shmips 5-30 + one-time boosts, every 6h ────────
 // ── Daily Gift reward table ────────────────────────────────────────────────────
 const GIFT_REWARDS = [
-  { id: 'cash_10',  weight: 28, type: 'shmips',      value: 10 },
-  { id: 'cash_20',  weight: 22, type: 'shmips',      value: 20 },
-  { id: 'cash_30',  weight: 16, type: 'shmips',      value: 30 },
-  { id: 'cash_40',  weight: 8,  type: 'shmips',      value: 40 },
-  { id: 'cash_50',  weight: 5,  type: 'shmips',      value: 50 },
-  { id: 'cash_100', weight: 3,  type: 'shmips',      value: 100 },
-  { id: 'cash_200', weight: 2,  type: 'shmips',      value: 200 },
-  { id: 'cash_300', weight: 1,  type: 'shmips',      value: 300 },
+  { id: 'cash_12',  weight: 28, type: 'shmips',      value: 12 },
+  { id: 'cash_25',  weight: 22, type: 'shmips',      value: 25 },
+  { id: 'cash_38',  weight: 16, type: 'shmips',      value: 38 },
+  { id: 'cash_50',  weight: 8,  type: 'shmips',      value: 50 },
+  { id: 'cash_65',  weight: 5,  type: 'shmips',      value: 65 },
+  { id: 'cash_120', weight: 3,  type: 'shmips',      value: 120 },
+  { id: 'cash_250', weight: 2,  type: 'shmips',      value: 250 },
+  { id: 'cash_350', weight: 1,  type: 'shmips',      value: 350 },
   { id: 'boost',    weight: 9,  type: 'boost_grant'             },
   { id: 'skin',     weight: 6,  type: 'skin_grant'              },
 ];
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;  // 4 hours (applies to everyone)
+const DROP_COOLDOWN_MS = 7 * 60 * 60 * 1000;  // 7 hours for DROP DA BALL
 
 function _pickGiftReward() {
   const total = GIFT_REWARDS.reduce((a, r) => a + r.weight, 0);
@@ -390,6 +395,122 @@ export async function dbOpenGift(telegramId) {
   await supa(`users?telegram_id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
   const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
   return { reward: { label, type }, user: updated[0] };
+}
+
+// ── DROP DA BALL ─────────────────────────────────────────────────────────────
+// Slots [0,1,2,3,4,5,6,7,8]: boost, 350$$, 600$$, skin, upgrade, skin, 600$$, 350$$, boost
+// Gravity rates: common [0,1,7,8], rare [2,3,5,6], very rare [4]
+const DROP_SLOTS = [
+  { type: 'boost',   value: null, symbol: '^' },
+  { type: 'shmips',  value: 350,  symbol: '$' },
+  { type: 'shmips',  value: 600,  symbol: '$' },
+  { type: 'skin',    value: null, symbol: '#' },
+  { type: 'upgrade', value: null, symbol: '*' },
+  { type: 'skin',    value: null, symbol: '#' },
+  { type: 'shmips',  value: 600,  symbol: '$' },
+  { type: 'shmips',  value: 350,  symbol: '$' },
+  { type: 'boost',   value: null, symbol: '^' },
+];
+const DROP_WEIGHTS = [4,4,2,2,1,2,2,4,4];  // common=4, rare=2, very rare=1
+
+function _pickDropSlot() {
+  const total = DROP_WEIGHTS.reduce((a,w)=>a+w,0);
+  let roll = Math.random() * total;
+  for (let i = 0; i < 9; i++) {
+    roll -= DROP_WEIGHTS[i];
+    if (roll < 0) return i;
+  }
+  return 0;
+}
+
+export async function dbDropStatus(telegramId) {
+  const rows = await supa(`users?telegram_id=eq.${String(telegramId)}&select=last_drop_at`);
+  const user = rows[0];
+  if (!user?.last_drop_at) return { available: true, remainingMs: 0 };
+  const next = new Date(user.last_drop_at).getTime() + DROP_COOLDOWN_MS;
+  const now  = Date.now();
+  return { available: now >= next, remainingMs: Math.max(0, next - now) };
+}
+
+export async function dbDoDropBall(telegramId, isPaidDrop = false) {
+  const id = String(telegramId);
+  const [userRows, upgradeRows] = await Promise.all([
+    supa(`users?telegram_id=eq.${id}&select=shmips,last_drop_at`),
+    supa(`user_upgrades?telegram_id=eq.${id}&select=upgrade_id`),
+  ]);
+  const user = userRows[0];
+  if (!user) throw new Error('User not found.');
+
+  const now = new Date();
+  const ownedIds = new Set((upgradeRows || []).map(u => u.upgrade_id));
+
+  if (isPaidDrop) {
+    const cost = 650;
+    if (Number(user.shmips) < cost) throw new Error(`NEED 650 $$. YOU HAVE ${user.shmips}.`);
+    // Deduct cost first
+    await supa(`users?telegram_id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ shmips: Math.round((Number(user.shmips) - cost) * 100) / 100 }),
+    });
+    // Reload user for updates
+    const u2 = (await supa(`users?telegram_id=eq.${id}&select=shmips`))[0];
+    user.shmips = u2.shmips;
+  } else {
+    if (user.last_drop_at) {
+      const next = new Date(user.last_drop_at).getTime() + DROP_COOLDOWN_MS;
+      if (now.getTime() < next) {
+        const rem = next - now.getTime();
+        const h = Math.floor(rem / 3_600_000);
+        const m = Math.floor((rem % 3_600_000) / 60_000);
+        throw new Error(`DROP LOCKED — ${h}H ${m}M REMAINING`);
+      }
+    }
+  }
+
+  const slotIdx = _pickDropSlot();
+  const slot = DROP_SLOTS[slotIdx];
+  const updates = isPaidDrop ? {} : { last_drop_at: now.toISOString() };
+  let label = '';
+  let refund = false;
+
+  if (slot.type === 'shmips') {
+    updates.shmips = Math.round((Number(user.shmips) + slot.value) * 100) / 100;
+    label = `+${slot.value} $$`;
+  } else if (slot.type === 'boost') {
+    const boostPool = ['extra_life', 'extra_flare', 'extra_shield', 'extra_rocket'];
+    const grantedId = boostPool[Math.floor(Math.random() * boostPool.length)];
+    const item = CATALOG.find(c => c.id === grantedId);
+    label = item?.name || grantedId;
+    await _grantUpgrade(id, grantedId);
+  } else if (slot.type === 'skin') {
+    const allSkins = CATALOG.filter(c => c.category === 'skin');
+    const skin = allSkins[Math.floor(Math.random() * allSkins.length)];
+    if (ownedIds.has(skin.id)) {
+      updates.shmips = Math.round((Number(user.shmips) + skin.cost) * 100) / 100;
+      label = `${skin.name} (OWNED) +${skin.cost} $$`;
+      refund = true;
+    } else {
+      label = skin.name;
+      await _grantUpgrade(id, skin.id);
+    }
+  } else if (slot.type === 'upgrade') {
+    const allUpg = CATALOG.filter(c => c.category === 'upgrade');
+    const upg = allUpg[Math.floor(Math.random() * allUpg.length)];
+    if (ownedIds.has(upg.id)) {
+      updates.shmips = Math.round((Number(user.shmips) + upg.cost) * 100) / 100;
+      label = `${upg.name} (OWNED) +${upg.cost} $$`;
+      refund = true;
+    } else {
+      label = upg.name;
+      await _grantUpgrade(id, upg.id);
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await supa(`users?telegram_id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+  }
+  const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
+  return { reward: { label, type: slot.type, symbol: slot.symbol, refund }, slotIdx, user: updated[0] };
 }
 
 async function _grantUpgrade(id, upgradeId) {

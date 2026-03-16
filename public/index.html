@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.6.3" />
+  <link rel="stylesheet" href="style.css?v=1.6.7" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="config.js"></script>
 </head>
@@ -19,7 +19,7 @@
     <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
     <div class="loading-label" id="loading-label">INITIALIZING SYSTEMS...</div>
     <div id="loading-status" style="font-size:0.45rem;color:#00ffcc;margin-top:8px;letter-spacing:0.05em;min-height:1.2em;text-align:center;"></div>
-    <div id="loading-version">ver 1.6.3</div>
+    <div id="loading-version">ver 1.6.7</div>
     <div id="loading-madeby">MADE BY SHAMEN</div>
   </div>
 
@@ -55,7 +55,6 @@
       <button id="btn-play" class="btn-primary btn-big">PLAY</button>
       <div class="spin-menu-wrap">
         <button id="btn-spin" class="btn-secondary btn-big">GIFT</button>
-        <div id="menu-spin-timer" class="menu-spin-timer"></div>
       </div>
       <button id="btn-store" class="btn-secondary btn-big">STORE</button>
       <button id="btn-arsenal" class="btn-secondary btn-big">ARSENAL</button>
@@ -123,20 +122,55 @@
   <!-- Gift Screen -->
   <div id="spin-screen" class="screen hidden">
     <button class="back-btn" data-back="menu">BACK</button>
-    <div class="screen-title">GIFT BOX</div>
-    <div id="gift-box-area">
-      <div id="gift-box" class="gift-idle">
-        <div id="gift-lid"></div>
-        <div id="gift-body">
-          <div class="gift-ribbon-h"></div>
-          <div class="gift-ribbon-v"></div>
+    <div class="screen-title">GIFTS</div>
+
+    <!-- 4hr Gift Section -->
+    <div class="gift-section">
+      <div class="gift-section-label">4HR GIFT</div>
+      <div id="gift-box-area">
+        <div id="gift-box" class="gift-idle">
+          <div id="gift-lid"></div>
+          <div id="gift-body">
+            <div class="gift-ribbon-h"></div>
+            <div class="gift-ribbon-v"></div>
+          </div>
+        </div>
+        <div id="gift-sparks"></div>
+      </div>
+      <button id="spin-btn" class="btn-primary btn-big">OPEN GIFT</button>
+      <div id="spin-result" class="spin-result hidden"></div>
+    </div>
+
+    <!-- DROP DA BALL Section (7hr) -->
+    <div class="gift-section drop-section">
+      <div class="gift-section-label">DROP DA BALL <span class="drop-label-small">(7HR)</span></div>
+      <div id="drop-board-wrap">
+        <canvas id="drop-canvas" width="280" height="200"></canvas>
+        <div id="drop-slots">
+          <div class="drop-slot" data-slot="0" title="Boost">^</div>
+          <div class="drop-slot" data-slot="1">$</div>
+          <div class="drop-slot" data-slot="2">$</div>
+          <div class="drop-slot" data-slot="3">#</div>
+          <div class="drop-slot" data-slot="4">*</div>
+          <div class="drop-slot" data-slot="5">#</div>
+          <div class="drop-slot" data-slot="6">$</div>
+          <div class="drop-slot" data-slot="7">$</div>
+          <div class="drop-slot" data-slot="8">^</div>
         </div>
       </div>
-      <div id="gift-sparks"></div>
+      <div id="drop-symbols-legend">
+        <span class="sym-$">$</span> Money &nbsp; <span class="sym-^">^</span> Boost &nbsp; <span class="sym-#">#</span> Skin &nbsp; <span class="sym-*">*</span> Upgrade
+      </div>
+      <button id="drop-btn" class="btn-primary btn-big">DROP!</button>
+      <div id="drop-result" class="spin-result hidden"></div>
+      <div id="drop-again-wrap" class="hidden">
+        <span class="drop-again-text">Drop again? 650$$</span>
+        <div class="drop-again-btns">
+          <button id="drop-yes" class="btn-primary">YES</button>
+          <button id="drop-no" class="btn-secondary">NO</button>
+        </div>
+      </div>
     </div>
-    <button id="spin-btn" class="btn-primary btn-big">OPEN GIFT</button>
-    <div id="spin-countdown" class="spin-timer hidden"></div>
-    <div id="spin-result" class="spin-result hidden"></div>
   </div>
 
   <!-- Store Screen -->
@@ -156,7 +190,7 @@
         <button class="tab-btn" data-tab="plane">JETS</button>
       </div>
       <div class="store-tabs-row">
-        <button class="tab-btn store-special-btn" data-tab="weekly" id="store-special-btn">SPECIAL - --d --h</button>
+        <button class="tab-btn store-special-btn" data-tab="weekly" id="store-special-btn">SPECIAL</button>
       </div>
     </div>
     <div id="store-items" class="store-grid"></div>
@@ -212,7 +246,7 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="sounds.js?v=1.6.3"></script>
-  <script type="module" src="game.js?v=1.6.3"></script>
+  <script type="module" src="sounds.js?v=1.6.7"></script>
+  <script type="module" src="game.js?v=1.6.7"></script>
 </body>
 </html>
