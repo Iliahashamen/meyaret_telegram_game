@@ -123,6 +123,23 @@ button { font-family: var(--font); cursor: pointer; border: none; outline: none;
 }
 .btn-secondary:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 #ff007733; background: #ff007714; }
 
+.btn-gift-pink {
+  background: transparent;
+  border: var(--px) solid #ff1493;
+  color: #ff69b4;
+  padding: 14px 20px;
+  letter-spacing: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  text-shadow: 0 0 8px #ff1493, 0 0 16px #ff69b488;
+  box-shadow: 4px 4px 0 #ff149333, inset 0 0 20px #ff149308;
+  transition: transform 0.08s, box-shadow 0.08s;
+  margin-top: 10px;
+  width: 100%;
+  text-align: center;
+}
+.btn-gift-pink:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 #ff149333; background: #ff149314; }
+
 .btn-ghost {
   background: transparent; border: var(--px) solid var(--muted);
   color: var(--muted2); padding: 14px 20px;

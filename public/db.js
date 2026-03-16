@@ -1,17 +1,25 @@
 // ============================================================
 // MEYARET — Supabase REST client using plain fetch()
 // No CDN dependency — calls the REST API directly.
+// Keys loaded at runtime from /api/config — never stored in source.
 // ============================================================
 
-// ── Supabase connection ───────────────────────────────────────────────────────
-// SUPA_KEY is the public "anon" role key — designed by Supabase to be in browser
-// code and restricted by Row-Level Security + DB-level triggers on the server.
-// The service_role key is NEVER placed here; it lives only in Railway env vars.
-const SUPA_URL = 'https://fbcjmniqwqiurssdqnka.supabase.co/rest/v1';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiY2ptbmlxd3FpdXJzc2RxbmthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNTI0MzksImV4cCI6MjA4ODYyODQzOX0.QDC0jN8Zf1JgvmvDVa3h_CD4wPih6Ly2L4kEFK1Q48E';
+let SUPA_URL = '';
+let SUPA_KEY = '';
+
+async function _ensureConfig() {
+  if (SUPA_URL && SUPA_KEY) return;
+  const base = (window.MEYARET_API || '').trim();
+  const res = await fetch(`${base}/api/config`);
+  if (!res.ok) throw new Error('Config not available');
+  const { supaUrl, supaKey } = await res.json();
+  SUPA_URL = supaUrl;
+  SUPA_KEY = supaKey;
+}
 
 // Core fetch helper — throws on HTTP error with Supabase error message
 async function supa(path, opts = {}) {
+  await _ensureConfig();
   const HDR = {
     'apikey':        SUPA_KEY,
     'Authorization': `Bearer ${SUPA_KEY}`,

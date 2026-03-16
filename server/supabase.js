@@ -18,7 +18,7 @@ if (!supabaseKey) {
   console.error(
     '[supabase] MISSING SUPABASE KEY !\n' +
     '  Go to Railway → your service → Variables → add:\n' +
-    '  SUPABASE_SERVICE_ROLE_KEY = eyJhbGci...(your service_role JWT)'
+    '  SUPABASE_SERVICE_ROLE_KEY = your_service_role_jwt_from_supabase_dashboard'
   );
 }
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY ||
