@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.7.8" />
+  <link rel="stylesheet" href="style.css?v=1.8.2" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="config.js"></script>
 </head>
@@ -21,7 +21,7 @@
     <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
     <div class="loading-label" id="loading-label">INITIALIZING SYSTEMS...</div>
     <div id="loading-status" style="font-size:0.45rem;color:#00ffcc;margin-top:8px;letter-spacing:0.05em;min-height:1.2em;text-align:center;"></div>
-    <div id="loading-version">ver 1.7.8</div>
+    <div id="loading-version">ver 1.8.2</div>
     <div id="loading-madeby">MADE BY SHAMEN</div>
   </div>
 
@@ -130,9 +130,9 @@
         <span class="gift-hub-title">4HR GIFT</span>
         <span class="gift-hub-desc" id="hub-4hr-status">Open every 4 hours</span>
       </button>
-      <button id="btn-gift-drop" class="gift-hub-card">
-        <span class="gift-hub-title">BREAK DA PIGGA</span>
-        <span class="gift-hub-desc" id="hub-drop-status">Every 8 hours · Tap fast</span>
+      <button id="btn-gift-daily" class="gift-hub-card">
+        <span class="gift-hub-title">DAILY GIFT</span>
+        <span class="gift-hub-desc" id="hub-drop-status">Once per day · Pick a star</span>
       </button>
     </div>
   </div>
@@ -163,35 +163,20 @@
     <div id="spin-result" class="spin-result hidden"></div>
   </div>
 
-  <!-- BREAK DA PIGGA Page (full screen) -->
+  <!-- DAILY GIFT Page (3 stars) -->
   <div id="gift-drop-screen" class="screen hidden">
     <button class="back-btn" data-back="gift-hub">BACK</button>
-    <div class="screen-title pigga-title">BREAK THAT PIG!!</div>
-    <div id="drop-board-wrap" class="smack-wrap">
-      <div id="smack-prompt" class="smack-prompt pigga-subtitle">Tap fast on the pig</div>
-      <div id="smack-target-wrap" class="smack-wrap-inner">
-        <button id="smack-target" class="smack-bank pig-retro-btn" type="button">
-          <div class="pig-retro">
-            <span class="pig-ear pig-ear-l"></span>
-            <span class="pig-ear pig-ear-r"></span>
-            <span class="pig-eye pig-eye-l"></span>
-            <span class="pig-eye pig-eye-r"></span>
-            <span class="pig-snout"></span>
-          </div>
-        </button>
-      </div>
-      <div id="smack-coins" class="smack-coins hidden"></div>
+    <div class="screen-title">DAILY GIFT</div>
+    <div class="daily-gift-subtitle">Choose one star</div>
+    <div id="daily-stars-wrap" class="daily-stars-wrap">
+      <button id="daily-star-1" class="daily-star" type="button" data-star="0">★</button>
+      <button id="daily-star-2" class="daily-star" type="button" data-star="1">★</button>
+      <button id="daily-star-3" class="daily-star" type="button" data-star="2">★</button>
     </div>
-    <div id="drop-timer" class="gift-timer"></div>
-    <div id="drop-result-area" class="hidden">
-      <div id="drop-result" class="pigga-reward-text"></div>
-      <div class="drop-result-btns">
-        <button id="drop-ok" class="btn-primary">OK</button>
-      </div>
-      <div id="drop-again-wrap" class="drop-again-inline">
-        <span class="drop-again-text">Break again? 700$$ (one time)</span>
-        <button id="drop-yes" class="btn-primary btn-small">YES</button>
-      </div>
+    <div id="daily-timer" class="gift-timer"></div>
+    <div id="daily-result-area" class="hidden">
+      <div id="daily-result" class="daily-reward-text"></div>
+      <button id="daily-ok" class="btn-primary">OK</button>
     </div>
   </div>
 
@@ -268,7 +253,7 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="sounds.js?v=1.7.8"></script>
-  <script type="module" src="game.js?v=1.7.8"></script>
+  <script type="module" src="sounds.js?v=1.8.2"></script>
+  <script type="module" src="game.js?v=1.8.2"></script>
 </body>
 </html>
