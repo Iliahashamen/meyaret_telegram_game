@@ -594,6 +594,46 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   transform: translateY(-90px) rotate(-30deg) scaleX(1.05) !important;
   opacity: 0 !important;
 }
+/* Daily gift — gold box with star (same layout as 4hr) */
+#daily-gift-box-area {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  height: 180px; margin: 12px auto;
+}
+#daily-gift-box {
+  position: relative; width: 88px; height: 80px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: brightness(1.5);
+}
+#daily-gift-lid {
+  position: absolute; top: -22px; left: -7px;
+  width: 102px; height: 32px;
+  background: linear-gradient(135deg, #ffd700, #cc9900);
+  border: 2px solid #ffdd00;
+  box-shadow: 0 0 14px #ffd700aa, 0 0 28px #ffcc0055;
+  transform-origin: 50% 0%;
+  transition: transform 0.7s cubic-bezier(0.25, -0.6, 0.7, 1.4), opacity 0.6s ease;
+  z-index: 2;
+}
+#daily-gift-body {
+  position: absolute; bottom: 0; left: 0;
+  width: 88px; height: 68px;
+  background: linear-gradient(160deg, #dd9900, #aa6600);
+  border: 2px solid #ffcc00;
+  box-shadow: 0 0 12px #ffcc0066;
+}
+.daily-gift-star {
+  position: absolute;
+  top: 50%; left: 50%;
+  margin: -14px 0 0 -14px;
+  font-size: 28px; line-height: 1;
+  color: #fffacd;
+  text-shadow: 0 0 8px #ffd700, 0 0 16px #ffaa00, 0 1px 0 #000;
+  z-index: 3;
+}
+#daily-gift-sparks { position: absolute; top: 40%; left: 50%; pointer-events: none; transform: translateX(-50%); }
+
 /* Sparks container */
 #gift-sparks { position: absolute; top: 40%; left: 50%; pointer-events: none; }
 .gift-spark {

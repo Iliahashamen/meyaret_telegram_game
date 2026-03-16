@@ -1991,6 +1991,37 @@ function _spawnGiftSparks(container, type) {
   }
 }
 
+async function _animateDailyGiftOpen(rewardType) {
+  const box   = document.getElementById('daily-gift-box');
+  const lid   = document.getElementById('daily-gift-lid');
+  const sparks = document.getElementById('daily-gift-sparks');
+  if (!box) return;
+  box.classList.remove('gift-idle');
+  box.style.transition = 'transform 0.4s'; box.style.transform = 'scale(1.06)';
+  await new Promise(r => setTimeout(r, 400));
+  box.style.transform = ''; box.style.transition = '';
+  box.classList.add('gift-shake');
+  SFX.spinTick && SFX.spinTick();
+  await new Promise(r => setTimeout(r, 400));
+  box.classList.remove('gift-shake');
+  box.classList.add('gift-shake');
+  await new Promise(r => setTimeout(r, 500));
+  box.classList.remove('gift-shake');
+  lid.classList.add('gift-lid-open');
+  _spawnGiftSparks(sparks, rewardType);
+  SFX.rocketExplode && SFX.rocketExplode();
+  await new Promise(r => setTimeout(r, 300));
+  _spawnGiftSparks(sparks, rewardType);
+  await new Promise(r => setTimeout(r, 300));
+  _spawnGiftSparks(sparks, rewardType);
+  await new Promise(r => setTimeout(r, 400));
+  box.style.filter = 'brightness(1.8) drop-shadow(0 0 20px #ff0077)';
+  _spawnGiftSparks(sparks, rewardType);
+  _spawnGiftSparks(sparks, rewardType);
+  await new Promise(r => setTimeout(r, 600));
+  box.style.filter = '';
+}
+
 async function _animateGiftOpen(rewardType) {
   const box   = document.getElementById('gift-box');
   const lid   = document.getElementById('gift-lid');
@@ -2373,10 +2404,6 @@ class Game {
     document.getElementById('btn-gift-daily')?.addEventListener('click', () => this._openGiftDaily());
     document.getElementById('spin-btn').addEventListener('click', () => this._doOpenGift());
     document.getElementById('daily-ok')?.addEventListener('click', () => { document.getElementById('daily-result-area')?.classList.add('hidden'); this._showScreen('gift-hub'); });
-    [1, 2, 3].forEach(n => {
-      const el = document.getElementById(`daily-star-${n}`);
-      if (el) el.addEventListener('click', () => this._selectDailyStar(n));
-    });
     document.getElementById('daily-open-btn')?.addEventListener('click', () => this._doOpenDailyGift());
     document.getElementById('arsenal-open-store').addEventListener('click', () => this._openStore());
 
@@ -4062,19 +4089,19 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h1">MONSTER FUEL <span class="guide-tag rare">RARE</span></span>
-          <div class="guide-row">A glowing white energy drink can. Spawns every <b>2–3 minutes</b>. Hover or fly through to collect. Grants <b>15 seconds</b> of white shield. While you <b>steer</b> (wheel/joystick), jet moves <b>×3 faster</b> — release to return to normal speed.</div>
+          <div class="guide-row">A glowing white energy drink can. Spawns every <b>2–3 minutes</b>. Hover or fly through to collect. Grants <b>15 seconds</b> of power: <b>white shield</b> (absorbs hits), <b>3× fire rate</b>, and <b>white glowing bullets</b>. Devastating combo.</div>
         </div>
         <div class="guide-section">
           <span class="guide-h1">GREEN STAR <span class="guide-tag rare">VERY RARE</span></span>
           <div class="guide-row">A rare green glowing star pickup. Grants <b>10 seconds of OVERDRIVE</b>: your jet glows bright green, gains a 2-layer green shield, fires MEGA RAKETA rockets (big red rockets that split into 7 homing minis), and your fire rate doubles. The most powerful temporary state in the game.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h1">GIFT BOX</span>
-          <div class="guide-row">Tap GIFT in the main menu. Available every <b>4 hours</b>. A mystery box animates open, then a glowing reward is revealed:</div>
-          <div class="guide-row">• 10–50 shmips (common)</div>
-          <div class="guide-row">• <span class="guide-tag rare">RARE</span> 100–300 shmips jackpot</div>
-          <div class="guide-row">• A random one-run boost</div>
-          <div class="guide-row">• <span class="guide-tag rare">6% chance</span> A random skin — if you already own it, you get its full shmip value instead.</div>
+          <span class="guide-h1">4HR GIFT</span>
+          <div class="guide-row">Tap GIFT > 4HR GIFT. Available every <b>4 hours</b>. Press <b>OPEN GIFT</b> — the box shakes, lid flies off, reward revealed. Rewards: ~60% shmips (50–250), ~15% skin, ~10% bullet, ~10% thrust, ~5% upgrade.</div>
+        </div>
+        <div class="guide-section">
+          <span class="guide-h1">DAILY GIFT <span class="guide-tag good">24H</span></span>
+          <div class="guide-row">Tap GIFT > DAILY GIFT. Available every <b>24 hours</b>. Gold box with a star. Press <b>OPEN GIFT</b> — same flow as 4hr: box animates, lid pops, reward shown. Better rewards: ~45% shmips (150–500), ~25% skin, ~15% upgrade, ~10% bullet, ~5% thrust.</div>
         </div>`,
 
       tips: `
@@ -4331,79 +4358,52 @@ class Game {
     }
   }
 
-  _selectDailyStar(n) {
-    if (this._dailyGiftBusy) return;
-    this._dailyStarPicked = n;
-    [1, 2, 3].forEach(i => {
-      const el = document.getElementById(`daily-star-${i}`);
-      if (el) el.classList.toggle('daily-star-selected', i === n);
-    });
-    const btn = document.getElementById('daily-open-btn');
-    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-  }
-
   async _openGiftDaily() {
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (tid && !OFFLINE_MODE) {
       try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
     }
     this._dailyGiftBusy = false;
-    this._dailyStarPicked = 1;
     this._showScreen('gift-drop');
     const resultArea = document.getElementById('daily-result-area');
     resultArea?.classList.add('hidden');
-    resultArea?.classList.remove('daily-reward-pop');
-    [1, 2, 3].forEach(n => {
-      const star = document.getElementById(`daily-star-${n}`);
-      if (star) { star.disabled = false; star.classList.remove('star-explode', 'daily-star-selected'); }
-    });
     const openBtn = document.getElementById('daily-open-btn');
-    if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
-    [1, 2, 3].forEach(i => {
-      const el = document.getElementById(`daily-star-${i}`);
-      if (el) el.classList.remove('daily-star-selected');
-    });
-    this._dailyStarPicked = 1;
+    const box = document.getElementById('daily-gift-box');
+    const lid = document.getElementById('daily-gift-lid');
+    if (box) { box.classList.add('gift-idle'); box.classList.remove('gift-shake'); box.style.filter = ''; }
+    if (lid) lid.classList.remove('gift-lid-open');
     this._refreshDailySection();
   }
 
   _refreshDailySection() {
-    const stars = [1, 2, 3].map(n => document.getElementById(`daily-star-${n}`));
     const openBtn = document.getElementById('daily-open-btn');
     const timerEl = document.getElementById('daily-timer');
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (!tid) {
-      stars.forEach(s => { if (s) { s.disabled = true; s.style.opacity = '0.5'; } });
       if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
       if (timerEl) timerEl.textContent = '';
       return;
     }
     dbDropStatus(tid).then(status => {
       if (status?.available) {
-        stars.forEach(s => { if (s) { s.disabled = false; s.style.opacity = '1'; } });
-        if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
+        if (openBtn) { openBtn.disabled = false; openBtn.style.opacity = '1'; }
         if (timerEl) { timerEl.textContent = ''; timerEl.style.color = ''; }
       } else if (status?.remainingMs > 0) {
-        stars.forEach(s => { if (s) { s.disabled = true; s.style.opacity = '0.5'; } });
         if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
         if (timerEl) this._startDailyCountdown(status.remainingMs, timerEl);
       }
-    }).catch(() => { stars.forEach(s => { if (s) s.disabled = true; }); if (openBtn) openBtn.disabled = true; if (timerEl) timerEl.textContent = ''; });
+    }).catch(() => { if (openBtn) openBtn.disabled = true; if (timerEl) timerEl.textContent = ''; });
   }
 
   async _doOpenDailyGift() {
     if (this._dailyGiftBusy) return;
-    const starNum = this._dailyStarPicked || 1;
     this._dailyGiftBusy = true;
 
-    const stars = [1, 2, 3].map(n => document.getElementById(`daily-star-${n}`));
     const resultArea = document.getElementById('daily-result-area');
     const resultEl = document.getElementById('daily-result');
     const openBtn = document.getElementById('daily-open-btn');
-    const clickedStar = document.getElementById(`daily-star-${starNum}`);
     const tid = TG_USER?.id || this.userData?.telegram_id;
 
-    stars.forEach(s => { if (s) s.disabled = true; });
     if (openBtn) openBtn.disabled = true;
     resultArea?.classList.add('hidden');
 
@@ -4445,7 +4445,7 @@ class Game {
     const reward = data?.reward;
     if (!reward) { this._dailyGiftBusy = false; return; }
 
-    await _animateStarOpen(starNum, clickedStar, document.getElementById('daily-stars-wrap'));
+    await _animateDailyGiftOpen(reward.type);
 
     const typeColors = { skin_grant: '#cc44ff', bullet_grant: '#00aaff', thrust_grant: '#ff7700', upgrade_grant: '#ffd700', shmips: '#ffee00' };
     const col = typeColors[reward.type] || '#ffee00';

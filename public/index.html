@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.8.2" />
+  <link rel="stylesheet" href="style.css?v=1.8.6" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="config.js"></script>
 </head>
@@ -21,7 +21,7 @@
     <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
     <div class="loading-label" id="loading-label">INITIALIZING SYSTEMS...</div>
     <div id="loading-status" style="font-size:0.45rem;color:#00ffcc;margin-top:8px;letter-spacing:0.05em;min-height:1.2em;text-align:center;"></div>
-    <div id="loading-version">ver 1.8.2</div>
+    <div id="loading-version">ver 1.8.6</div>
     <div id="loading-madeby">MADE BY SHAMEN</div>
   </div>
 
@@ -163,19 +163,27 @@
     <div id="spin-result" class="spin-result hidden"></div>
   </div>
 
-  <!-- DAILY GIFT Page (3 stars — pick one, then OPEN!) -->
+  <!-- DAILY GIFT Page (gold box + star, same flow as 4hr) -->
   <div id="gift-drop-screen" class="screen hidden">
     <button class="back-btn" data-back="gift-hub">BACK</button>
     <div class="screen-title">DAILY GIFT</div>
-    <div class="daily-gift-subtitle">Choose one star, then press OPEN!</div>
-    <div id="daily-stars-wrap" class="daily-stars-wrap">
-      <button id="daily-star-1" class="daily-star" type="button">★</button>
-      <button id="daily-star-2" class="daily-star" type="button">★</button>
-      <button id="daily-star-3" class="daily-star" type="button">★</button>
+    <div id="daily-gift-box-area" class="gift-box-area">
+      <div id="daily-gift-box" class="gift-idle daily-gift-box">
+        <div class="gift-rope gift-rope-l"></div>
+        <div class="gift-rope gift-rope-r"></div>
+        <div id="daily-gift-lid" class="gift-lid"></div>
+        <div id="daily-gift-body" class="gift-body daily-gift-body">
+          <div class="daily-gift-star">★</div>
+          <div class="gift-ribbon-h"></div>
+          <div class="gift-ribbon-v"></div>
+          <div class="gift-bow"></div>
+        </div>
+      </div>
+      <div id="daily-gift-sparks" class="gift-sparks"></div>
     </div>
-    <button id="daily-open-btn" class="btn-primary btn-big">OPEN!</button>
+    <button id="daily-open-btn" class="btn-primary btn-big">OPEN GIFT</button>
     <div id="daily-timer" class="gift-timer"></div>
-    <div id="daily-result-area" class="hidden">
+    <div id="daily-result-area" class="spin-result hidden">
       <div id="daily-result" class="daily-reward-text"></div>
       <button id="daily-ok" class="btn-primary">OK</button>
     </div>
@@ -254,7 +262,7 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="sounds.js?v=1.8.2"></script>
-  <script type="module" src="game.js?v=1.8.2"></script>
+  <script type="module" src="sounds.js?v=1.8.6"></script>
+  <script type="module" src="game.js?v=1.8.6"></script>
 </body>
 </html>
