@@ -228,6 +228,7 @@ class Ship {
     this.hasCollector   = !!(upgrades.collector);
     this.hasAce         = !!(upgrades.ace_upgrade);
     this.hasLuckyBstrd  = !!(upgrades.lucky_bstrd);
+    this.luckyBstrdUsed = 0;
     this.hasZepZep      = !!(upgrades.zep_zep_zep);
     this.hasHornetAssistant = !!(upgrades.hornet_assistant);
 
@@ -892,7 +893,8 @@ class Ship {
       return false;
     }
     burst(particles, this.x, this.y, this.golden ? C.golden : this.color, 20, 4, 40);
-    if (this.lives === 1 && this.hasLuckyBstrd && Math.random() < 0.7) {
+    if (this.lives === 1 && this.hasLuckyBstrd && this.luckyBstrdUsed < 2 && Math.random() < 0.7) {
+      this.luckyBstrdUsed++;
       new FloatingText(this.x, this.y - 30, 'LUCKY!', '#ffcc00');
       this.invincible = true;
       this.invTimer  = Math.floor(CFG.invincibleMs / 16);
@@ -2236,6 +2238,12 @@ class Game {
   }
 
   _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  _formatRemaining(ms) {
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
 
   // ── Screen Management ──────────────────────────────────────────────────────
   _showScreen(name) {
@@ -4226,6 +4234,26 @@ class Game {
       try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
     }
     this._showScreen('gift-hub');
+    this._refreshGiftHubStatus();
+  }
+
+  async _refreshGiftHubStatus() {
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    const hub4 = document.getElementById('hub-4hr-status');
+    const hubDrop = document.getElementById('hub-drop-status');
+    if (!tid) {
+      if (hub4) hub4.textContent = 'Open via Telegram';
+      if (hubDrop) hubDrop.textContent = 'Open via Telegram';
+      return;
+    }
+    try {
+      const [s4, sDrop] = await Promise.all([dbGiftStatus(tid), dbDropStatus(tid)]);
+      if (hub4) hub4.textContent = s4?.available ? 'READY · Open every 4 hours' : s4?.remainingMs > 0 ? this._formatRemaining(s4.remainingMs) + ' until next' : 'Open every 4 hours';
+      if (hubDrop) hubDrop.textContent = sDrop?.available ? 'READY · Every 7 hours' : sDrop?.remainingMs > 0 ? this._formatRemaining(sDrop.remainingMs) + ' until next' : 'Every 7 hours · Plinko rewards';
+    } catch {
+      if (hub4) hub4.textContent = 'Open every 4 hours';
+      if (hubDrop) hubDrop.textContent = 'Every 7 hours · Plinko rewards';
+    }
   }
 
   async _openGift4hr() {
@@ -4249,12 +4277,17 @@ class Game {
       return;
     }
 
+    const timerEl = document.getElementById('gift-4hr-timer');
     let status = null;
     try { status = await dbGiftStatus(tid); } catch { /* non-critical */ }
     if (status?.available) {
       btn.disabled = false; btn.style.opacity = '1';
-    } else if (status) {
+      if (timerEl) { timerEl.textContent = ''; timerEl.style.color = ''; }
+    } else if (status && status.remainingMs > 0) {
       btn.disabled = true; btn.style.opacity = '0.4';
+      if (timerEl) this._startGiftCountdown(status.remainingMs, timerEl);
+    } else if (timerEl) {
+      timerEl.textContent = '';
     }
   }
 
@@ -4300,21 +4333,25 @@ class Game {
     const dropBtn = document.getElementById('drop-btn');
     const dropAgainWrap = document.getElementById('drop-again-wrap');
     const dropResult = document.getElementById('drop-result');
+    const dropTimerEl = document.getElementById('drop-timer');
     if (!dropBtn) return;
     dropAgainWrap?.classList.add('hidden');
     dropResult?.classList.add('hidden');
     const tid = TG_USER?.id || this.userData?.telegram_id;
     if (!tid) {
       dropBtn.disabled = true; dropBtn.style.opacity = '0.4';
+      if (dropTimerEl) dropTimerEl.textContent = '';
       return;
     }
     dbDropStatus(tid).then(status => {
       if (status?.available) {
         dropBtn.disabled = false; dropBtn.style.opacity = '1';
-      } else {
+        if (dropTimerEl) dropTimerEl.textContent = '';
+      } else if (status?.remainingMs > 0) {
         dropBtn.disabled = true; dropBtn.style.opacity = '0.4';
+        if (dropTimerEl) this._startDropCountdown(status.remainingMs, dropTimerEl);
       }
-    }).catch(() => { dropBtn.disabled = true; dropBtn.style.opacity = '0.4'; });
+    }).catch(() => { dropBtn.disabled = true; dropBtn.style.opacity = '0.4'; if (dropTimerEl) dropTimerEl.textContent = ''; });
   }
 
   async _doDropBall(isPaidDrop = false) {
@@ -4449,6 +4486,7 @@ class Game {
   }
 
   _startGiftCountdown(ms, el) {
+    if (!el) return;
     const tick = () => {
       ms -= 1000;
       if (ms <= 0) {
@@ -4459,6 +4497,25 @@ class Game {
       }
       const h = Math.floor(ms/3_600_000), m = Math.floor((ms%3_600_000)/60_000), s = Math.floor((ms%60_000)/1000);
       el.textContent = `NEXT GIFT: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      el.style.color = 'var(--muted2)';
+      setTimeout(tick, 1000);
+    };
+    tick();
+  }
+
+  _startDropCountdown(ms, el) {
+    if (!el) return;
+    const tick = () => {
+      ms -= 1000;
+      if (ms <= 0) {
+        el.textContent = 'DROP READY!'; el.style.color = 'var(--cyan)';
+        const btn = document.getElementById('drop-btn');
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        return;
+      }
+      const h = Math.floor(ms/3_600_000), m = Math.floor((ms%3_600_000)/60_000), s = Math.floor((ms%60_000)/1000);
+      el.textContent = `NEXT DROP: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      el.style.color = 'var(--muted2)';
       setTimeout(tick, 1000);
     };
     tick();

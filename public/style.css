@@ -356,6 +356,12 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   color: var(--muted2);
   margin-bottom: 8px;
 }
+.gift-timer {
+  font-size: 10px;
+  letter-spacing: 1px;
+  margin-top: 8px;
+  min-height: 20px;
+}
 .drop-label-small { font-size: 7px; opacity: 0.8; }
 .drop-section { border-top: 1px solid var(--border-m); padding-top: 16px; margin-top: 12px; }
 #drop-board-wrap {

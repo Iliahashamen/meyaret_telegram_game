@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.7.0" />
+  <link rel="stylesheet" href="style.css?v=1.7.1" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="config.js"></script>
 </head>
@@ -19,7 +19,7 @@
     <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
     <div class="loading-label" id="loading-label">INITIALIZING SYSTEMS...</div>
     <div id="loading-status" style="font-size:0.45rem;color:#00ffcc;margin-top:8px;letter-spacing:0.05em;min-height:1.2em;text-align:center;"></div>
-    <div id="loading-version">ver 1.7.0</div>
+    <div id="loading-version">ver 1.7.1</div>
     <div id="loading-madeby">MADE BY SHAMEN</div>
   </div>
 
@@ -127,12 +127,12 @@
       <button id="btn-gift-4hr" class="gift-hub-card">
         <span class="gift-hub-icon">🎁</span>
         <span class="gift-hub-title">4HR GIFT</span>
-        <span class="gift-hub-desc">Open every 4 hours</span>
+        <span class="gift-hub-desc" id="hub-4hr-status">Open every 4 hours</span>
       </button>
       <button id="btn-gift-drop" class="gift-hub-card">
         <span class="gift-hub-icon">🎱</span>
         <span class="gift-hub-title">DROP DA BALL</span>
-        <span class="gift-hub-desc">Every 7 hours · Plinko rewards</span>
+        <span class="gift-hub-desc" id="hub-drop-status">Every 7 hours · Plinko rewards</span>
       </button>
     </div>
   </div>
@@ -152,6 +152,7 @@
       <div id="gift-sparks"></div>
     </div>
     <button id="spin-btn" class="btn-primary btn-big">OPEN GIFT</button>
+    <div id="gift-4hr-timer" class="gift-timer"></div>
     <div id="spin-result" class="spin-result hidden"></div>
   </div>
 
@@ -181,6 +182,7 @@
       <div class="symbol-row"><span class="sym-*">*</span> <span class="symbol-label">Upgrade</span></div>
     </div>
     <button id="drop-btn" class="btn-primary btn-big">DROP!</button>
+    <div id="drop-timer" class="gift-timer"></div>
     <div id="drop-result" class="spin-result hidden"></div>
     <div id="drop-again-wrap" class="hidden">
       <span class="drop-again-text">Drop again? 650$$</span>
@@ -264,7 +266,7 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="sounds.js?v=1.7.0"></script>
-  <script type="module" src="game.js?v=1.7.0"></script>
+  <script type="module" src="sounds.js?v=1.7.1"></script>
+  <script type="module" src="game.js?v=1.7.1"></script>
 </body>
 </html>
