@@ -2549,6 +2549,12 @@ class Game {
      'smart_rocket','collector','score_x2','score_x3','hornet_assistant','xforce_lavian','rip_n_dip','lucky_bstrd'].forEach(id => {
       if (this.upgrades[id]) ups[id] = 1;
     });
+    // Power-based difficulty scaling: new players easier, veterans harder so game stays engaging
+    const jetTier = { starter:0, plane_hamud:1, plane_walla_yofi:2, plane_very_scary:3, plane_negev:4, plane_baba_yaga:5, plane_astrozoinker:6 }[ups.jetType] || 0;
+    const upgCount = Object.keys(ups).filter(k => !['jetType','extra_life','extra_flare','extra_shield','extra_rocket'].includes(k)).length;
+    const power = jetTier + upgCount;
+    this._powerMult = power <= 4 ? 0.82 : power <= 10 ? 1.0 : 1.22;
+    this._chaosAtSec = power <= 4 ? 960 : power <= 10 ? 900 : 780;
     // Score multiplier: x2 and x3 are permanent, stack to x6
     let mult = 1;
     if (ups.score_x2) mult *= 2;
@@ -2757,20 +2763,23 @@ class Game {
 
   _maintainAsteroids() {
     const timeS = this.gameTime / 60;
-    const chaos = timeS >= 900; // 15 min+ = chaos mode
+    const chaosAt = this._chaosAtSec ?? 900;
+    const chaos = timeS >= chaosAt;
     const ramp5 = timeS >= 300 ? Math.floor(timeS / 300) * 0.2 : 0;
+    const powerMult = this._powerMult ?? 1.0;
 
     // During dogfight (red fighters or homing rockets active) keep the field sparse —
     // just enough rocks to use as cover; in chaos mode allow more
     const dogfight = (this.redFighters?.length > 0) || (this.orangeRockets?.length > 0);
     const baseRamp = 5 + Math.floor(timeS / 7); // ramp faster (40% harder)
+    const lateBonus = timeS >= 900 ? 4 : 0;
     const targetCount = dogfight
-      ? (chaos ? 8 : 4)                                           // dogfight: 4 rocks normally, 8 in chaos
-      : Math.min(baseRamp + (chaos ? 10 : 2), chaos ? 32 : 24);  // chaos: +10 target, cap 32; else 24
+      ? (chaos ? 8 + Math.floor(lateBonus / 2) : 4)
+      : Math.min(baseRamp + (chaos ? 10 + lateBonus : 2), chaos ? 36 : 24);
 
     // Note: we never cull existing asteroids — they stay as cover during dogfights
 
-    const spawnRamp = 1 + ramp5;
+    const spawnRamp = (1 + ramp5) * powerMult;
     const baseInterval = Math.max(100 - Math.floor(timeS * 0.72), 20);
     const spawnInterval = chaos
       ? Math.max(Math.floor((baseInterval - 18) / (1.2 * spawnRamp)), 14)
@@ -2928,10 +2937,13 @@ class Game {
     // Skip enemy spawns during spawn-freeze grace period
     if (this._spawnFrozen) { /* no spawns */ }
     else {
-    const chaos = timeS >= 900; // 15 min+ = chaos mode
-    const dMult = 1.4;
-    const ramp5 = timeS >= 300 ? Math.floor(timeS / 300) * 0.25 : 0; // +25% spawn rate every 5 min
-    const spawnMult = dMult + ramp5;
+    const chaosAt = this._chaosAtSec ?? 900;
+    const chaos = timeS >= chaosAt;
+    const powerMult = this._powerMult ?? 1.0;
+    const dMult = 1.4 * powerMult;
+    const ramp5 = timeS >= 300 ? Math.floor(timeS / 300) * 0.25 : 0;
+    const lateRamp = timeS >= 900 ? Math.min(0.35, (timeS - 900) / 2400) : 0; // +0-35% after 15 min so vets stay pressured
+    const spawnMult = dMult + ramp5 + lateRamp;
 
     // Yellow aliens: appear after 30 seconds; in chaos allow 2
     const alienMax = chaos ? 2 : 1;
@@ -2947,8 +2959,8 @@ class Game {
       }
     }
     // Red fighters: appear after 2 min, scale with time; chaos = higher cap + faster (40% harder)
-    const redCapBase = Math.max(1, Math.floor((timeS - 100) / 48));
-    const redCap = chaos ? redCapBase + Math.floor(timeS / 450) : redCapBase;
+    const redCapBase = Math.max(1, Math.floor((timeS - 100) / (48 / powerMult)));
+    const redCap = chaos ? redCapBase + Math.floor(timeS / (400 / powerMult)) + (timeS >= 900 ? 1 : 0) : redCapBase;
     const redInterval = Math.floor((chaos
       ? Math.max(900 - Math.floor(timeS * 2), 320)
       : Math.max(1200 - Math.floor(timeS * 1.2), 450)) / spawnMult);
@@ -2962,8 +2974,9 @@ class Game {
     }
     // Orange homing rockets: appear after 2.2 min; chaos = more rockets (40% harder)
     const orangeStart = 132;
-    const orangeCapBase = 1 + Math.floor((timeS - orangeStart) / 55);
-    const orangeCap = Math.min(chaos ? orangeCapBase + 2 : orangeCapBase + 1, chaos ? 7 : 5);
+    const orangeCapBase = 1 + Math.floor((timeS - orangeStart) / (55 / powerMult));
+    const orangeCapMax = chaos ? (timeS >= 900 ? 8 : 7) : 5;
+    const orangeCap = Math.min(chaos ? orangeCapBase + 2 : orangeCapBase + 1, orangeCapMax);
     const orangeInterval = Math.floor((chaos
       ? Math.max(700 - Math.floor((timeS - orangeStart) * 2), 220)
       : Math.max(900 - Math.floor((timeS - orangeStart) * 1.2), 300)) / spawnMult);
