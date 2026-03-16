@@ -3909,7 +3909,7 @@ class Game {
           <div class="guide-row">X button: red lasers wipe the screen for 4 sec. 5 min cooldown. Epic panic button.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h2">RIP N DIP <span class="guide-cost">6,333 $$</span></span>
+          <span class="guide-h2">RIP N DIP <span class="guide-cost">6,666 $$</span></span>
           <div class="guide-row">Full lives for 2 min → 10 sec countdown. Survive → <b>8 sec rainbow fury</b>. Everything turns rainbow, score <b>×10</b> during fury. Shielded.</div>
         </div>
         <div class="guide-section">

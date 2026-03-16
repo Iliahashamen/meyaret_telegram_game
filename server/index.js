@@ -84,12 +84,17 @@ const BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const bot = new Bot(BOT_TOKEN);
 
 // Auto-retry on ETIMEDOUT — 1 retry, max 2s wait (avoids long hangs; 3 retries + backoff felt like "not responding")
-bot.api.config.use(autoRetry({ maxRetryAttempts: 1, maxDelaySeconds: 2 }));
+bot.api.config.use(autoRetry({ maxRetryAttempts: 2, maxDelaySeconds: 3 }));
 
 // Catch handler errors (ETIMEDOUT, etc.) so they don’t surface as unhandledRejection
-bot.catch((err) => {
+bot.catch(async (err) => {
   const msg = err?.error?.message || err?.message || String(err);
   console.warn('[bot] Handler error:', msg);
+  try {
+    const ctx = err?.ctx;
+    if (ctx?.chat?.id) await ctx.reply('Something went wrong. Try /start or /play again.').catch(() => {});
+    if (ctx?.callbackQuery?.id) await ctx.answerCallbackQuery({ text: 'Error - try again' }).catch(() => {});
+  } catch (_) {}
 });
 
 const GAME_URL = process.env.MINI_APP_URL;
@@ -199,10 +204,9 @@ bot.command('leaderboard', async (ctx) => { await handleLeaderboard(ctx); });
 
 async function handleLeaderboard(ctx) {
   try {
-    const base = process.env.NODE_ENV === 'production'
-      ? `${process.env.WEBHOOK_URL}`
-      : `http://localhost:${PORT}`;
-    const response  = await fetch(`${base}/api/scores/leaderboard`);
+    // Use localhost to avoid cold-start / network timeouts when bot calls own API
+    const base = `http://127.0.0.1:${PORT}`;
+    const response = await fetch(`${base}/api/scores/leaderboard`);
     const { leaderboard } = await response.json();
 
     if (!leaderboard || !leaderboard.length) {
@@ -703,10 +707,10 @@ bot.callbackQuery(/^rgift_custom_(.+)$/, async (ctx) => {
   } catch { /* ignore */ }
 });
 
-// Catch custom gift amount typed by admin
+// All text messages — admin flows or fallback for everyone
 bot.on('message:text', async (ctx) => {
-  if (ctx.from?.id !== ADMIN_ID) return;
-  const state = _adminState[ADMIN_ID];
+  const isAdmin = ctx.from?.id === ADMIN_ID;
+  const state = isAdmin ? _adminState[ADMIN_ID] : null;
 
   if (state?.step === 'awaiting_setscore') {
     const newScore = Number(ctx.message.text.trim().replace(/,/g, ''));
@@ -764,7 +768,15 @@ bot.on('message:text', async (ctx) => {
     return;
   }
 
-  // Promo flow (existing)
+  // Fallback: non-admin or admin with no active step — always respond so bot never feels "dead"
+  if (!state?.step) {
+    return ctx.reply(
+      '🎮 *MEYARET* — Tap below to play!\n\n/start — Open game\n/leaderboard — Top 5',
+      { parse_mode: 'Markdown', reply_markup: GAME_URL ? { inline_keyboard: [[{ text: '🎮 PLAY', web_app: { url: GAME_URL } }]] } : undefined },
+    ).catch(() => {});
+  }
+
+  // Promo flow (admin only, state.awaiting_promo)
   if (state?.step === 'awaiting_promo') {
     const text = ctx.message.text;
     if (text === '/cancel') {
@@ -897,6 +909,8 @@ bot.callbackQuery('promo_cancel', async (ctx) => {
   } catch { /* ignore */ }
 });
 
+// Catch-all for unmatched callbacks (stale buttons) — clear loading state
+bot.on('callback_query', async (ctx) => ctx.answerCallbackQuery().catch(() => {}));
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
