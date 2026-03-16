@@ -309,7 +309,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   border-color: var(--cyan);
   box-shadow: 0 0 20px rgba(0,255,204,0.3);
 }
-.gift-hub-icon { font-size: 28px; line-height: 1; }
 .gift-hub-title { font-size: 11px; letter-spacing: 2px; font-weight: bold; }
 .gift-hub-desc { font-size: 8px; color: var(--muted2); letter-spacing: 1px; }
 
@@ -425,6 +424,24 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   position: relative; width: 88px; height: 80px;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+}
+.gift-banner {
+  position: absolute;
+  top: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  background: linear-gradient(135deg, #ff88cc, #ff44aa);
+  border: 1px solid rgba(255,255,255,0.6);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  box-shadow: 0 2px 8px rgba(255,68,170,0.5);
+  z-index: 3;
 }
 #gift-lid {
   position: absolute; top: -22px; left: -7px;
