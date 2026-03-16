@@ -8,7 +8,7 @@ import {
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
-  dbGiftStatus, dbOpenGift, dbDropStatus, dbDoDropBall, dbAddBonusShmips, dbConsumeBoost,
+  dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
 } from './db.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
@@ -1991,37 +1991,6 @@ function _spawnGiftSparks(container, type) {
   }
 }
 
-async function _animateDailyGiftOpen(rewardType) {
-  const box   = document.getElementById('daily-gift-box');
-  const lid   = document.getElementById('daily-gift-lid');
-  const sparks = document.getElementById('daily-gift-sparks');
-  if (!box) return;
-  box.classList.remove('gift-idle');
-  box.style.transition = 'transform 0.4s'; box.style.transform = 'scale(1.06)';
-  await new Promise(r => setTimeout(r, 400));
-  box.style.transform = ''; box.style.transition = '';
-  box.classList.add('gift-shake');
-  SFX.spinTick && SFX.spinTick();
-  await new Promise(r => setTimeout(r, 400));
-  box.classList.remove('gift-shake');
-  box.classList.add('gift-shake');
-  await new Promise(r => setTimeout(r, 500));
-  box.classList.remove('gift-shake');
-  lid.classList.add('gift-lid-open');
-  _spawnGiftSparks(sparks, rewardType);
-  SFX.rocketExplode && SFX.rocketExplode();
-  await new Promise(r => setTimeout(r, 300));
-  _spawnGiftSparks(sparks, rewardType);
-  await new Promise(r => setTimeout(r, 300));
-  _spawnGiftSparks(sparks, rewardType);
-  await new Promise(r => setTimeout(r, 400));
-  box.style.filter = 'brightness(1.8) drop-shadow(0 0 20px #ff0077)';
-  _spawnGiftSparks(sparks, rewardType);
-  _spawnGiftSparks(sparks, rewardType);
-  await new Promise(r => setTimeout(r, 600));
-  box.style.filter = '';
-}
-
 async function _animateGiftOpen(rewardType) {
   const box   = document.getElementById('gift-box');
   const lid   = document.getElementById('gift-lid');
@@ -2313,7 +2282,7 @@ class Game {
 
   // ── Screen Management ──────────────────────────────────────────────────────
   _showScreen(name) {
-    ['onboarding','menu','profile','gift-hub','gift-4hr','gift-drop','store','arsenal','guide','gameover'].forEach(s => {
+    ['onboarding','menu','profile','gift-4hr','store','arsenal','guide','gameover'].forEach(s => {
       const el = document.getElementById(`${s}-screen`);
       if (el) el.classList.add('hidden');
     });
@@ -2370,7 +2339,7 @@ class Game {
     document.getElementById('callsign-input').addEventListener('keydown', e => { if (e.key === 'Enter') this._submitCallsign(); });
 
     document.getElementById('btn-play').addEventListener('click',    () => this._startGame());
-    document.getElementById('btn-spin').addEventListener('click',    () => this._openGift());
+    document.getElementById('btn-gift').addEventListener('click',   () => this._openGift());
     document.getElementById('btn-store').addEventListener('click',   () => this._openStore());
     document.getElementById('btn-arsenal').addEventListener('click', () => this._openArsenal());
     document.getElementById('btn-guide').addEventListener('click',   () => this._openGuide());
@@ -2400,11 +2369,7 @@ class Game {
       });
     });
 
-    document.getElementById('btn-gift-4hr')?.addEventListener('click', () => this._openGift4hr());
-    document.getElementById('btn-gift-daily')?.addEventListener('click', () => this._openGiftDaily());
     document.getElementById('spin-btn').addEventListener('click', () => this._doOpenGift());
-    document.getElementById('daily-ok')?.addEventListener('click', () => { document.getElementById('daily-result-area')?.classList.add('hidden'); this._showScreen('gift-hub'); });
-    document.getElementById('daily-open-btn')?.addEventListener('click', () => this._doOpenDailyGift());
     document.getElementById('arsenal-open-store').addEventListener('click', () => this._openStore());
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -2535,7 +2500,7 @@ class Game {
     if (!timerEl) return;
     try {
       const tid = TG_USER?.id || this.userData?.telegram_id;
-      if (!tid) return;
+      if (!tid) { timerEl.textContent = ''; return; }
       const status = await dbGiftStatus(tid);
       if (status.available) {
         timerEl.textContent = 'GIFT READY!';
@@ -2544,7 +2509,7 @@ class Game {
         timerEl.style.color = 'var(--muted2)';
         this._tickMenuGiftTimer(status.remainingMs, timerEl);
       }
-    } catch { /* non-critical */ }
+    } catch { timerEl.textContent = ''; }
   }
 
   _tickMenuGiftTimer(ms, el) {
@@ -2556,6 +2521,60 @@ class Game {
       const s = Math.floor((ms%60_000)/1000);
       el.textContent = `GIFT: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
       if (this.state === 'menu') setTimeout(tick, 1000);
+    };
+    tick();
+  }
+
+  async _openGift() {
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    if (tid && !OFFLINE_MODE) {
+      try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
+    }
+    this._showScreen('gift-4hr');
+    const box = document.getElementById('gift-box');
+    const lid = document.getElementById('gift-lid');
+    const sparks = document.getElementById('gift-sparks');
+    const resultEl = document.getElementById('spin-result');
+    const btn = document.getElementById('spin-btn');
+    const timerEl = document.getElementById('gift-timer');
+    if (box) { box.className = 'gift-idle'; }
+    if (lid) lid.classList.remove('gift-lid-open');
+    if (sparks) sparks.innerHTML = '';
+    if (resultEl) { resultEl.classList.add('hidden'); resultEl.className = 'spin-result hidden'; }
+    if (!tid) {
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
+      if (timerEl) timerEl.textContent = 'OPEN VIA TELEGRAM';
+      return;
+    }
+    try {
+      const status = await dbGiftStatus(tid);
+      if (status.available) {
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        if (timerEl) { timerEl.textContent = ''; timerEl.style.color = ''; }
+      } else if (status.remainingMs > 0) {
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
+        if (timerEl) this._startGiftCountdown(status.remainingMs, timerEl);
+      }
+    } catch {
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
+      if (timerEl) timerEl.textContent = 'OFFLINE';
+    }
+  }
+
+  _startGiftCountdown(ms, el) {
+    if (!el) return;
+    const tick = () => {
+      ms -= 1000;
+      if (ms <= 0) {
+        el.textContent = 'GIFT READY!'; el.style.color = 'var(--cyan)';
+        const btn = document.getElementById('spin-btn');
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        return;
+      }
+      const h = Math.floor(ms/3_600_000), m = Math.floor((ms%3_600_000)/60_000), s = Math.floor((ms%60_000)/1000);
+      el.textContent = `NEXT: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      el.style.color = 'var(--muted2)';
+      setTimeout(tick, 1000);
     };
     tick();
   }
@@ -2882,7 +2901,7 @@ class Game {
     this._lastFrameTs = ts;
     this._accum += frameMs;
     if (this.state !== 'game') {
-      if (['menu','profile','store','gift-hub','gift-4hr','gift-drop','arsenal','guide','onboarding'].includes(this.state))
+      if (['menu','profile','store','gift-4hr','arsenal','guide','onboarding'].includes(this.state))
         drawGrid(this.ctx, this.W, this.H, this.tick++);
       return;
     }
@@ -4096,12 +4115,8 @@ class Game {
           <div class="guide-row">A rare green glowing star pickup. Grants <b>10 seconds of OVERDRIVE</b>: your jet glows bright green, gains a 2-layer green shield, fires MEGA RAKETA rockets (big red rockets that split into 7 homing minis), and your fire rate doubles. The most powerful temporary state in the game.</div>
         </div>
         <div class="guide-section">
-          <span class="guide-h1">4HR GIFT</span>
-          <div class="guide-row">Tap GIFT > 4HR GIFT. Available every <b>4 hours</b>. Press <b>OPEN GIFT</b> — the box shakes, lid flies off, reward revealed. Rewards: ~60% shmips (50–250), ~15% skin, ~10% bullet, ~10% thrust, ~5% upgrade.</div>
-        </div>
-        <div class="guide-section">
-          <span class="guide-h1">DAILY GIFT <span class="guide-tag good">24H</span></span>
-          <div class="guide-row">Tap GIFT > DAILY GIFT. Available every <b>24 hours</b>. Gold box with a star. Press <b>OPEN GIFT</b> — same flow as 4hr: box animates, lid pops, reward shown. Better rewards: ~45% shmips (150–500), ~25% skin, ~15% upgrade, ~10% bullet, ~5% thrust.</div>
+          <span class="guide-h1">GIFT BOX</span>
+          <div class="guide-row">Tap <b>GIFT</b> in the main menu. Timer shows next available. Every <b>4 hours</b> — press <b>OPEN GIFT</b>. Box shakes, lid flies off, reward revealed. Rewards: common 75–200 $$; uncommon 200–400 $$ or skin/bullet/thrust; rare upgrade; <span class="guide-tag rare">very rare</span> 500–800 $$ jackpot.</div>
         </div>`,
 
       tips: `
@@ -4294,241 +4309,50 @@ class Game {
     h.textContent = title; area.appendChild(h);
   }
 
-  // ── Gifts ──────────────────────────────────────────────────────────────────
-  async _openGift() {
-    const tid = TG_USER?.id || this.userData?.telegram_id;
-    if (tid && !OFFLINE_MODE) {
-      try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
-    }
-    this._showScreen('gift-hub');
-    this._refreshGiftHubStatus();
-  }
-
-  async _refreshGiftHubStatus() {
-    const tid = TG_USER?.id || this.userData?.telegram_id;
-    const hub4 = document.getElementById('hub-4hr-status');
-    const hubDrop = document.getElementById('hub-drop-status');
-    if (!tid) {
-      if (hub4) hub4.textContent = 'Open via Telegram';
-      if (hubDrop) hubDrop.textContent = 'Open via Telegram';
-      return;
-    }
-    try {
-      const [s4, sDrop] = await Promise.all([dbGiftStatus(tid), dbDropStatus(tid)]);
-      if (hub4) hub4.textContent = s4?.available ? 'READY · Open every 4 hours' : s4?.remainingMs > 0 ? this._formatRemaining(s4.remainingMs) + ' until next' : 'Open every 4 hours';
-      if (hubDrop) hubDrop.textContent = sDrop?.available ? 'READY · Once per day' : sDrop?.remainingMs > 0 ? this._formatRemaining(sDrop.remainingMs) + ' until next' : 'Once per day · Pick a star';
-    } catch {
-      if (hub4) hub4.textContent = 'Open every 4 hours';
-      if (hubDrop) hubDrop.textContent = 'Once per day · Pick a star';
-    }
-  }
-
-  async _openGift4hr() {
-    this._showScreen('gift-4hr');
-    // Reset box state
-    const box  = document.getElementById('gift-box');
-    const lid  = document.getElementById('gift-lid');
-    if (box) { box.className = 'gift-idle'; }
-    if (lid) { lid.classList.remove('gift-lid-open'); }
-    const sparks = document.getElementById('gift-sparks');
-    if (sparks) sparks.innerHTML = '';
-
-    const resultEl = document.getElementById('spin-result');
-    if (resultEl) { resultEl.classList.add('hidden'); resultEl.className = 'spin-result hidden'; }
-
-    const btn   = document.getElementById('spin-btn');
-    const tid   = TG_USER?.id || this.userData?.telegram_id;
-
-    if (!tid) {
-      btn.disabled = true; btn.style.opacity = '0.4';
-      return;
-    }
-
-    const timerEl = document.getElementById('gift-4hr-timer');
-    let status = null;
-    try { status = await dbGiftStatus(tid); } catch { /* non-critical */ }
-    if (status?.available) {
-      btn.disabled = false; btn.style.opacity = '1';
-      if (timerEl) { timerEl.textContent = ''; timerEl.style.color = ''; }
-    } else if (status && status.remainingMs > 0) {
-      btn.disabled = true; btn.style.opacity = '0.4';
-      if (timerEl) this._startGiftCountdown(status.remainingMs, timerEl);
-    } else if (timerEl) {
-      timerEl.textContent = '';
-    }
-  }
-
-  async _openGiftDaily() {
-    const tid = TG_USER?.id || this.userData?.telegram_id;
-    if (tid && !OFFLINE_MODE) {
-      try { const me = await dbGetOrCreateUser(tid); if (me) this.userData = me.user; } catch { /* non-critical */ }
-    }
-    this._dailyGiftBusy = false;
-    this._showScreen('gift-drop');
-    const resultArea = document.getElementById('daily-result-area');
-    resultArea?.classList.add('hidden');
-    const openBtn = document.getElementById('daily-open-btn');
-    const box = document.getElementById('daily-gift-box');
-    const lid = document.getElementById('daily-gift-lid');
-    if (box) { box.classList.add('gift-idle'); box.classList.remove('gift-shake'); box.style.filter = ''; }
-    if (lid) lid.classList.remove('gift-lid-open');
-    this._refreshDailySection();
-  }
-
-  _refreshDailySection() {
-    const openBtn = document.getElementById('daily-open-btn');
-    const timerEl = document.getElementById('daily-timer');
-    const tid = TG_USER?.id || this.userData?.telegram_id;
-    if (!tid) {
-      if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
-      if (timerEl) timerEl.textContent = '';
-      return;
-    }
-    dbDropStatus(tid).then(status => {
-      if (status?.available) {
-        if (openBtn) { openBtn.disabled = false; openBtn.style.opacity = '1'; }
-        if (timerEl) { timerEl.textContent = ''; timerEl.style.color = ''; }
-      } else if (status?.remainingMs > 0) {
-        if (openBtn) { openBtn.disabled = true; openBtn.style.opacity = '0.4'; }
-        if (timerEl) this._startDailyCountdown(status.remainingMs, timerEl);
-      }
-    }).catch(() => { if (openBtn) openBtn.disabled = true; if (timerEl) timerEl.textContent = ''; });
-  }
-
-  async _doOpenDailyGift() {
-    if (this._dailyGiftBusy) return;
-    this._dailyGiftBusy = true;
-
-    const resultArea = document.getElementById('daily-result-area');
-    const resultEl = document.getElementById('daily-result');
-    const openBtn = document.getElementById('daily-open-btn');
-    const tid = TG_USER?.id || this.userData?.telegram_id;
-
-    if (openBtn) openBtn.disabled = true;
-    resultArea?.classList.add('hidden');
-
-    if (!tid) {
-      if (resultEl) resultEl.textContent = 'OPEN VIA TELEGRAM';
-      resultArea?.classList.remove('hidden');
-      this._refreshDailySection();
-      this._dailyGiftBusy = false;
-      return;
-    }
-    if (OFFLINE_MODE) {
-      if (resultEl) resultEl.textContent = 'OFFLINE — REQUIRES CONNECTION';
-      resultArea?.classList.remove('hidden');
-      this._refreshDailySection();
-      this._dailyGiftBusy = false;
-      return;
-    }
-
-    let data = null;
-    try {
-      data = await dbDoDropBall(tid);
-    } catch (e) {
-      if (resultEl) resultEl.textContent = (e.message || 'GIFT FAILED').toUpperCase();
-      resultArea?.classList.remove('hidden');
-      resultArea?.classList.add('daily-reward-pop');
-      this._refreshDailySection();
-      this._dailyGiftBusy = false;
-      return;
-    }
-    if (data?.error) {
-      if (resultEl) resultEl.textContent = data.error.toUpperCase();
-      resultArea?.classList.remove('hidden');
-      resultArea?.classList.add('daily-reward-pop');
-      this._refreshDailySection();
-      this._dailyGiftBusy = false;
-      return;
-    }
-
-    const reward = data?.reward;
-    if (!reward) { this._dailyGiftBusy = false; return; }
-
-    await _animateDailyGiftOpen(reward.type);
-
-    const typeColors = { skin_grant: '#cc44ff', bullet_grant: '#00aaff', thrust_grant: '#ff7700', upgrade_grant: '#ffd700', shmips: '#ffee00' };
-    const col = typeColors[reward.type] || '#ffee00';
-    resultEl.style.color = col;
-    resultEl.style.textShadow = `0 0 18px ${col}, 0 0 36px ${col}88`;
-    resultEl.textContent = `YOU GOT: ${reward.label}!`;
-    resultArea?.classList.remove('hidden');
-    resultArea?.classList.add('daily-reward-pop', 'gift-reward-reveal');
-    SFX.shmipEarn && SFX.shmipEarn();
-
-    try { const me = await dbGetOrCreateUser(tid); if (me) { this.userData = me.user; this._parseUpgrades(me.upgrades || []); } } catch { /* non-critical */ }
-    this._loadMenu();
-    this._dailyGiftBusy = false;
-  }
-
-  _startDailyCountdown(ms, el) {
-    if (!el) return;
-    const self = this;
-    const tick = () => {
-      ms -= 1000;
-      if (ms <= 0) {
-        el.textContent = 'READY!'; el.style.color = 'var(--cyan)';
-        self._refreshDailySection();
-        return;
-      }
-      const h = Math.floor(ms / 3_600_000), m = Math.floor((ms % 3_600_000) / 60_000), s = Math.floor((ms % 60_000) / 1000);
-      el.textContent = `NEXT: ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-      el.style.color = 'var(--muted2)';
-      setTimeout(tick, 1000);
-    };
-    tick();
-  }
-
-  _startGiftCountdown(ms, el) {
-    if (!el) return;
-    const tick = () => {
-      ms -= 1000;
-      if (ms <= 0) {
-        el.textContent = 'GIFT READY!'; el.style.color = 'var(--cyan)';
-        const btn = document.getElementById('spin-btn');
-        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-        return;
-      }
-      const h = Math.floor(ms/3_600_000), m = Math.floor((ms%3_600_000)/60_000), s = Math.floor((ms%60_000)/1000);
-      el.textContent = `NEXT GIFT: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-      el.style.color = 'var(--muted2)';
-      setTimeout(tick, 1000);
-    };
-    tick();
-  }
-
+  // ── Gifts (inline on main menu) ─────────────────────────────────────────────
   async _doOpenGift() {
-    const btn    = document.getElementById('spin-btn');
+    const btn = document.getElementById('spin-btn');
     const result = document.getElementById('spin-result');
-    btn.disabled = true; result.classList.add('hidden');
+    if (!btn || !result) return;
+    btn.disabled = true;
+    result.classList.add('hidden');
 
     if (OFFLINE_MODE) {
       result.textContent = 'OFFLINE — GIFT REQUIRES CONNECTION';
-      result.classList.remove('hidden'); btn.disabled = false; return;
+      result.classList.remove('hidden');
+      btn.disabled = false;
+      return;
     }
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
-    if (!tid) { result.textContent = 'OPEN VIA TELEGRAM'; result.classList.remove('hidden'); btn.disabled = false; return; }
+    if (!tid) {
+      result.textContent = 'OPEN VIA TELEGRAM';
+      result.classList.remove('hidden');
+      btn.disabled = false;
+      return;
+    }
 
     let data = null;
     try {
       data = await dbOpenGift(tid);
-    } catch(e) {
+    } catch (e) {
       result.textContent = (e.message || 'GIFT FAILED').toUpperCase();
-      result.classList.remove('hidden'); btn.disabled = false; return;
+      result.classList.remove('hidden');
+      btn.disabled = false;
+      return;
     }
     if (data?.error) {
       result.textContent = data.error.toUpperCase();
-      result.classList.remove('hidden'); btn.disabled = false; return;
+      result.classList.remove('hidden');
+      btn.disabled = false;
+      return;
     }
 
     const reward = data?.reward;
-    if (!reward) return;
+    if (!reward) { btn.disabled = false; return; }
 
-    // Run box opening animation
     await _animateGiftOpen(reward.type);
 
-    // Show glowing reward text
     const typeColors = { skin_grant: '#cc44ff', bullet_grant: '#00aaff', thrust_grant: '#ff7700', upgrade_grant: '#ffd700', shmips: '#ffee00' };
     const col = typeColors[reward.type] || '#ffee00';
     result.style.color = col;
@@ -4538,14 +4362,14 @@ class Game {
     result.classList.add('gift-reward-reveal');
     SFX.shmipEarn && SFX.shmipEarn();
 
-    // Refresh user data
     try {
       const me = await dbGetOrCreateUser(tid);
       if (me) { this.userData = me.user; this._parseUpgrades(me.upgrades || []); }
     } catch { /* non-critical */ }
     this._loadMenu();
 
-    btn.disabled = true; btn.style.opacity = '0.4';
+    btn.disabled = true;
+    btn.style.opacity = '0.4';
   }
 
   // ── Store ──────────────────────────────────────────────────────────────────

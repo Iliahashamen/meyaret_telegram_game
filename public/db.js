@@ -114,17 +114,17 @@ export const CATALOG = [
     description: '5 lives · 9 flares · 11 rockets · 7 Shields · ×2 fire', lives: 5, flares: 9, rockets: 11, shield: true, jetShieldBase: 7, fireMult: 2 },
 ];
 
-// ── 4hr Gift reward table: 60% shmips 50-250, 15% skin, 10% bullet, 10% thrust, 5% upgrade ───
+// ── 4hr Gift reward table (improved rarities, better payouts) ─────────────────────────────
 const GIFT_REWARDS = [
-  { weight: 60, type: 'shmips',  valueMin: 50, valueMax: 250 },
-  { weight: 15, type: 'skin_grant' },
-  { weight: 10, type: 'bullet_grant' },
-  { weight: 10, type: 'thrust_grant' },
-  { weight: 5,  type: 'upgrade_grant' },
+  { weight: 45, type: 'shmips',  valueMin: 75,  valueMax: 200 },   // common
+  { weight: 15, type: 'shmips',  valueMin: 200, valueMax: 400 },   // uncommon jackpot
+  { weight: 14, type: 'skin_grant' },                             // uncommon
+  { weight: 10, type: 'bullet_grant' },                           // uncommon
+  { weight: 10, type: 'thrust_grant' },                            // uncommon
+  { weight: 5,  type: 'upgrade_grant' },                          // rare
+  { weight: 1,  type: 'shmips',  valueMin: 500, valueMax: 800 },   // rare jackpot
 ];
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;  // 4 hours (applies to everyone)
-const DROP_COOLDOWN_MS = 8 * 60 * 60 * 1000;  // legacy, unused
-const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;  // 24 hours for daily gift
 
 function _pickGiftReward() {
   const total = GIFT_REWARDS.reduce((a, r) => a + r.weight, 0);
@@ -419,128 +419,6 @@ export async function dbOpenGift(telegramId) {
   }
 
   await supa(`users?telegram_id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
-  const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
-  return { reward: { label, type }, user: updated[0] };
-}
-
-// ── DAILY GIFT (3 stars — once per 24h, better rewards) ───────────────────────
-// 45% shmips 150–500, 25% skin, 15% upgrade, 10% bullet, 5% thrust
-const DAILY_GIFT_REWARDS = [
-  { weight: 45, type: 'shmips',  valueMin: 150, valueMax: 500 },
-  { weight: 25, type: 'skin_grant' },
-  { weight: 15, type: 'upgrade_grant' },
-  { weight: 10, type: 'bullet_grant' },
-  { weight: 5,  type: 'thrust_grant' },
-];
-
-function _pickDailyReward() {
-  const total = DAILY_GIFT_REWARDS.reduce((a, r) => a + r.weight, 0);
-  let roll = Math.random() * total;
-  for (const r of DAILY_GIFT_REWARDS) {
-    roll -= r.weight;
-    if (roll < 0) return r;
-  }
-  return DAILY_GIFT_REWARDS[0];
-}
-
-export async function dbDropStatus(telegramId) {
-  const rows = await supa(`users?telegram_id=eq.${String(telegramId)}&select=last_drop_at`);
-  const user = rows[0];
-  const last = user?.last_drop_at;
-  if (!last) return { available: true, remainingMs: 0 };
-  const next = new Date(last).getTime() + DAILY_COOLDOWN_MS;
-  const now  = Date.now();
-  return { available: now >= next, remainingMs: Math.max(0, next - now) };
-}
-
-export async function dbDoDropBall(telegramId) {
-  const id = String(telegramId);
-  const [userRows, upgradeRows] = await Promise.all([
-    supa(`users?telegram_id=eq.${id}&select=shmips,last_drop_at`),
-    supa(`user_upgrades?telegram_id=eq.${id}&select=upgrade_id`),
-  ]);
-  const user = userRows[0];
-  if (!user) throw new Error('User not found.');
-
-  const now = new Date();
-  if (user.last_drop_at) {
-    const next = new Date(user.last_drop_at).getTime() + DAILY_COOLDOWN_MS;
-    if (now.getTime() < next) {
-      const rem = next - now.getTime();
-      const h = Math.floor(rem / 3_600_000);
-      const m = Math.floor((rem % 3_600_000) / 60_000);
-      throw new Error(`DAILY GIFT LOCKED — ${h}H ${m}M REMAINING`);
-    }
-  }
-
-  const reward = _pickDailyReward();
-  const updates = { last_drop_at: now.toISOString() };
-  let label = '';
-  let type = reward.type;
-  const ownedIds = new Set((upgradeRows || []).map(u => u.upgrade_id));
-
-  if (reward.type === 'shmips') {
-    const value = Math.floor((reward.valueMin ?? 150) + Math.random() * ((reward.valueMax ?? 500) - (reward.valueMin ?? 150) + 1));
-    updates.shmips = Math.round((Number(user.shmips) + value) * 100) / 100;
-    label = `+${value} $$`;
-  } else if (reward.type === 'skin_grant') {
-    const allSkins = CATALOG.filter(c => c.category === 'skin');
-    const unowned = allSkins.filter(s => !ownedIds.has(s.id));
-    const skin = unowned.length > 0 ? unowned[Math.floor(Math.random() * unowned.length)] : allSkins[0];
-    if (ownedIds.has(skin.id)) {
-      updates.shmips = Math.round((Number(user.shmips) + skin.cost) * 100) / 100;
-      label = `${skin.name} (OWNED) +${skin.cost} $$`;
-      type = 'shmips';
-    } else {
-      label = skin.name;
-      await _grantUpgrade(id, skin.id);
-    }
-  } else if (reward.type === 'bullet_grant') {
-    const allBullets = CATALOG.filter(c => c.category === 'bullet' && c.id !== 'bullet_default');
-    const unowned = allBullets.filter(b => !ownedIds.has(b.id));
-    const bullet = unowned.length > 0 ? unowned[Math.floor(Math.random() * unowned.length)] : allBullets[0];
-    if (!bullet || ownedIds.has(bullet.id)) {
-      const cost = bullet?.cost ?? 100;
-      updates.shmips = Math.round((Number(user.shmips) + cost) * 100) / 100;
-      label = `${bullet?.name ?? 'Bullet'} (OWNED) +${cost} $$`;
-      type = 'shmips';
-    } else {
-      label = bullet.name;
-      await _grantUpgrade(id, bullet.id);
-    }
-  } else if (reward.type === 'thrust_grant') {
-    const allThrusts = CATALOG.filter(c => c.category === 'thrust' && c.id !== 'thrust_default');
-    const unowned = allThrusts.filter(t => !ownedIds.has(t.id));
-    const thrust = unowned.length > 0 ? unowned[Math.floor(Math.random() * unowned.length)] : allThrusts[0];
-    if (!thrust || ownedIds.has(thrust.id)) {
-      const cost = thrust?.cost ?? 95;
-      updates.shmips = Math.round((Number(user.shmips) + cost) * 100) / 100;
-      label = `${thrust?.name ?? 'Thrust'} (OWNED) +${cost} $$`;
-      type = 'shmips';
-    } else {
-      label = thrust.name;
-      await _grantUpgrade(id, thrust.id);
-    }
-  } else if (reward.type === 'upgrade_grant') {
-    const allUpg = CATALOG.filter(c => c.category === 'upgrade');
-    const upg = allUpg[Math.floor(Math.random() * allUpg.length)];
-    if (ownedIds.has(upg.id)) {
-      updates.shmips = Math.round((Number(user.shmips) + upg.cost) * 100) / 100;
-      label = `${upg.name} (OWNED) +${upg.cost} $$`;
-      type = 'shmips';
-    } else {
-      label = upg.name;
-      await _grantUpgrade(id, upg.id);
-    }
-  }
-
-  try {
-    await supa(`users?telegram_id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
-  } catch (e) {
-    if (/last_drop_at|column/i.test(e.message))
-      throw new Error('Daily gift needs DB: ALTER TABLE users ADD COLUMN last_drop_at TIMESTAMPTZ;');
-    throw e;
-  }
   const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
   return { reward: { label, type }, user: updated[0] };
 }

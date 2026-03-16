@@ -21,7 +21,6 @@
     <div class="loading-bar-wrap"><div class="loading-bar" id="loading-bar"></div></div>
     <div class="loading-label" id="loading-label">INITIALIZING SYSTEMS...</div>
     <div id="loading-status" style="font-size:0.45rem;color:#00ffcc;margin-top:8px;letter-spacing:0.05em;min-height:1.2em;text-align:center;"></div>
-    <div id="loading-version">ver 1.8.6</div>
     <div id="loading-madeby">MADE BY SHAMEN</div>
   </div>
 
@@ -54,10 +53,11 @@
     <div class="logo-trust">WE TRUST YOU <span id="menu-trust-name">PILOT</span></div>
 
     <div class="menu-buttons">
-      <button id="btn-play" class="btn-primary btn-big">PLAY</button>
       <div class="spin-menu-wrap">
-        <button id="btn-spin" class="btn-secondary btn-big">GIFT</button>
+        <button id="btn-gift" class="btn-secondary btn-big">GIFT</button>
+        <div id="menu-spin-timer" class="menu-spin-timer"></div>
       </div>
+      <button id="btn-play" class="btn-primary btn-big">PLAY</button>
       <button id="btn-store" class="btn-secondary btn-big">STORE</button>
       <button id="btn-arsenal" class="btn-secondary btn-big">ARSENAL</button>
       <button id="btn-quit" class="btn-ghost btn-big">QUIT</button>
@@ -121,26 +121,10 @@
     <button id="arsenal-open-store" class="btn-primary">OPEN STORE</button>
   </div>
 
-  <!-- Gifts Hub (choose which gift) -->
-  <div id="gift-hub-screen" class="screen hidden">
-    <button class="back-btn" data-back="menu">BACK</button>
-    <div class="screen-title">GIFTS</div>
-    <div class="gift-hub-cards">
-      <button id="btn-gift-4hr" class="gift-hub-card">
-        <span class="gift-hub-title">4HR GIFT</span>
-        <span class="gift-hub-desc" id="hub-4hr-status">Open every 4 hours</span>
-      </button>
-      <button id="btn-gift-daily" class="gift-hub-card">
-        <span class="gift-hub-title">DAILY GIFT</span>
-        <span class="gift-hub-desc" id="hub-drop-status">Once per day · Pick a star</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- 4hr Gift Page (full screen) -->
+  <!-- Gift Screen (4hr cooldown) -->
   <div id="gift-4hr-screen" class="screen hidden">
-    <button class="back-btn" data-back="gift-hub">BACK</button>
-    <div class="screen-title">4HR GIFT</div>
+    <button class="back-btn" data-back="menu">BACK</button>
+    <div class="screen-title">GIFT</div>
     <div id="gift-box-area">
       <div id="gift-box" class="gift-idle">
         <div class="gift-rope gift-rope-l"></div>
@@ -159,34 +143,8 @@
       <div id="gift-sparks"></div>
     </div>
     <button id="spin-btn" class="btn-primary btn-big">OPEN GIFT</button>
-    <div id="gift-4hr-timer" class="gift-timer"></div>
+    <div id="gift-timer" class="gift-timer"></div>
     <div id="spin-result" class="spin-result hidden"></div>
-  </div>
-
-  <!-- DAILY GIFT Page (gold box + star, same flow as 4hr) -->
-  <div id="gift-drop-screen" class="screen hidden">
-    <button class="back-btn" data-back="gift-hub">BACK</button>
-    <div class="screen-title">DAILY GIFT</div>
-    <div id="daily-gift-box-area" class="gift-box-area">
-      <div id="daily-gift-box" class="gift-idle daily-gift-box">
-        <div class="gift-rope gift-rope-l"></div>
-        <div class="gift-rope gift-rope-r"></div>
-        <div id="daily-gift-lid" class="gift-lid"></div>
-        <div id="daily-gift-body" class="gift-body daily-gift-body">
-          <div class="daily-gift-star">★</div>
-          <div class="gift-ribbon-h"></div>
-          <div class="gift-ribbon-v"></div>
-          <div class="gift-bow"></div>
-        </div>
-      </div>
-      <div id="daily-gift-sparks" class="gift-sparks"></div>
-    </div>
-    <button id="daily-open-btn" class="btn-primary btn-big">OPEN GIFT</button>
-    <div id="daily-timer" class="gift-timer"></div>
-    <div id="daily-result-area" class="spin-result hidden">
-      <div id="daily-result" class="daily-reward-text"></div>
-      <button id="daily-ok" class="btn-primary">OK</button>
-    </div>
   </div>
 
   <!-- Store Screen -->

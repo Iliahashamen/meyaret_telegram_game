@@ -163,11 +163,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   pointer-events: none;
 }
 #loading-screen > * { position: relative; z-index: 1; }
-#loading-version {
-  position: fixed; bottom: calc(32px + var(--safe-bottom));
-  left: 0; right: 0; text-align: center;
-  font-size: 7px; letter-spacing: 1.5px; color: var(--muted);
-}
 #loading-madeby {
   position: fixed; bottom: calc(16px + var(--safe-bottom));
   left: 0; right: 0; text-align: center;
@@ -215,7 +210,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   align-items: center; width: min(290px, 88vw);
 }
 
-/* Spin + timer wrapper */
+/* GIFT button + timer on menu */
 .spin-menu-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; }
 .menu-spin-timer {
   font-size: 7px; letter-spacing: 1px; color: var(--muted2);
@@ -283,35 +278,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 }
 .back-btn:active { color: var(--cyan); }
 
-/* ── GIFT HUB ──────────────────────────────────────────────── */
-.gift-hub-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: min(300px, 88vw);
-  margin-top: 24px;
-}
-.gift-hub-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 24px 20px;
-  background: rgba(10,0,20,0.7);
-  border: 2px solid var(--border-m);
-  border-radius: 8px;
-  color: var(--cyan);
-  cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  font-family: inherit;
-}
-.gift-hub-card:hover, .gift-hub-card:active {
-  border-color: var(--cyan);
-  box-shadow: 0 0 20px rgba(0,255,204,0.3);
-}
-.gift-hub-title { font-size: 11px; letter-spacing: 2px; font-weight: bold; }
-.gift-hub-desc { font-size: 8px; color: var(--muted2); letter-spacing: 1px; }
-
 /* ── GIFT PAGES ────────────────────────────────────────────── */
 .drop-subtitle { font-size: 8px; color: var(--muted2); margin-bottom: 12px; letter-spacing: 1px; }
 /* Pigga page specific */
@@ -369,119 +335,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 }
 .drop-label-small { font-size: 7px; opacity: 0.8; }
 .drop-section { border-top: 1px solid var(--border-m); padding-top: 16px; margin-top: 12px; }
-/* ── DAILY GIFT (3 stars) ─────────────────────────────────────────────── */
-.daily-gift-subtitle {
-  font-size: 10px;
-  color: #ffdd00;
-  letter-spacing: 2px;
-  margin-bottom: 20px;
-  text-align: center;
-  text-shadow: 0 0 8px #ffdd00;
-}
-.daily-stars-wrap {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 24px;
-  margin: 24px auto;
-  position: relative;
-}
-.daily-star {
-  width: 64px;
-  height: 64px;
-  border: none;
-  border-radius: 2px;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  background: linear-gradient(145deg, #2a0a4a 0%, #1a0530 50%, #0d0220 100%);
-  color: #ffdd00;
-  font-size: 28px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow:
-    0 0 0 2px #6600cc,
-    0 0 16px rgba(102,0,204,0.6),
-    0 0 32px rgba(255,221,0,0.3),
-    inset 0 0 20px rgba(255,221,0,0.15);
-  transition: transform 0.12s, box-shadow 0.12s;
-  text-shadow: 0 0 12px #ffdd00, 0 0 24px #ffaa00;
-  animation: starPixelPulse 2s ease-in-out infinite;
-}
-.daily-star:nth-child(1) { animation-delay: 0s; }
-.daily-star:nth-child(2) { animation-delay: 0.25s; }
-.daily-star:nth-child(3) { animation-delay: 0.5s; }
-.daily-star:hover {
-  transform: scale(1.08);
-  box-shadow:
-    0 0 0 3px #ffdd00,
-    0 0 24px rgba(255,221,0,0.8),
-    0 0 48px rgba(255,170,0,0.5),
-    inset 0 0 24px rgba(255,221,0,0.25);
-}
-.daily-star:active { transform: scale(0.95); }
-.daily-star:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  animation: none;
-}
-.daily-star.daily-star-selected {
-  box-shadow: 0 0 0 3px #ffdd00, 0 0 24px rgba(255,221,0,0.9), 0 0 48px rgba(255,170,0,0.5);
-  filter: brightness(1.2);
-}
-#daily-open-btn {
-  margin-top: 16px;
-}
-.daily-star.star-explode {
-  animation: starExplode 0.5s ease-out forwards;
-  pointer-events: none;
-}
-@keyframes starPixelPulse {
-  0%, 100% { filter: brightness(1); box-shadow: 0 0 0 2px #6600cc, 0 0 16px rgba(102,0,204,0.6), 0 0 32px rgba(255,221,0,0.3), inset 0 0 20px rgba(255,221,0,0.15); }
-  50% { filter: brightness(1.15); box-shadow: 0 0 0 2px #8800ff, 0 0 20px rgba(255,221,0,0.5), 0 0 40px rgba(255,170,0,0.4), inset 0 0 24px rgba(255,221,0,0.2); }
-}
-@keyframes starExplode {
-  0% { transform: scale(1); opacity: 1; filter: brightness(1.5); }
-  40% { transform: scale(1.4); opacity: 0.9; filter: brightness(2); }
-  100% { transform: scale(2.2); opacity: 0; filter: brightness(0.5); }
-}
-.star-burst-particle {
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  border-radius: 1px;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  animation: starBurstFly 0.55s ease-out forwards;
-  box-shadow: 0 0 8px currentColor;
-}
-@keyframes starBurstFly {
-  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; }
-}
-.daily-reward-text {
-  font-size: 14px;
-  font-weight: bold;
-  letter-spacing: 1px;
-  text-align: center;
-  margin-bottom: 16px;
-  text-shadow: 0 0 16px currentColor;
-}
-#daily-result-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin-top: 20px;
-}
-#daily-result-area.daily-reward-pop .daily-reward-text {
-  animation: rewardTextPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-@keyframes rewardTextPop {
-  0% { transform: scale(0.3); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
 #drop-btn { margin-top: 6px; }
 #drop-result { margin-top: 8px; }
 #drop-again-wrap {
@@ -594,46 +447,6 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   transform: translateY(-90px) rotate(-30deg) scaleX(1.05) !important;
   opacity: 0 !important;
 }
-/* Daily gift — gold box with star (same layout as 4hr) */
-#daily-gift-box-area {
-  position: relative;
-  display: flex; align-items: center; justify-content: center;
-  height: 180px; margin: 12px auto;
-}
-#daily-gift-box {
-  position: relative; width: 88px; height: 80px;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  filter: brightness(1.5);
-}
-#daily-gift-lid {
-  position: absolute; top: -22px; left: -7px;
-  width: 102px; height: 32px;
-  background: linear-gradient(135deg, #ffd700, #cc9900);
-  border: 2px solid #ffdd00;
-  box-shadow: 0 0 14px #ffd700aa, 0 0 28px #ffcc0055;
-  transform-origin: 50% 0%;
-  transition: transform 0.7s cubic-bezier(0.25, -0.6, 0.7, 1.4), opacity 0.6s ease;
-  z-index: 2;
-}
-#daily-gift-body {
-  position: absolute; bottom: 0; left: 0;
-  width: 88px; height: 68px;
-  background: linear-gradient(160deg, #dd9900, #aa6600);
-  border: 2px solid #ffcc00;
-  box-shadow: 0 0 12px #ffcc0066;
-}
-.daily-gift-star {
-  position: absolute;
-  top: 50%; left: 50%;
-  margin: -14px 0 0 -14px;
-  font-size: 28px; line-height: 1;
-  color: #fffacd;
-  text-shadow: 0 0 8px #ffd700, 0 0 16px #ffaa00, 0 1px 0 #000;
-  z-index: 3;
-}
-#daily-gift-sparks { position: absolute; top: 40%; left: 50%; pointer-events: none; transform: translateX(-50%); }
-
 /* Sparks container */
 #gift-sparks { position: absolute; top: 40%; left: 50%; pointer-events: none; }
 .gift-spark {
