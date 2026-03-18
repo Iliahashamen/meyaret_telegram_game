@@ -123,6 +123,18 @@ button { font-family: var(--font); cursor: pointer; border: none; outline: none;
 }
 .btn-secondary:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 #ff007733; background: #ff007714; }
 
+.btn-gold {
+  background: transparent;
+  border: var(--px) solid #ffd700;
+  color: #ffd700; padding: 14px 20px;
+  letter-spacing: 2px; font-size: 11px; line-height: 1.4;
+  text-shadow: 0 0 10px #ffd700, 0 0 18px #ffcc0055;
+  box-shadow: 4px 4px 0 #ffd70033, inset 0 0 20px #ffd70012;
+  transition: transform 0.08s, box-shadow 0.08s;
+  margin-top: 10px; width: 100%; text-align: center;
+}
+.btn-gold:active { transform: translate(2px,2px); box-shadow: 2px 2px 0 #ffd70033; background: #ffd70014; }
+
 .btn-gift-green {
   background: transparent;
   border: var(--px) solid #33ff88;
@@ -722,6 +734,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 .mode-select-btns { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
 .mode-select-btns .btn-big { margin-top: 0; }
 .mode-arcade-timer { font-size: 9px; letter-spacing: 2px; color: var(--yellow); margin-top: 6px; font-family: var(--font); }
+.mode-bossman-timer { font-size: 9px; letter-spacing: 2px; color: #ffd700; margin-top: 4px; font-family: var(--font); }
 .arcade-victory { animation: arcade-trip 0.4s ease-in-out infinite; }
 .arcade-victory .go-title { animation: arcade-rainbow 2s linear infinite; }
 @keyframes arcade-trip { 0%,100% { transform: translate(0,0) rotate(-0.3deg); } 25% { transform: translate(2px,-1px) rotate(0.2deg); } 50% { transform: translate(-1px,2px) rotate(0.3deg); } 75% { transform: translate(-2px,1px) rotate(-0.2deg); } }

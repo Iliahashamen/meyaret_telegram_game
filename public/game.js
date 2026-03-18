@@ -8,7 +8,7 @@ import {
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
-  dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost,
+  dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost, dbGrantUpgrade,
 } from './db.js';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ const C = {
 const ARCADE_WAVES = [
   { jet:'starter', skin:null, thrust:null, bullet:null, upgrades:[], bonus:{ life:0, flare:0, shield:0, rocket:0 },
     rocks:{ small:10, med:3, large:1 }, aliens:0, missiles:0, jets:0, boss:false },
-  { jet:'starter', skin:'skin_bat_yam', thrust:'#00ff66', bullet:null, upgrades:['kurwa_raketa'],
+  { jet:'starter', skin:'skin_bat_yam', thrust:'#00ff66', bullet:null, upgrades:['kurwa_raketa','pew_pew_15'],
     rocks:{ small:14, med:4, large:2 }, aliens:2, missiles:0, jets:0, boss:false },
   { jet:'plane_hamud', skin:'skin_coffee', thrust:'#0088ff', bullet:'bullet_stars', upgrades:['pew_pew_15'],
     rocks:{ small:18, med:6, large:3 }, aliens:3, missiles:3, jets:0, boss:false },
@@ -76,9 +76,9 @@ const ARCADE_WAVES = [
   { jet:'plane_baba_yaga', skin:'skin_karamba', thrust:'aurora', bullet:'bullet_aurora', upgrades:['smart_rocket','collector','lucky_bstrd'],
     rocks:{ small:38, med:16, large:8 }, aliens:9, missiles:15, jets:6, boss:false },
   { jet:'plane_baba_yaga', skin:'skin_karamba', thrust:'aurora', bullet:'bullet_aurora', upgrades:['smart_rocket','collector','lucky_bstrd'],
-    rocks:{ small:42, med:18, large:9 }, aliens:10, missiles:18, jets:8, boss:false },
+    rocks:{ small:48, med:22, large:12 }, aliens:12, missiles:24, jets:10, boss:false },
   { jet:'plane_astrozoinker', skin:'skin_candy', thrust:'spectrum', bullet:'bullet_spectrum', upgrades:['tripple_threat'],
-    bonus:{ life:1, flare:1, shield:1, rocket:1 }, rocks:{ small:48, med:20, large:10 }, aliens:12, missiles:22, jets:10, boss:false },
+    bonus:{ life:1, flare:1, shield:1, rocket:1 }, rocks:{ small:60, med:26, large:14 }, aliens:15, missiles:30, jets:13, boss:false },
   { jet:'starter', skin:'skin_acid', thrust:null, bullet:null, upgrades:[], bonus:{ life:0, flare:0, shield:0, rocket:0 }, boss:true }, // troll boss
 ];
 function _arcadeAccumulatedUpgrades(waveNum) {
@@ -1791,18 +1791,23 @@ class OrangeHomingRocket {
 
 // ── Arcade Wave 10 Boss (big gold alien, easy, troll) ─────────────────────────
 class BigBossAlien {
-  constructor(x, y, W) {
+  constructor(x, y, W, opts = {}) {
     this.x = x; this.y = y;
     this.W = W;
-    this.vx = 0.3; this.vy = 0.4; // slow, easy to track
-    this.health = 6; this.maxHealth = 6;
+    this.vx = opts.vx ?? 0.3;
+    this.vy = opts.vy ?? 0.4;
+    this.health = Math.max(1, Number(opts.health ?? 6));
+    this.maxHealth = this.health;
     this.radius = 48; this.bobTimer = 0;
     this.dead = false;
     this.shootTimer = 0;
-    this.shootRate = 90; // slow fire
+    this.shootRate = Math.max(18, Math.floor(opts.shootRate ?? 90));
+    this.rocketRate = Math.max(45, Math.floor(opts.rocketRate ?? 170));
+    this.rocketTimer = 0;
+    this.canShootRockets = !!opts.canShootRockets;
     this.color = '#ffd700';
   }
-  update(ship, enemyBullets, W, H) {
+  update(ship, enemyBullets, W, H, orangeRockets = null) {
     this.bobTimer++;
     this.x += this.vx; this.y += this.vy;
     if (this.x < 80) { this.x = 80; this.vx = Math.abs(this.vx); }
@@ -1814,6 +1819,13 @@ class BigBossAlien {
       this.shootTimer = 0;
       const ang = Math.atan2(ship.y - this.y, ship.x - this.x);
       enemyBullets.push(new EnemyBullet(this.x, this.y, ang, '#ffaa00'));
+    }
+    if (this.canShootRockets && orangeRockets) {
+      this.rocketTimer++;
+      if (this.rocketTimer >= this.rocketRate) {
+        this.rocketTimer = 0;
+        orangeRockets.push(new OrangeHomingRocket(this.x, this.y));
+      }
     }
   }
   draw(ctx) {
@@ -1831,9 +1843,9 @@ class BigBossAlien {
     ctx.fillStyle = this.health > 2 ? '#ffd700' : '#ff4444';
     ctx.fillRect(this.x - barW/2, this.y - this.radius - 18, barW * (this.health / this.maxHealth), barH);
   }
-  hit(particles) {
+  hit(particles, dmg = 1) {
     burst(particles, this.x, this.y, this.color, 12, 4, 30);
-    this.health--;
+    this.health -= Math.max(0.05, Number(dmg) || 0);
     if (this.health <= 0) SFX.enemyDie();
     return this.health <= 0;
   }
@@ -2454,6 +2466,7 @@ class Game {
     if (modeModal) {
       document.getElementById('btn-mode-survival')?.addEventListener('click', () => { modeModal.classList.add('hidden'); this._startGame('survival'); });
       document.getElementById('btn-mode-arcade')?.addEventListener('click', () => { modeModal.classList.add('hidden'); this._startGame('arcade'); });
+      document.getElementById('btn-mode-bossman')?.addEventListener('click', () => { modeModal.classList.add('hidden'); this._startGame('bossman'); });
       document.getElementById('mode-select-close')?.addEventListener('click', () => modeModal.classList.add('hidden'));
       modeModal.querySelector('.top5-backdrop')?.addEventListener('click', () => modeModal.classList.add('hidden'));
     }
@@ -2693,33 +2706,68 @@ class Game {
     if (!modal) return;
     const tid = TG_USER?.id ?? this.userData?.telegram_id;
     const arcadeBtn = document.getElementById('btn-mode-arcade');
-    const timerEl = document.getElementById('mode-arcade-timer');
-    const isDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
+    const bossmanBtn = document.getElementById('btn-mode-bossman');
+    const arcadeTimerEl = document.getElementById('mode-arcade-timer');
+    const bossmanTimerEl = document.getElementById('mode-bossman-timer');
+    const isArcadeDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
       tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
-    const canArcade = isDev;
+    const isBossmanDev = (typeof window !== 'undefined' && window.BOSSMAN_TEST_USER_ID != null) &&
+      tid != null && String(tid) === String(window.BOSSMAN_TEST_USER_ID);
+    const canArcade = isArcadeDev;
+    const canBossman = isBossmanDev;
     if (arcadeBtn) {
       arcadeBtn.style.display = canArcade ? '' : 'none';
       arcadeBtn.disabled = !canArcade;
     }
-    const last = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
-    const cooldownMs = 2 * 60 * 60 * 1000; // 2 hours (only after full 10-wave clear)
-    const remaining = last && (Date.now() - last < cooldownMs) ? cooldownMs - (Date.now() - last) : 0;
-    if (timerEl) {
-      if (remaining > 0 && canArcade) {
-        timerEl.classList.remove('hidden');
+    if (bossmanBtn) {
+      bossmanBtn.style.display = canBossman ? '' : 'none';
+      bossmanBtn.disabled = !canBossman;
+    }
+
+    const formatTime = (ms) => {
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+    };
+
+    const arcadeLast = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
+    const arcadeCooldownMs = 2 * 60 * 60 * 1000;
+    const arcadeRemaining = arcadeLast && (Date.now() - arcadeLast < arcadeCooldownMs) ? arcadeCooldownMs - (Date.now() - arcadeLast) : 0;
+    if (arcadeTimerEl) {
+      if (arcadeRemaining > 0 && canArcade) {
+        arcadeTimerEl.classList.remove('hidden');
         const tick = () => {
-          const r = Math.max(0, cooldownMs - (Date.now() - last));
-          if (r <= 0) { timerEl.textContent = ''; timerEl.classList.add('hidden'); return; }
-          const h = Math.floor(r / 3600000); const m = Math.floor((r % 3600000) / 60000); const s = Math.floor((r % 60000) / 1000);
-          const timeStr = h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
-          timerEl.textContent = `ARCADE: ${timeStr}`;
+          const r = Math.max(0, arcadeCooldownMs - (Date.now() - arcadeLast));
+          if (r <= 0) { arcadeTimerEl.textContent = ''; arcadeTimerEl.classList.add('hidden'); return; }
+          arcadeTimerEl.textContent = `ARCADE: ${formatTime(r)}`;
           if (document.getElementById('mode-select-modal')?.classList.contains('hidden')) return;
           setTimeout(tick, 1000);
         };
         tick();
       } else {
-        timerEl.classList.add('hidden');
-        timerEl.textContent = '';
+        arcadeTimerEl.classList.add('hidden');
+        arcadeTimerEl.textContent = '';
+      }
+    }
+
+    const bossmanLast = parseInt(localStorage.getItem('meyaret_bossman_last') || '0', 10);
+    const bossmanCooldownMs = 5 * 60 * 60 * 1000;
+    const bossmanRemaining = bossmanLast && (Date.now() - bossmanLast < bossmanCooldownMs) ? bossmanCooldownMs - (Date.now() - bossmanLast) : 0;
+    if (bossmanTimerEl) {
+      if (bossmanRemaining > 0 && canBossman) {
+        bossmanTimerEl.classList.remove('hidden');
+        const tick = () => {
+          const r = Math.max(0, bossmanCooldownMs - (Date.now() - bossmanLast));
+          if (r <= 0) { bossmanTimerEl.textContent = ''; bossmanTimerEl.classList.add('hidden'); return; }
+          bossmanTimerEl.textContent = `BOSSMAN: ${formatTime(r)}`;
+          if (document.getElementById('mode-select-modal')?.classList.contains('hidden')) return;
+          setTimeout(tick, 1000);
+        };
+        tick();
+      } else {
+        bossmanTimerEl.classList.add('hidden');
+        bossmanTimerEl.textContent = '';
       }
     }
     modal.classList.remove('hidden');
@@ -2733,11 +2781,24 @@ class Game {
       if (!isDev) return;
       const last = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
       const cooldownMs = 2 * 60 * 60 * 1000; // 2 hours (only after full 10-wave clear)
-      if (last && Date.now() - last < cooldownMs && !isDev) {
+      if (last && Date.now() - last < cooldownMs) {
         const left = Math.ceil((cooldownMs - (Date.now() - last)) / 60000);
         alert(`ARCADE COOLDOWN\nPlay again in ${left} minutes!`);
         return;
       }
+    } else if (mode === 'bossman') {
+      const tid = TG_USER?.id ?? this.userData?.telegram_id;
+      const isDev = (typeof window !== 'undefined' && window.BOSSMAN_TEST_USER_ID != null) &&
+        tid != null && String(tid) === String(window.BOSSMAN_TEST_USER_ID);
+      if (!isDev) return;
+      const last = parseInt(localStorage.getItem('meyaret_bossman_last') || '0', 10);
+      const cooldownMs = 5 * 60 * 60 * 1000; // 5 hours
+      if (last && Date.now() - last < cooldownMs) {
+        const left = Math.ceil((cooldownMs - (Date.now() - last)) / 60000);
+        alert(`BOSSMAN COOLDOWN\nPlay again in ${left} minutes!`);
+        return;
+      }
+      localStorage.setItem('meyaret_bossman_last', Date.now().toString());
     }
     try { this._doStartGame(mode); } catch(e) {
       console.error('[_startGame]', e);
@@ -2765,6 +2826,7 @@ class Game {
     this.runScoreMultiplier=1; // set to 2 if x2 score boost active
 
     this._lastGameMode = mode;
+    this.bossmanMode = (mode === 'bossman');
     this.arcadeMode = (mode === 'arcade');
     this.arcadeWave = this.arcadeMode ? 1 : 0;
     this._arcadeWaveSpawned = false;
@@ -2777,6 +2839,14 @@ class Game {
     this._arcadeOutroActive = false;
     this._arcadeOutroFireworksUntilMs = 0;
     this._arcadeOutroRewardUntilMs = 0;
+    this._survivalBossFight = false;
+    this._survivalBossesDefeated = 0;
+    this._nextSurvivalBossScore = 1_000_000;
+    this._bossScoreBoost = 0;
+    this._bossmanKills = 0;
+    this._bossmanBetweenBosses = false;
+    this._bossmanBetweenUntil = 0;
+    this._bossmanIntroUntil = 0;
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ups = {};
@@ -2793,7 +2863,7 @@ class Game {
     }
 
     // ── One-run boosts (max 1 of each per game) ───────────────────────────
-    if (!this.arcadeMode) {
+    if (!this.arcadeMode && !this.bossmanMode) {
       const boostTypes = ['extra_life','extra_flare','extra_shield','extra_rocket'];
       const consumeList = [];
       boostTypes.forEach(id => {
@@ -2900,7 +2970,7 @@ class Game {
     this._spawnFrozen = true; // blocks _maintainAsteroids + enemy spawns
     const nick = this.userData?.nickname || 'PILOT';
     this._showScreen('game');
-    this._showGoodLuckSplash(this.arcadeMode ? `WAVE ${this.arcadeWave}` : nick);
+    this._showGoodLuckSplash(this.arcadeMode ? `WAVE ${this.arcadeWave}` : this.bossmanMode ? 'BOSSMAN' : nick);
     if (!this.arcadeMode && this.runScoreMultiplier >= 2) {
       setTimeout(() => new FloatingText(this.W/2, this.H/2, `x${this.runScoreMultiplier} SCORE ACTIVE!`, '#ffee00'), 1200);
     }
@@ -2910,6 +2980,10 @@ class Game {
       if (this.arcadeMode) {
         this._arcadeWaveStartTime = null; // set on first _arcadeTickSpawn
         this._arcadeSpawned = { rocks: 0, aliens: 0, missiles: 0, jets: 0 };
+      } else if (this.bossmanMode) {
+        this._bossmanIntroUntil = this.gameTime + 180;
+        this._bossmanBetweenBosses = true;
+        this._bossmanBetweenUntil = this.gameTime + 180; // 3s to first boss
       } else {
         for (let i = 0; i < 3; i++) {
           const pos = this._findSafeSpawnPoint(40, this.ship, 200);
@@ -3204,7 +3278,81 @@ class Game {
   }
 
   _arcadeSpawnBoss() {
-    this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W));
+    this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, { health: 7.2 })); // +20% HP
+  }
+
+  _startSurvivalBossFight() {
+    if (this.arcadeMode || this.bossmanMode || this._survivalBossFight) return;
+    this._survivalBossFight = true;
+    this._arcadePurgeBetweenWaves();
+    const n = this._survivalBossesDefeated;
+    const health = 5 * Math.pow(1.2, n);
+    const fireMult = 1 + (0.2 * n);
+    const canShootRockets = n >= 4; // from 5th boss
+    this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, {
+      health,
+      shootRate: Math.max(26, Math.floor(130 / fireMult)),
+      canShootRockets,
+      rocketRate: Math.max(80, 160 - n * 8),
+      vx: 0.24 + n * 0.01,
+      vy: 0.34 + n * 0.01,
+    }));
+    new FloatingText(this.W / 2, this.H / 2, `BOSS ${n + 1} INCOMING`, '#ffd700');
+  }
+
+  _onBossKilled() {
+    this._addScore(5000);
+    if (this.bossmanMode) {
+      this._bossmanKills++;
+      this._bossmanBetweenBosses = true;
+      this._bossmanBetweenUntil = this.gameTime + 180; // 3 sec
+      return;
+    }
+    if (!this.arcadeMode && this._survivalBossFight) {
+      this._survivalBossFight = false;
+      this._survivalBossesDefeated++;
+      this._nextSurvivalBossScore += 1_000_000;
+      this._bossScoreBoost = Number(((this._bossScoreBoost || 0) + 0.2).toFixed(2));
+      new FloatingText(this.W / 2, this.H / 2 - 24, `SCORE BOOST +0.2 (x${(this.runScoreMultiplier + this._bossScoreBoost).toFixed(1)})`, '#ffee00');
+    }
+  }
+
+  _spawnBossmanBoss() {
+    const n = this._bossmanKills;
+    const health = 8 * Math.pow(1.22, n);
+    const fireMult = 1 + (0.2 * n);
+    const canShootRockets = n >= 2;
+    this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, {
+      health,
+      shootRate: Math.max(16, Math.floor(120 / fireMult)),
+      canShootRockets,
+      rocketRate: Math.max(65, 150 - n * 6),
+      vx: 0.26 + n * 0.012,
+      vy: 0.36 + n * 0.01,
+    }));
+  }
+
+  _bossmanTick() {
+    if (!this.bossmanMode) return;
+    if (this._bossmanBetweenBosses) {
+      this._arcadePurgeBetweenWaves();
+      if (this.gameTime >= this._bossmanBetweenUntil) {
+        this._bossmanBetweenBosses = false;
+        this._spawnBossmanBoss();
+      }
+      return;
+    }
+    if (this.arcadeBosses.length === 0) {
+      this._bossmanBetweenBosses = true;
+      this._bossmanBetweenUntil = this.gameTime + 180;
+    }
+  }
+
+  _getBossHitDamage(source, boss) {
+    if (!this.bossmanMode) return 1;
+    if (source === 'rocket') return Math.max(0.8, boss.maxHealth * 0.15); // ~15%
+    if (source === 'smart') return Math.max(1.0, boss.maxHealth * 0.18);
+    return Math.max(0.08, boss.maxHealth * 0.025); // bullets are much weaker
   }
 
   _maintainAsteroids() {
@@ -3390,13 +3538,22 @@ class Game {
       SFX.startGameMusic(musicTier * 5);
     }
 
+    // Survival boss milestone: every 1,000,000 score
+    if (!this.arcadeMode && !this.bossmanMode && !this._spawnFrozen && !this._survivalBossFight && this.score >= this._nextSurvivalBossScore) {
+      this._startSurvivalBossFight();
+    }
+
     // Maintain asteroid population (continuous spawning from edges) — skip in Arcade
-    if (!this.arcadeMode && !this._spawnFrozen) this._maintainAsteroids();
+    if (!this.arcadeMode && !this.bossmanMode && !this._spawnFrozen && !this._survivalBossFight) this._maintainAsteroids();
 
     // Skip enemy spawns during spawn-freeze grace period — Arcade uses staggered wave spawns
     if (this.arcadeMode && !this._spawnFrozen) {
       this._arcadeTickSpawn();
     }
+    else if (this.bossmanMode && !this._spawnFrozen) {
+      this._bossmanTick();
+    }
+    else if (this._survivalBossFight) { /* boss-only window */ }
     else if (this._spawnFrozen) { /* no spawns */ }
     else {
     const chaosAt = this._chaosAtSec ?? 900;
@@ -3501,7 +3658,7 @@ class Game {
     this.yellowAliens.forEach(ya => ya.update(this.rockets, this.W, this.H, this.particles));
     this.yellowAliens = this.yellowAliens.filter(ya => !ya.dead);
     this.orangeRockets.forEach(or => or.update(this.ship, this.W, this.H, this.particles));
-    this.arcadeBosses.forEach(b => b.update(this.ship, this.enemyBullets, this.W, this.H));
+    this.arcadeBosses.forEach(b => b.update(this.ship, this.enemyBullets, this.W, this.H, this.orangeRockets));
     this.arcadeBosses = this.arcadeBosses.filter(b => !b.dead);
     // Auto-flare: if player has flares and an orange rocket is dangerously close, auto-deploy
     if (this.ship.flares > 0 && this.orangeRockets.length > 0) {
@@ -3783,9 +3940,10 @@ class Game {
       for (let ei = this.arcadeBosses.length-1; ei >= 0; ei--) {
         if (dist(b, this.arcadeBosses[ei]) < this.arcadeBosses[ei].radius) {
           this.bullets.splice(bi, 1);
-          if (this.arcadeBosses[ei].hit(this.particles)) {
+          const boss = this.arcadeBosses[ei];
+          if (boss.hit(this.particles, this._getBossHitDamage('bullet', boss))) {
             burst(this.particles, this.arcadeBosses[ei].x, this.arcadeBosses[ei].y, '#ffd700', 30, 6, 45);
-            this._addScore(5000);
+            this._onBossKilled();
             this.arcadeBosses.splice(ei, 1);
           }
           break;
@@ -3841,9 +3999,10 @@ class Game {
       }
       for (let ei = this.arcadeBosses.length-1; ei >= 0; ei--) {
         if (dist(r, this.arcadeBosses[ei]) < r.blastR + this.arcadeBosses[ei].radius) {
-          if (this.arcadeBosses[ei].hit(this.particles)) {
+          const boss = this.arcadeBosses[ei];
+          if (boss.hit(this.particles, this._getBossHitDamage('rocket', boss))) {
             burst(this.particles, this.arcadeBosses[ei].x, this.arcadeBosses[ei].y, '#ffd700', 30, 6, 45);
-            this._addScore(5000); this.arcadeBosses.splice(ei, 1);
+            this._onBossKilled(); this.arcadeBosses.splice(ei, 1);
           }
         }
       }
@@ -3913,9 +4072,9 @@ class Game {
       for (let ei = this.arcadeBosses.length-1; ei >= 0 && !r._dead; ei--) {
         if (dist(r, this.arcadeBosses[ei]) < this.arcadeBosses[ei].radius + r.radius) {
           const boss = this.arcadeBosses[ei];
-          if (boss.hit(this.particles)) {
+          if (boss.hit(this.particles, this._getBossHitDamage('smart', boss))) {
             burst(this.particles, boss.x, boss.y, '#ffd700', 30, 6, 45);
-            this._addScore(5000);
+            this._onBossKilled();
             this.arcadeBosses.splice(ei, 1);
           }
           r.destroy();
@@ -4144,7 +4303,7 @@ class Game {
       this._addScore(CFG.enemyYellowScore * 3);
     });
     this.orangeRockets.forEach(() => this._addScore(150));
-    this.arcadeBosses.forEach(b => { burst(this.particles, b.x, b.y, '#ffd700', 20, 5, 35); this._addScore(5000); });
+    this.arcadeBosses.forEach(b => { burst(this.particles, b.x, b.y, '#ffd700', 20, 5, 35); this._onBossKilled(); });
     this.asteroids = [];
     this.redFighters = [];
     this.yellowAliens = [];
@@ -4176,7 +4335,7 @@ class Game {
 
   _addScore(pts) {
     if (this.arcadeMode) return; // no score in arcade
-    const base = this.runScoreMultiplier || 1;
+    const base = (this.runScoreMultiplier || 1) + (this._bossScoreBoost || 0);
     const ripMult = (this.ripFuryUntil > 0 && this.gameTime < this.ripFuryUntil) ? 10 : 1;
     this.score += Math.floor(pts * base * ripMult);
   }
@@ -4219,7 +4378,7 @@ class Game {
       multiplierEndMs:this.multiplierEndMs ?? 0,
       rocketAmmo:     this.ship?.rocketAmmo ?? 0,
       shieldCharges:  this.ship?.shieldCharges ?? 0,
-      scoreX2:        (this.runScoreMultiplier || 1),
+      scoreX2:        ((this.runScoreMultiplier || 1) + (this._bossScoreBoost || 0)),
       ripFuryActive:  this.ripFuryUntil > 0 && this.gameTime < this.ripFuryUntil,
       xforceCooldownSec: xforceSec,
       ripCountdownSec:   this.ripCountdownRemain > 0 ? Math.ceil(this.ripCountdownRemain / 60) : undefined,
@@ -4235,6 +4394,35 @@ class Game {
     });
     if (this.ripFuryUntil > 0 && this.gameTime < this.ripFuryUntil) this._drawRipFuryOverlay(ctx);
     if (this.arcadeMode) this._drawArcadeOverlay(ctx);
+    if (this.bossmanMode) this._drawBossmanOverlay(ctx);
+  }
+
+  _drawBossmanOverlay(ctx) {
+    const W = this.W, H = this.H;
+    const s = Math.min(W, H) / 420;
+    const fontPx = (base) => Math.round(Math.min(base * s, base * 1.2));
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (this._bossmanIntroUntil > this.gameTime) {
+      ctx.font = `bold ${fontPx(14)}px "Press Start 2P"`;
+      glow(ctx, '#ffd700', 12);
+      ctx.fillStyle = '#ffd700';
+      ctx.fillText('KILL AS MANY BOSSES', W / 2, H / 2 - fontPx(14));
+    }
+    if (this._bossmanBetweenBosses) {
+      const secLeft = Math.max(0, Math.ceil((this._bossmanBetweenUntil - this.gameTime) / 60));
+      ctx.font = `bold ${fontPx(12)}px "Press Start 2P"`;
+      glow(ctx, '#ffcc00', 10);
+      ctx.fillStyle = '#ffcc00';
+      ctx.fillText(`NEXT BOSS IN ${secLeft}`, W / 2, H / 2 + fontPx(8));
+    }
+    ctx.font = `${fontPx(8)}px "Press Start 2P"`;
+    ctx.fillStyle = '#ffee88';
+    glow(ctx, '#ffee88', 6);
+    ctx.fillText(`BOSSES KILLED: ${this._bossmanKills || 0}`, W / 2, 24);
+    ctx.restore();
+    ctx.shadowBlur = 0;
   }
 
   _drawArcadeOverlay(ctx) {
@@ -4361,7 +4549,65 @@ class Game {
   }
 
   // ── Game Over ──────────────────────────────────────────────────────────────
+  _rollBossmanReward(kills) {
+    const upgrades = CATALOG.filter(c => c.category === 'upgrade').sort((a, b) => a.cost - b.cost);
+    const maxUpgradeCost = upgrades[upgrades.length - 1]?.cost || 6666;
+    const upgradeChance = Math.min(0.08 + kills * 0.07, 0.8);
+    if (Math.random() < upgradeChance && upgrades.length) {
+      const target = Math.min(maxUpgradeCost, 600 + kills * kills * 180);
+      const pool = upgrades.filter(u => u.cost <= target);
+      const pickPool = pool.length ? pool : upgrades;
+      const pick = pickPool[rngInt(0, pickPool.length - 1)];
+      return { type: 'upgrade', value: pick.id, label: pick.name };
+    }
+    const maxCash = Math.max(10, Math.min(maxUpgradeCost, 50 + kills * kills * 120 + rngInt(0, 240)));
+    const cash = rngInt(10, maxCash);
+    return { type: 'cash', value: cash, label: `+${cash.toLocaleString()} $$` };
+  }
+
+  async _bossmanGameOver() {
+    this.ship.alive = false;
+    SFX.thrustStop(); SFX.gameOver();
+    document.getElementById('gameover-screen')?.classList.remove('arcade-victory');
+    this._showScreen('gameover');
+    const kills = this._bossmanKills || 0;
+    const reward = this._rollBossmanReward(kills);
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    try {
+      if (reward.type === 'cash') {
+        if (tid && !OFFLINE_MODE) {
+          const updated = await dbAddBonusShmips(tid, reward.value);
+          if (updated) this.userData.shmips = updated.shmips;
+        } else {
+          this.userData.shmips = (this.userData.shmips || 0) + reward.value;
+        }
+      } else {
+        if (tid && !OFFLINE_MODE) {
+          const updatedUser = await dbGrantUpgrade(tid, reward.value);
+          if (updatedUser) this.userData = { ...this.userData, ...updatedUser };
+        } else {
+          this.upgrades[reward.value] = (this.upgrades[reward.value] || 0) + 1;
+        }
+      }
+    } catch (e) { console.warn('[bossman] reward failed:', e.message); }
+
+    const titleEl = document.getElementById('go-title');
+    const scoreEl = document.getElementById('go-score');
+    const shmipsEl = document.getElementById('go-shmips');
+    const lbEl = document.getElementById('go-leaderboard');
+    if (titleEl) titleEl.textContent = 'BOSSMAN COMPLETE';
+    if (scoreEl) scoreEl.textContent = `BOSSES KILLED: ${kills}`;
+    if (shmipsEl) shmipsEl.textContent = reward.type === 'upgrade' ? `REWARD: ${reward.label}` : reward.label;
+    if (lbEl) lbEl.innerHTML = '<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">Kill more bosses for better rewards.\nCash rewards scale up to top-upgrade range.\nUpgrade drop chance rises with kills.</pre>';
+
+    const pa = document.getElementById('go-play-again');
+    if (pa) { pa.style.display = ''; pa.textContent = 'PLAY AGAIN'; }
+    const gm = document.getElementById('go-menu');
+    if (gm) { gm.textContent = 'MAIN MENU'; gm.classList.remove('btn-primary'); gm.classList.add('btn-secondary'); }
+  }
+
   async _gameOver() {
+    if (this.bossmanMode) { await this._bossmanGameOver(); return; }
     this.ship.alive = false;
     SFX.thrustStop(); SFX.gameOver();
     document.getElementById('gameover-screen')?.classList.remove('arcade-victory');

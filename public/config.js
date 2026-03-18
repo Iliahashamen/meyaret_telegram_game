@@ -16,4 +16,5 @@
 
   // Arcade mode: testing only — replace with your Telegram user ID
   window.ARCADE_TEST_USER_ID = 1357754255;
+  window.BOSSMAN_TEST_USER_ID = 1357754255;
 })();

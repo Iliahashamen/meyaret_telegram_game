@@ -446,3 +446,10 @@ async function _grantUpgrade(id, upgradeId) {
   }
 }
 
+export async function dbGrantUpgrade(telegramId, upgradeId) {
+  const id = String(telegramId);
+  await _grantUpgrade(id, upgradeId);
+  const updated = await supa(`users?telegram_id=eq.${id}&select=*`);
+  return updated[0] || null;
+}
+
