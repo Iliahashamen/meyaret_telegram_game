@@ -62,12 +62,12 @@ const C = {
 // ── Arcade Waves Config (each wave = substantial mini-game) ───────────────────
 const ARCADE_WAVES = [
   { jet:'starter', skin:null, thrust:null, bullet:null, upgrades:[], bonus:{ life:0, flare:0, shield:0, rocket:0 },
-    rocks:{ small:14, med:4, large:2 }, aliens:0, missiles:0, jets:0, boss:false },
+    rocks:{ small:10, med:3, large:1 }, aliens:0, missiles:0, jets:0, boss:false },
   { jet:'starter', skin:'skin_bat_yam', thrust:'#00ff66', bullet:null, upgrades:['kurwa_raketa'],
-    rocks:{ small:18, med:6, large:3 }, aliens:3, missiles:0, jets:0, boss:false },
+    rocks:{ small:14, med:4, large:2 }, aliens:2, missiles:0, jets:0, boss:false },
   { jet:'plane_hamud', skin:'skin_coffee', thrust:'#0088ff', bullet:'bullet_stars', upgrades:['pew_pew_15'],
-    rocks:{ small:22, med:8, large:4 }, aliens:5, missiles:5, jets:0, boss:false },
-  { jet:'plane_walla_yofi', skin:'skin_chupapi', thrust:'#ff0077', bullet:'bullet_diamonds', upgrades:['magen','jew_method'],
+    rocks:{ small:18, med:6, large:3 }, aliens:3, missiles:3, jets:0, boss:false },
+  { jet:'plane_walla_yofi', skin:'skin_chupapi', thrust:'#ff0077', bullet:'bullet_diamonds', upgrades:['magen'],
     rocks:{ small:26, med:10, large:5 }, aliens:6, missiles:8, jets:0, boss:false },
   { jet:'plane_walla_yofi', skin:'skin_goldie', thrust:'#aa44ff', bullet:'bullet_hearts', upgrades:['ace_upgrade','shplit'],
     bonus:{ life:0, flare:2, shield:0, rocket:0 }, rocks:{ small:30, med:12, large:6 }, aliens:7, missiles:10, jets:3, boss:false },
@@ -2774,6 +2774,9 @@ class Game {
     this._arcadeWaveStartTime = null;
     this._arcadeSpawned = null;
     this._arcadeFinalBossIntro = false;
+    this._arcadeOutroActive = false;
+    this._arcadeOutroFireworksUntilMs = 0;
+    this._arcadeOutroRewardUntilMs = 0;
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ups = {};
@@ -3093,8 +3096,18 @@ class Game {
   }
 
   async _arcadeVictory() {
+    if (this._arcadeOutroActive) return;
+    this._arcadePurgeBetweenWaves();
     this.ship.alive = false;
-    SFX.thrustStop(); SFX.gameOver();
+    SFX.thrustStop();
+    const now = Date.now();
+    this._arcadeOutroActive = true;
+    this._arcadeOutroFireworksUntilMs = now + 3800;
+    this._arcadeOutroRewardUntilMs = now + 7600;
+    setTimeout(() => this._arcadeFinishVictory(), 7600);
+  }
+
+  async _arcadeFinishVictory() {
     const nick = this.userData?.nickname || 'PILOT';
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ARCADE_REWARD = 10000;
@@ -3108,11 +3121,12 @@ class Game {
     } catch (e) { console.warn('[arcade] bonus failed:', e.message); }
     const isDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) && tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
     if (!isDev) localStorage.setItem('meyaret_arcade_last', Date.now().toString());
+    this._arcadeOutroActive = false;
     this._showScreen('gameover');
     document.getElementById('go-title').textContent = `MAZAL TOV ${nick}!!`;
     document.getElementById('go-score').textContent = '10 WAVES CLEARED';
     document.getElementById('go-shmips').textContent = `+${ARCADE_REWARD.toLocaleString()} $$ AWARDED!`;
-    document.getElementById('go-leaderboard').innerHTML = '';
+    document.getElementById('go-leaderboard').innerHTML = '<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">WAVE REWARDS:\n7 → 1,000 $$\n8 → 4,000 $$\n9 → 6,000 $$</pre>';
     const pa = document.getElementById('go-play-again');
     if (pa) { pa.style.display = 'none'; }
     const gm = document.getElementById('go-menu');
@@ -3252,16 +3266,28 @@ class Game {
 
   _update() {
     if (!this.ship?.alive) return;
+    if (this._arcadeOutroActive) return;
 
     // PC: thrust always on
     if (this._isPC()) this.keys.up = true;
 
     // Input (Rambo: rockets only, no bullets)
-    if (this.keys.fire && !this.ramboActive) this.ship.fire(this.bullets, this.fireballs, this.megaRaketas);
-    if (this.keys.flare) { this.ship.useFlare(this.rockets, this.particles, this.orangeRockets); this.keys.flare = false; }
-    if (this.keys.rocket){ this.ship.fireRocket(this.playerRockets); this.keys.rocket = false; }
-    if (this.keys.shield){ this.ship.deployShield(); this.keys.shield = false; }
-    if (this.keys.xforce){ this._activateXforce(); this.keys.xforce = false; }
+    const betweenWaves = this.arcadeMode && this._arcadeBetweenWaves;
+    if (!betweenWaves) {
+      if (this.keys.fire && !this.ramboActive) this.ship.fire(this.bullets, this.fireballs, this.megaRaketas);
+      if (this.keys.flare) { this.ship.useFlare(this.rockets, this.particles, this.orangeRockets); this.keys.flare = false; }
+      if (this.keys.rocket){ this.ship.fireRocket(this.playerRockets); this.keys.rocket = false; }
+      if (this.keys.shield){ this.ship.deployShield(); this.keys.shield = false; }
+      if (this.keys.xforce){ this._activateXforce(); this.keys.xforce = false; }
+    } else {
+      this.keys.fire = this.keys.flare = this.keys.rocket = this.keys.shield = this.keys.xforce = false;
+      this.bullets = [];
+      this.playerRockets = [];
+      this.rockets = [];
+      this.enemyBullets = [];
+      this.fireballs = [];
+      this.megaRaketas = [];
+    }
 
     // Xforce Lavian — red lasers kill all for 4 sec
     const XFORCE_COOLDOWN = 5 * 60 * 60; // 5 min in frames
@@ -3591,15 +3617,22 @@ class Game {
         const r = wc?.rocks || {};
         const totalRocks = (r.small || 0) + (r.med || 0) + (r.large || 0);
         const waveHasContent = totalRocks > 0 || (wc?.aliens || 0) > 0 || (wc?.missiles || 0) > 0 || (wc?.jets || 0) > 0 || wc?.boss;
-        const spawnedSomething = (state.rocks + state.aliens + state.missiles + state.jets) > 0 || (wc?.boss && this._arcadeBossSpawned);
+        const spawnDone = !!wc && (
+          wc.boss
+            ? !!this._arcadeBossSpawned
+            : state.rocks >= totalRocks &&
+              state.aliens >= (wc.aliens || 0) &&
+              state.missiles >= (wc.missiles || 0) &&
+              state.jets >= (wc.jets || 0)
+        );
         const entitiesGone = this.asteroids.length === 0 && this.redFighters.length === 0 &&
           this.yellowAliens.length === 0 && this.orangeRockets.length === 0 && this.arcadeBosses.length === 0;
-        const minTimeElapsed = this._arcadeWaveStartTime != null && (this.gameTime - this._arcadeWaveStartTime) > 90;
-        const allClear = entitiesGone && (!waveHasContent || (spawnedSomething && minTimeElapsed));
+        const minTimeElapsed = this._arcadeWaveStartTime != null && (this.gameTime - this._arcadeWaveStartTime) > 120;
+        const allClear = entitiesGone && (!waveHasContent || (spawnDone && minTimeElapsed));
         if (allClear) {
           this._arcadePurgeBetweenWaves();
           this._arcadeBetweenWaves = true;
-          this._arcadeBetweenWavesUntil = this.gameTime + 360; // 6 seconds
+          this._arcadeBetweenWavesUntil = this.gameTime + 480; // 8 seconds
           this._arcadeLastClearedWave = this.arcadeWave;
         }
       }
@@ -4208,6 +4241,56 @@ class Game {
     const W = this.W, H = this.H;
     const s = Math.min(W, H) / 420;
     const fontPx = (base) => Math.round(Math.min(base * s, base * 1.2));
+    if (this._arcadeOutroActive) {
+      const now = Date.now();
+      ctx.save();
+      if (now < this._arcadeOutroFireworksUntilMs) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, 0, W, H);
+        for (let i = 0; i < 6; i++) {
+          const bx = ((i + 1) * W) / 7 + Math.sin((this.tick + i * 15) * 0.07) * 18;
+          const by = H * (0.2 + (i % 2) * 0.1);
+          for (let p = 0; p < 16; p++) {
+            const a = (p / 16) * Math.PI * 2 + (this.tick * 0.03);
+            const r = 18 + ((this.tick + i * 13 + p * 7) % 24);
+            const x = bx + Math.cos(a) * r;
+            const y = by + Math.sin(a) * r;
+            ctx.fillStyle = `hsl(${(this.tick * 4 + i * 60 + p * 18) % 360},100%,60%)`;
+            ctx.fillRect(x, y, 3, 3);
+          }
+        }
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = `bold ${fontPx(12)}px "Press Start 2P"`;
+        glow(ctx, '#00ff88', 12);
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText('YOU DID IT!', W / 2, H * 0.75);
+      } else {
+        const shakeX = Math.sin(this.tick * 0.9) * 6;
+        const shakeY = Math.cos(this.tick * 0.8) * 5;
+        const grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0.0, '#ff0077aa');
+        grad.addColorStop(0.2, '#ffee00aa');
+        grad.addColorStop(0.4, '#00ffccaa');
+        grad.addColorStop(0.6, '#8800ffaa');
+        grad.addColorStop(0.8, '#00aaffaa');
+        grad.addColorStop(1.0, '#ff0077aa');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+        ctx.translate(shakeX, shakeY);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = `bold ${fontPx(16)}px "Press Start 2P"`;
+        glow(ctx, '#ffffff', 16);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('10 WAVES CLEARED', W / 2, H / 2 - fontPx(8));
+        ctx.font = `bold ${fontPx(14)}px "Press Start 2P"`;
+        ctx.fillStyle = '#ffee00';
+        glow(ctx, '#ffee00', 14);
+        ctx.fillText('+10,000 $$', W / 2, H / 2 + fontPx(14));
+      }
+      ctx.restore();
+      ctx.shadowBlur = 0;
+      return;
+    }
     if (this._arcadeBetweenWaves && this._arcadeLastClearedWave != null) {
       const next = this.arcadeWave + 1;
       const arsenal = next <= 10 ? _arcadeWaveArsenal(next) : null;
