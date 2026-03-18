@@ -124,13 +124,13 @@ export const CATALOG = [
 
 // ── 4hr Gift reward table (improved rarities, better payouts) ─────────────────────────────
 const GIFT_REWARDS = [
-  { weight: 45, type: 'shmips',  valueMin: 75,  valueMax: 200 },   // common
-  { weight: 15, type: 'shmips',  valueMin: 200, valueMax: 400 },   // uncommon jackpot
+  { weight: 45, type: 'shmips',  valueMin: 113, valueMax: 300 },   // common (+50%)
+  { weight: 15, type: 'shmips',  valueMin: 300, valueMax: 600 },   // uncommon jackpot (+50%)
   { weight: 14, type: 'skin_grant' },                             // uncommon
   { weight: 10, type: 'bullet_grant' },                           // uncommon
   { weight: 10, type: 'thrust_grant' },                            // uncommon
   { weight: 5,  type: 'upgrade_grant' },                          // rare
-  { weight: 1,  type: 'shmips',  valueMin: 500, valueMax: 800 },   // rare jackpot
+  { weight: 1,  type: 'shmips',  valueMin: 750, valueMax: 1200 },   // rare jackpot (+50%)
 ];
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;  // 4 hours (applies to everyone)
 

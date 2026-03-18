@@ -1806,6 +1806,7 @@ class BigBossAlien {
     this.rocketTimer = 0;
     this.canShootRockets = !!opts.canShootRockets;
     this.color = '#ffd700';
+    this.elite = !!opts.elite; // red+green glow, beefier
   }
   update(ship, enemyBullets, W, H, orangeRockets = null) {
     this.bobTimer++;
@@ -1831,7 +1832,12 @@ class BigBossAlien {
   draw(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y + Math.sin(this.bobTimer * 0.03) * 6);
-    glow(ctx, this.color, 24);
+    if (this.elite) {
+      glow(ctx, '#ff0000', 28);
+      glow(ctx, '#00ff44', 20);
+    } else {
+      glow(ctx, this.color, 24);
+    }
     ctx.strokeStyle = this.color; ctx.fillStyle = '#332200'; ctx.lineWidth = 3;
     ctx.scale(2.2, 2.2);
     ctx.beginPath(); ctx.ellipse(0, 0, 18, 7, 0, 0, TAU); ctx.fill(); ctx.stroke();
@@ -1887,7 +1893,7 @@ function drawGrid(ctx, W, H, tick) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, ripFuryActive, warnings, xforceCooldownSec, ripCountdownSec, arcadeWave }) {
+function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, ripFuryActive, warnings, xforceCooldownSec, ripCountdownSec, arcadeWave, bossmanKills }) {
   const FONT = '"Press Start 2P", "Courier New", monospace';
   const s = 1;
   const glowCap = (b) => Math.min(b * s, 14); // cap blur to reduce lag
@@ -1913,14 +1919,15 @@ function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multip
 
   ctx.textAlign = 'left';
 
-  // ── SCORE or WAVE (arcade) ──
+  // ── SCORE or WAVE (arcade) or BOSSES KILLED (bossman) ──
+  const topValue = bossmanKills != null ? String(bossmanKills) : arcadeWave ? String(arcadeWave) : score.toLocaleString();
   ctx.font = `${Math.round(7 * s)}px ${FONT}`; glow(ctx, C.hud, glowCap(4));
   ctx.fillStyle = '#00ffcc55';
-  ctx.fillText(arcadeWave ? 'WAVE' : 'SCORE', 14, 20 * s);
+  ctx.fillText(bossmanKills != null ? 'BOSSES' : arcadeWave ? 'WAVE' : 'SCORE', 14, 20 * s);
   ctx.font = `${Math.round(15 * s)}px ${FONT}`; glow(ctx, C.hud, glowCap(8));
   ctx.fillStyle = C.hud;
-  ctx.fillText(arcadeWave ? String(arcadeWave) : score.toLocaleString(), 14, 42 * s);
-  if (scoreX2 && scoreX2 > 1 && !arcadeWave) {
+  ctx.fillText(topValue, 14, 42 * s);
+  if (scoreX2 && scoreX2 > 1 && !arcadeWave && bossmanKills == null) {
     ctx.font = `${Math.round(7 * s)}px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', glowCap(6));
     const mult = ripFuryActive ? scoreX2 * 10 : scoreX2;
     ctx.fillText(`x${mult}`, 6 + panelW - 28, 20 * s);
@@ -2890,7 +2897,7 @@ class Game {
     const upgCount = Object.keys(ups).filter(k => !['jetType','extra_life','extra_flare','extra_shield','extra_rocket'].includes(k)).length;
     const power = jetTier + upgCount;
     this._powerMult = power <= 4 ? 0.82 : power <= 10 ? 1.0 : 1.22;
-    this._chaosAtSec = power <= 4 ? 960 : power <= 10 ? 840 : 600; // 16min / 14min / 10min
+    this._chaosAtSec = power <= 4 ? 480 : power <= 10 ? 360 : 240; // 8min / 6min / 4min — chaos hits sooner
     // Score multiplier: x2 and x3 are permanent, stack to x6
     let mult = 1;
     if (ups.score_x2) mult *= 2;
@@ -3286,16 +3293,17 @@ class Game {
     this._survivalBossFight = true;
     this._arcadePurgeBetweenWaves();
     const n = this._survivalBossesDefeated;
-    const health = 5 * Math.pow(1.2, n);
+    const STRONG = 1.6; // 60% buff
+    const health = 5 * Math.pow(1.2, n) * STRONG;
     const fireMult = 1 + (0.2 * n);
-    const canShootRockets = n >= 4; // from 5th boss
+    const canShootRockets = n >= 2; // from 3rd boss (earlier rockets)
     this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, {
       health,
-      shootRate: Math.max(26, Math.floor(130 / fireMult)),
+      shootRate: Math.max(16, Math.floor(81 / fireMult)),
       canShootRockets,
-      rocketRate: Math.max(80, 160 - n * 8),
-      vx: 0.24 + n * 0.01,
-      vy: 0.34 + n * 0.01,
+      rocketRate: Math.max(50, Math.floor((160 - n * 8) / STRONG)),
+      vx: (0.24 + n * 0.01) * STRONG,
+      vy: (0.34 + n * 0.01) * STRONG,
     }));
     new FloatingText(this.W / 2, this.H / 2, `BOSS ${n + 1} INCOMING`, '#ffd700');
   }
@@ -3319,16 +3327,22 @@ class Game {
 
   _spawnBossmanBoss() {
     const n = this._bossmanKills;
-    const health = 8 * Math.pow(1.22, n);
-    const fireMult = 1 + (0.2 * n);
-    const canShootRockets = n >= 2;
+    const bossNum = n + 1;
+    const isElite = bossNum % 10 === 0; // 10th, 20th, 30th...
+    const eliteMult = isElite ? 2.5 : 1;
+    // 20% buffier: health scales 1.46 instead of 1.22; elite gets extra multiplier
+    const health = 8 * Math.pow(1.46, n) * eliteMult;
+    const fireMult = 1 + (0.28 * n) * (isElite ? 1.4 : 1);
+    const canShootRockets = n >= 0; // all bosses shoot rockets
+    const rocketMult = isElite ? 0.5 : 1; // elite fires rockets 2x faster
     this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, {
       health,
-      shootRate: Math.max(16, Math.floor(120 / fireMult)),
+      shootRate: Math.max(12, Math.floor(100 / fireMult)),
       canShootRockets,
-      rocketRate: Math.max(65, 150 - n * 6),
-      vx: 0.26 + n * 0.012,
-      vy: 0.36 + n * 0.01,
+      rocketRate: Math.max(35, Math.floor((120 - n * 5) * rocketMult)),
+      vx: (0.26 + n * 0.015) * (isElite ? 1.3 : 1),
+      vy: (0.36 + n * 0.012) * (isElite ? 1.3 : 1),
+      elite: isElite,
     }));
   }
 
@@ -3357,25 +3371,25 @@ class Game {
 
   _maintainAsteroids() {
     const timeS = this.gameTime / 60;
-    const chaosAt = this._chaosAtSec ?? 900;
+    const chaosAt = this._chaosAtSec ?? 600;
     const chaos = timeS >= chaosAt;
-    const ramp5 = timeS >= 300 ? Math.floor(timeS / 300) * 0.2 : 0;
+    const ramp5 = timeS >= 180 ? Math.floor(timeS / 180) * 0.25 : 0;
     const powerMult = this._powerMult ?? 1.0;
 
     // During dogfight (red fighters or homing rockets active) keep the field sparse —
     // just enough rocks to use as cover; in chaos mode allow more
     const dogfight = (this.redFighters?.length > 0) || (this.orangeRockets?.length > 0);
-    const baseRamp = 5 + Math.floor(timeS / 7); // ramp faster (40% harder)
-    const lateBonus = timeS >= 900 ? 8 : timeS >= 600 ? 4 : 0; // +8 at 15 min, +4 at 10 min
+    const baseRamp = 6 + Math.floor(timeS / 5); // ramp faster
+    const lateBonus = timeS >= 600 ? 10 : timeS >= 360 ? 5 : 0;
     const targetCount = dogfight
-      ? (chaos ? 10 + Math.floor(lateBonus / 2) : 4)
-      : Math.min(baseRamp + (chaos ? 12 + lateBonus : 2), chaos ? 42 : 24);
+      ? (chaos ? 12 + Math.floor(lateBonus / 2) : 6)
+      : Math.min(baseRamp + (chaos ? 16 + lateBonus : 4), chaos ? 48 : 30);
 
     // Note: we never cull existing asteroids — they stay as cover during dogfights
 
     const spawnRamp = (1 + ramp5) * powerMult;
-    const tenMinAsteroidBoost = timeS >= 600 ? 1.15 : 1;
-    const baseInterval = Math.max(100 - Math.floor(timeS * 0.72), 18);
+    const tenMinAsteroidBoost = timeS >= 360 ? 1.2 : 1;
+    const baseInterval = Math.max(85 - Math.floor(timeS * 0.9), 14);
     const spawnInterval = chaos
       ? Math.max(Math.floor((baseInterval - 22) / (1.3 * spawnRamp * tenMinAsteroidBoost)), 12)
       : Math.floor(baseInterval / (1.15 * spawnRamp));
@@ -3383,7 +3397,7 @@ class Game {
     if (this.asteroidSpawnTimer >= spawnInterval && this.asteroids.length < targetCount) {
       this.asteroidSpawnTimer = 0;
       const pos = this._findSafeSpawnPoint(60, this.ship, 180);
-      const diffPct = Math.min(timeS / 240, 1);
+      const diffPct = Math.min(timeS / 150, 1); // bigger rocks sooner
       const roll = Math.random();
       const large = diffPct * 0.42;
       const med   = 0.18 + diffPct * 0.32;
@@ -3556,50 +3570,50 @@ class Game {
     else if (this._survivalBossFight) { /* boss-only window */ }
     else if (this._spawnFrozen) { /* no spawns */ }
     else {
-    const chaosAt = this._chaosAtSec ?? 900;
+    const chaosAt = this._chaosAtSec ?? 600;
     const chaos = timeS >= chaosAt;
     const powerMult = this._powerMult ?? 1.0;
-    const dMult = 1.4 * powerMult;
-    const ramp5 = timeS >= 300 ? Math.floor(timeS / 300) * 0.25 : 0;
-    const tenMinRamp = timeS >= 600 ? Math.min(0.2, (timeS - 600) / 900) : 0; // +20% after 10 min
-    const lateRamp = timeS >= 900 ? Math.min(0.55, (timeS - 900) / 1800) : 0; // +55% after 15 min (steeper)
+    const dMult = 1.7 * powerMult; // higher base = more action
+    const ramp5 = timeS >= 180 ? Math.floor(timeS / 180) * 0.3 : 0;
+    const tenMinRamp = timeS >= 360 ? Math.min(0.35, (timeS - 360) / 600) : 0; // +35% after 6 min
+    const lateRamp = timeS >= 600 ? Math.min(0.6, (timeS - 600) / 1200) : 0; // +60% after 10 min
     const spawnMult = dMult + ramp5 + tenMinRamp + lateRamp;
 
-    // Yellow aliens: appear after 30 seconds; in chaos allow 3; after 15 min allow 3
-    const alienMax = chaos ? (timeS >= 900 ? 3 : 2) : 1;
+    // Yellow aliens: appear after 12 sec; 2 before chaos, 4 in late chaos
+    const alienMax = chaos ? (timeS >= 600 ? 4 : 3) : 2;
     const alienInterval = Math.floor((chaos
-      ? Math.max(800 - Math.floor(timeS * 2.6), timeS >= 900 ? 200 : 280)
-      : Math.max(1200 - Math.floor(timeS * 1.7), 450)) / spawnMult);
+      ? Math.max(500 - Math.floor(timeS * 3.2), timeS >= 600 ? 120 : 180)
+      : Math.max(800 - Math.floor(timeS * 2.5), 220)) / spawnMult);
     this.yellowAlienTimer++;
-    if (this.yellowAlienTimer > alienInterval && timeS >= 30) {
+    if (this.yellowAlienTimer > alienInterval && timeS >= 12) {
       this.yellowAlienTimer = 0;
       if (this.yellowAliens.length < alienMax) {
         const { x, y } = this._edgeSpawn();
         this.yellowAliens.push(new YellowAlien(x, y));
       }
     }
-    // Red fighters: appear after 2 min, scale with time; chaos = higher cap + faster (40% harder)
-    const redCapBase = Math.max(1, Math.floor((timeS - 100) / (48 / powerMult)));
-    const redCap = chaos ? redCapBase + Math.floor(timeS / (350 / powerMult)) + (timeS >= 900 ? 3 : timeS >= 600 ? 1 : 0) : redCapBase;
+    // Red fighters: appear after 45 sec; higher cap, faster spawns
+    const redCapBase = Math.max(1, Math.floor((timeS - 45) / (32 / powerMult)));
+    const redCap = chaos ? redCapBase + Math.floor(timeS / (220 / powerMult)) + (timeS >= 600 ? 4 : timeS >= 360 ? 2 : 1) : redCapBase + 1;
     const redInterval = Math.floor((chaos
-      ? Math.max(900 - Math.floor(timeS * 2.4), timeS >= 900 ? 220 : 280)
-      : Math.max(1200 - Math.floor(timeS * 1.2), 450)) / spawnMult);
+      ? Math.max(550 - Math.floor(timeS * 2.8), timeS >= 600 ? 140 : 180)
+      : Math.max(750 - Math.floor(timeS * 2.0), 280)) / spawnMult);
     this.redFighterTimer++;
-    if (this.redFighterTimer > redInterval && timeS >= 120) {
+    if (this.redFighterTimer > redInterval && timeS >= 45) {
       this.redFighterTimer = 0;
       if (this.redFighters.length < redCap) {
         const { x, y } = this._edgeSpawn();
         this.redFighters.push(new RedFighter(x, y));
       }
     }
-    // Orange homing rockets: appear after 2.2 min; chaos = more rockets (40% harder)
-    const orangeStart = 132;
-    const orangeCapBase = 1 + Math.floor((timeS - orangeStart) / (55 / powerMult));
-    const orangeCapMax = chaos ? (timeS >= 900 ? 10 : timeS >= 600 ? 8 : 7) : 5;
-    const orangeCap = Math.min(chaos ? orangeCapBase + 2 : orangeCapBase + 1, orangeCapMax);
+    // Orange homing rockets: appear after 55 sec; more rockets, faster spawns
+    const orangeStart = 55;
+    const orangeCapBase = 1 + Math.floor((timeS - orangeStart) / (38 / powerMult));
+    const orangeCapMax = chaos ? (timeS >= 600 ? 12 : timeS >= 360 ? 9 : 8) : 6;
+    const orangeCap = Math.min(chaos ? orangeCapBase + 3 : orangeCapBase + 2, orangeCapMax);
     const orangeInterval = Math.floor((chaos
-      ? Math.max(700 - Math.floor((timeS - orangeStart) * 2.4), timeS >= 900 ? 160 : 200)
-      : Math.max(900 - Math.floor((timeS - orangeStart) * 1.2), 300)) / spawnMult);
+      ? Math.max(450 - Math.floor((timeS - orangeStart) * 2.8), timeS >= 600 ? 100 : 140)
+      : Math.max(550 - Math.floor((timeS - orangeStart) * 2.0), 180)) / spawnMult);
     this.orangeRocketTimer++;
     if (this.orangeRocketTimer > orangeInterval && timeS >= orangeStart) {
       this.orangeRocketTimer = 0;
@@ -4371,6 +4385,7 @@ class Game {
     drawHUD(ctx, W, H, {
       score:          this.arcadeMode ? 0 : this.score,
       arcadeWave:     this.arcadeMode ? this.arcadeWave : 0,
+      bossmanKills:   this.bossmanMode ? (this._bossmanKills ?? 0) : undefined,
       lives:          _lives,
       maxLives:       this.ship?.maxLives ?? 3,
       flares:         this.ship?.flares   ?? 0,
@@ -4417,10 +4432,7 @@ class Game {
       ctx.fillStyle = '#ffcc00';
       ctx.fillText(`NEXT BOSS IN ${secLeft}`, W / 2, H / 2 + fontPx(8));
     }
-    ctx.font = `${fontPx(8)}px "Press Start 2P"`;
-    ctx.fillStyle = '#ffee88';
-    glow(ctx, '#ffee88', 6);
-    ctx.fillText(`BOSSES KILLED: ${this._bossmanKills || 0}`, W / 2, 24);
+    // BOSSES KILLED moved to top-left HUD box
     ctx.restore();
     ctx.shadowBlur = 0;
   }
@@ -4525,13 +4537,13 @@ class Game {
           }
           y += fontPx(8);
         }
-        ctx.font = `bold ${fontPx(14)}px "Press Start 2P"`;
+        ctx.font = `bold ${fontPx(18)}px "Press Start 2P"`;
         ctx.fillStyle = '#ff6600';
-        glow(ctx, '#ff6600', 8);
-        ctx.fillText(`${secLeft}`, W/2, H - fontPx(40));
-        ctx.font = `${fontPx(7)}px "Press Start 2P"`;
-        ctx.fillStyle = '#888888';
-        ctx.fillText('sec until next wave', W/2, H - fontPx(28));
+        glow(ctx, '#ff6600', 12);
+        ctx.fillText(`${secLeft}`, W/2, H - fontPx(50));
+        ctx.font = `${fontPx(10)}px "Press Start 2P"`;
+        ctx.fillStyle = '#bbbbbb';
+        ctx.fillText('sec until next wave', W/2, H - fontPx(34));
       }
       ctx.restore();
       ctx.shadowBlur = 0;
@@ -4553,10 +4565,13 @@ class Game {
     const upgrades = CATALOG.filter(c => c.category === 'upgrade').sort((a, b) => a.cost - b.cost);
     const maxUpgradeCost = upgrades[upgrades.length - 1]?.cost || 6666;
     const upgradeChance = Math.min(0.08 + kills * 0.07, 0.8);
-    if (Math.random() < upgradeChance && upgrades.length) {
-      const target = Math.min(maxUpgradeCost, 600 + kills * kills * 180);
-      const pool = upgrades.filter(u => u.cost <= target);
-      const pickPool = pool.length ? pool : upgrades;
+    const topTierCost = 2500; // no top-tier until 15 kills
+    const allowedUpgrades = kills >= 15 ? upgrades : upgrades.filter(u => u.cost < topTierCost);
+    if (Math.random() < upgradeChance && allowedUpgrades.length) {
+      const rawTarget = Math.min(maxUpgradeCost, 600 + kills * kills * 180);
+      const target = kills < 15 ? Math.min(rawTarget, topTierCost - 1) : rawTarget;
+      const pool = allowedUpgrades.filter(u => u.cost <= target);
+      const pickPool = pool.length ? pool : allowedUpgrades;
       const pick = pickPool[rngInt(0, pickPool.length - 1)];
       return { type: 'upgrade', value: pick.id, label: pick.name };
     }
@@ -4969,7 +4984,7 @@ class Game {
         </div>
         <div class="guide-section">
           <span class="guide-h1">GIFT BOX</span>
-          <div class="guide-row">Tap <b>GIFT</b> in the main menu. Timer shows next available. Every <b>4 hours</b> — press <b>OPEN GIFT</b>. Box shakes, lid flies off, reward revealed. Rewards: common 75–200 $$; uncommon 200–400 $$ or skin/bullet/thrust; rare upgrade; <span class="guide-tag rare">very rare</span> 500–800 $$ jackpot.</div>
+          <div class="guide-row">Tap <b>GIFT</b> in the main menu. Timer shows next available. Every <b>4 hours</b> — press <b>OPEN GIFT</b>. Box shakes, lid flies off, reward revealed. Rewards: common 113–300 $$; uncommon 300–600 $$ or skin/bullet/thrust; rare upgrade; <span class="guide-tag rare">very rare</span> 750–1200 $$ jackpot.</div>
         </div>`,
 
       tips: `
