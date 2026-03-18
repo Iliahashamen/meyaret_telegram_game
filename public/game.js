@@ -59,6 +59,29 @@ const C = {
   hudLevel:     '#ff0077',
 };
 
+// ── Arcade Waves Config ───────────────────────────────────────────────────────
+const ARCADE_WAVES = [
+  { jet:'starter', skin:null, thrust:null, bullet:null, upgrades:[], bonus:{ life:0, flare:0, shield:0, rocket:0 },
+    rocks:{ total:6, small:6, med:0, large:0 }, aliens:0, missiles:0, jets:0, boss:false },
+  { jet:'starter', skin:'skin_bat_yam', thrust:'#00ff66', bullet:null, upgrades:['kurwa_raketa'],
+    rocks:{ total:10, small:8, med:2, large:0 }, aliens:1, missiles:0, jets:0, boss:false },
+  { jet:'plane_hamud', skin:'skin_coffee', thrust:'#0088ff', bullet:'bullet_stars', upgrades:['pew_pew_15'],
+    rocks:{ total:14, small:10, med:4, large:0 }, aliens:2, missiles:2, jets:0, boss:false },
+  { jet:'plane_walla_yofi', skin:'skin_chupapi', thrust:'#ff0077', bullet:'bullet_diamonds', upgrades:['magen','jew_method'],
+    rocks:{ total:18, small:12, med:6, large:0 }, aliens:3, missiles:4, jets:0, boss:false },
+  { jet:'plane_walla_yofi', skin:'skin_goldie', thrust:'#aa44ff', bullet:'bullet_hearts', upgrades:['ace_upgrade','shplit'],
+    bonus:{ life:0, flare:2, shield:0, rocket:0 }, rocks:{ total:22, small:14, med:6, large:2 }, aliens:4, missiles:6, jets:1, boss:false },
+  { jet:'plane_negev', skin:'skin_acid', thrust:'#00ffcc', bullet:'bullet_diamonds', upgrades:['ace_upgrade','zep_zep_zep','pew_pew_3'],
+    bonus:{ life:0, flare:1, shield:1, rocket:0 }, rocks:{ total:26, small:16, med:8, large:2 }, aliens:4, missiles:7, jets:3, boss:false },
+  { jet:'plane_baba_yaga', skin:'skin_karamba', thrust:'aurora', bullet:'bullet_aurora', upgrades:['smart_rocket','collector','lucky_bstrd'],
+    rocks:{ total:32, small:18, med:10, large:4 }, aliens:5, missiles:8, jets:4, boss:false },
+  { jet:'plane_baba_yaga', skin:'skin_karamba', thrust:'aurora', bullet:'bullet_aurora', upgrades:['smart_rocket','collector','lucky_bstrd','hornet_assistant'],
+    rocks:{ total:36, small:20, med:12, large:4 }, aliens:5, missiles:9, jets:8, boss:false },
+  { jet:'plane_astrozoinker', skin:'skin_candy', thrust:'spectrum', bullet:'bullet_spectrum', upgrades:['xforce_lavian','tripple_threat'],
+    bonus:{ life:1, flare:1, shield:1, rocket:1 }, rocks:{ total:44, small:24, med:14, large:6 }, aliens:6, missiles:20, jets:11, boss:false },
+  { jet:'starter', skin:'skin_acid', thrust:null, bullet:null, upgrades:[], boss:true }, // troll boss — easy!
+];
+
 // ── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
   rotSpeed:     0.044,
@@ -1742,6 +1765,56 @@ class OrangeHomingRocket {
   }
 }
 
+// ── Arcade Wave 10 Boss (big gold alien, easy, troll) ─────────────────────────
+class BigBossAlien {
+  constructor(x, y, W) {
+    this.x = x; this.y = y;
+    this.W = W;
+    this.vx = 0.3; this.vy = 0.4; // slow, easy to track
+    this.health = 6; this.maxHealth = 6;
+    this.radius = 48; this.bobTimer = 0;
+    this.dead = false;
+    this.shootTimer = 0;
+    this.shootRate = 90; // slow fire
+    this.color = '#ffd700';
+  }
+  update(ship, enemyBullets, W, H) {
+    this.bobTimer++;
+    this.x += this.vx; this.y += this.vy;
+    if (this.x < 80) { this.x = 80; this.vx = Math.abs(this.vx); }
+    if (this.x > W - 80) { this.x = W - 80; this.vx = -Math.abs(this.vx); }
+    if (this.y < 60) { this.y = 60; this.vy = Math.abs(this.vy); }
+    if (this.y > H - 80) { this.y = H - 80; this.vy = -Math.abs(this.vy); }
+    this.shootTimer++;
+    if (this.shootTimer >= this.shootRate) {
+      this.shootTimer = 0;
+      const ang = Math.atan2(ship.y - this.y, ship.x - this.x);
+      enemyBullets.push(new EnemyBullet(this.x, this.y, ang, '#ffaa00'));
+    }
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y + Math.sin(this.bobTimer * 0.03) * 6);
+    glow(ctx, this.color, 24);
+    ctx.strokeStyle = this.color; ctx.fillStyle = '#332200'; ctx.lineWidth = 3;
+    ctx.scale(2.2, 2.2);
+    ctx.beginPath(); ctx.ellipse(0, 0, 18, 7, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, -4, 9, 6, 0, Math.PI, TAU); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.shadowBlur = 0;
+    const barW = 60; const barH = 6;
+    ctx.fillStyle = '#222'; ctx.fillRect(this.x - barW/2, this.y - this.radius - 18, barW, barH);
+    ctx.fillStyle = this.health > 2 ? '#ffd700' : '#ff4444';
+    ctx.fillRect(this.x - barW/2, this.y - this.radius - 18, barW * (this.health / this.maxHealth), barH);
+  }
+  hit(particles) {
+    burst(particles, this.x, this.y, this.color, 12, 4, 30);
+    this.health--;
+    if (this.health <= 0) SFX.enemyDie();
+    return this.health <= 0;
+  }
+}
+
 // ── Background ────────────────────────────────────────────────────────────────
 const STARS_BG  = Array.from({ length: 55 }, (_, i) => ({ x: (i*173+31)%1000, y: (i*271+97)%1000,  r: 0.35, phase: i*0.37 }));
 const STARS_MID = Array.from({ length: 28 }, (_, i) => ({ x: (i*229+61)%1000, y: (i*347+113)%1000, r: i%5===0?1.1:0.7, phase: i*0.61, tint: i%4===0?'#c4aaff':'#ffffff' }));
@@ -2113,7 +2186,7 @@ class Game {
     this.ship = null;
     this.asteroids = []; this.bullets = []; this.enemyBullets = [];
     this.rockets = []; this.playerRockets = []; this.fireballs = []; this.particles = [];
-    this.redFighters = []; this.yellowAliens = []; this.orangeRockets = [];
+    this.redFighters = []; this.yellowAliens = []; this.orangeRockets = []; this.arcadeBosses = [];
     this.coins = []; this.mysteryPickups = []; this.greenStars = []; this.monsterFuels = [];
 
     this.score = 0; this.level = 1; this.tick = 0; this.paused = false;
@@ -2607,9 +2680,17 @@ class Game {
   async _startGame(mode = 'survival') {
     if (mode === 'arcade') {
       const tid = TG_USER?.id ?? this.userData?.telegram_id;
-      const canArcade = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
+      const isDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
         tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
-      if (!canArcade) return;
+      if (!isDev) return;
+      if (!isDev) {
+        const last = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
+        if (last && Date.now() - last < 24 * 60 * 60 * 1000) {
+          const left = Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - last)) / 60000);
+          alert(`ARCADE COOLDOWN\nPlay again in ${left} minutes!`);
+          return;
+        }
+      }
     }
     try { this._doStartGame(mode); } catch(e) {
       console.error('[_startGame]', e);
@@ -2617,12 +2698,13 @@ class Game {
     }
   }
   _doStartGame(mode = 'survival') {
+    document.getElementById('gameover-screen')?.classList.remove('arcade-victory');
     SFX.thrustStop(); this._wasThrusting = false;
     if (!this.multiplierEndMs) this.multiplierEndMs = 0;
     this.score=0; this.gameTime=0; this.tick=0;
     this.asteroids=[]; this.bullets=[]; this.enemyBullets=[];
     this.rockets=[]; this.playerRockets=[]; this.megaRaketas=[]; this.fireballs=[]; this.particles=[];
-    this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[];
+    this.redFighters=[]; this.yellowAliens=[]; this.orangeRockets=[]; this.arcadeBosses=[];
     this.friendlyJets=[]; this._hornetSpawnedThisRun = false;
     this.coins=[]; this.mysteryPickups=[]; this.greenStars=[]; this.monsterFuels=[];
     this.runShmipsBonus=0; this.pickupSpawnTimer=0;
@@ -2639,6 +2721,7 @@ class Game {
     this.arcadeMode = (mode === 'arcade');
     this.arcadeWave = this.arcadeMode ? 1 : 0;
     this._arcadeWaveSpawned = false;
+    this._arcadeBossSpawned = false;
     this._arcadeBetweenWaves = false;
     this._arcadeBetweenWavesUntil = 0;
 
@@ -2738,8 +2821,23 @@ class Game {
 
     if (!this.upgrades) this.upgrades = {};
     if (this.arcadeMode) {
+      const wc = ARCADE_WAVES[this.arcadeWave - 1];
       Object.keys(ups).forEach(k => delete ups[k]);
-      ups.jetType = 'starter';
+      ups.jetType = wc.jet;
+      if (wc.skin) {
+        const skinColors = { skin_bat_yam:{ color:'#0077ff', accent:'#00ffee' }, skin_coffee:{ color:'#6b3a1f', accent:'#f5d9a8' }, skin_chupapi:{ color:'#00dd44', accent:'#ccff00' }, skin_goldie:{ color:'#ffd700', accent:'#ffffff' }, skin_acid:{ color:'acid' }, skin_karamba:{ color:'#ff2255', accent:'#ff9900' }, skin_candy:{ color:'#ff88cc', accent:'#88ffdd' } };
+        const sc = skinColors[wc.skin];
+        if (sc) { ups.skinId = wc.skin; if (sc.color !== 'acid') { ups.skin_color = sc.color; ups.skin_accent = sc.accent; } }
+      }
+      const thrustColors = { '#00ff66':'#00ff66', '#0088ff':'#0088ff', '#ff0077':'#ff0077', '#aa44ff':'#aa44ff', '#00ffcc':'#00ffcc', 'aurora':'aurora', 'spectrum':'spectrum' };
+      if (wc.thrust && thrustColors[wc.thrust]) ups.thrustColor = thrustColors[wc.thrust];
+      const bulletItems = { bullet_stars:{ shape:'star', color:'#ffd700' }, bullet_diamonds:{ shape:'diamond', color:'#00ffee' }, bullet_hearts:{ shape:'heart', color:'#ff69b4' }, bullet_aurora:{ shape:'default', color:'aurora' }, bullet_spectrum:{ shape:'default', color:'spectrum' } };
+      if (wc.bullet && bulletItems[wc.bullet]) { ups.bulletShape = bulletItems[wc.bullet].shape; ups.bulletColor = bulletItems[wc.bullet].color; }
+      (wc.upgrades || []).forEach(id => ups[id] = 1);
+      if ((wc.bonus || {}).life) ups.extra_life = 1;
+      if ((wc.bonus || {}).flare) ups.extra_flare = 1;
+      if ((wc.bonus || {}).shield) ups.extra_shield = 1;
+      if ((wc.bonus || {}).rocket) ups.extra_rocket = 1;
     }
     this.ship = new Ship(this.W/2, this.H/2, ups);
     _updateShieldHUD(this.ship.shieldCharges);
@@ -2748,8 +2846,7 @@ class Game {
     this._spawnFrozen = true; // blocks _maintainAsteroids + enemy spawns
     const nick = this.userData?.nickname || 'PILOT';
     this._showScreen('game');
-    // Big centered "Good Luck" splash for 2 seconds
-    this._showGoodLuckSplash(nick);
+    this._showGoodLuckSplash(this.arcadeMode ? `WAVE ${this.arcadeWave}` : nick);
     if (this.runScoreMultiplier >= 2) {
       setTimeout(() => new FloatingText(this.W/2, this.H/2, `x${this.runScoreMultiplier} SCORE ACTIVE!`, '#ffee00'), 1200);
     }
@@ -2757,7 +2854,8 @@ class Game {
     setTimeout(() => {
       this._spawnFrozen = false;
       if (this.arcadeMode) {
-        this._arcadeSpawnWave1();
+        this._arcadeWaveStartTime = null; // set on first _arcadeTickSpawn
+        this._arcadeSpawned = { rocks: 0, aliens: 0, missiles: 0, jets: 0 };
       } else {
         for (let i = 0; i < 3; i++) {
           const pos = this._findSafeSpawnPoint(40, this.ship, 200);
@@ -2767,10 +2865,11 @@ class Game {
     }, 2000);
   }
 
-  _showGoodLuckSplash(nick) {
+  _showGoodLuckSplash(text) {
     const el = document.getElementById('goodluck-splash');
     if (!el) return;
-    el.innerHTML = `<div class="gl-wrap"><span class="gl-text">Good luck ${nick}</span></div>`;
+    const msg = text.startsWith('WAVE') ? text : `Good luck ${text}`;
+    el.innerHTML = `<div class="gl-wrap"><span class="gl-text">${msg}</span></div>`;
     el.classList.remove('hidden');
     setTimeout(() => { el.classList.add('hidden'); el.innerHTML = ''; }, 2000);
   }
@@ -2895,39 +2994,114 @@ class Game {
     this.redFighters = this.redFighters.filter(e => dist(e, this.ship) > rad + e.radius);
     this.yellowAliens = this.yellowAliens.filter(e => dist(e, this.ship) > rad + e.radius);
     this.orangeRockets = this.orangeRockets.filter(e => dist(e, this.ship) > rad + e.radius);
+    this.arcadeBosses = this.arcadeBosses.filter(e => dist(e, this.ship) > rad + e.radius);
     this.rockets = this.rockets.filter(e => dist(e, this.ship) > rad + e.radius);
     this.enemyBullets = this.enemyBullets.filter(e => dist(e, this.ship) > rad + e.radius);
   }
 
   _arcadeRestockShip() {
-    const s = this.ship;
-    if (!s) return;
-    s.lives = 2; s.maxLives = 2;
-    s.flares = 1; s.maxFlares = 1;
-    s.rocketAmmo = 0;
-    s.shieldCharges = 0;
-    _updateShieldHUD(s.shieldCharges);
+    const wc = ARCADE_WAVES[this.arcadeWave - 1];
+    if (!wc || !this.ship) return;
+    const ups = {};
+    ups.jetType = wc.jet;
+    if (wc.skin) {
+      const skinColors = { skin_bat_yam:{ color:'#0077ff', accent:'#00ffee' }, skin_coffee:{ color:'#6b3a1f', accent:'#f5d9a8' }, skin_chupapi:{ color:'#00dd44', accent:'#ccff00' }, skin_goldie:{ color:'#ffd700', accent:'#ffffff' }, skin_acid:{ color:'acid' }, skin_karamba:{ color:'#ff2255', accent:'#ff9900' }, skin_candy:{ color:'#ff88cc', accent:'#88ffdd' } };
+      const sc = skinColors[wc.skin];
+      if (sc) { ups.skinId = wc.skin; if (sc.color !== 'acid') { ups.skin_color = sc.color; ups.skin_accent = sc.accent; } }
+    }
+    const thrustColors = { '#00ff66':'#00ff66', '#0088ff':'#0088ff', '#ff0077':'#ff0077', '#aa44ff':'#aa44ff', '#00ffcc':'#00ffcc', 'aurora':'aurora', 'spectrum':'spectrum' };
+    if (wc.thrust && thrustColors[wc.thrust]) ups.thrustColor = thrustColors[wc.thrust];
+    const bulletItems = { bullet_stars:{ shape:'star', color:'#ffd700' }, bullet_diamonds:{ shape:'diamond', color:'#00ffee' }, bullet_hearts:{ shape:'heart', color:'#ff69b4' }, bullet_aurora:{ shape:'default', color:'aurora' }, bullet_spectrum:{ shape:'default', color:'spectrum' } };
+    if (wc.bullet && bulletItems[wc.bullet]) { ups.bulletShape = bulletItems[wc.bullet].shape; ups.bulletColor = bulletItems[wc.bullet].color; }
+    (wc.upgrades || []).forEach(id => ups[id] = 1);
+    if ((wc.bonus || {}).life) ups.extra_life = 1;
+    if ((wc.bonus || {}).flare) ups.extra_flare = 1;
+    if ((wc.bonus || {}).shield) ups.extra_shield = 1;
+    if ((wc.bonus || {}).rocket) ups.extra_rocket = 1;
+    const cx = this.ship.x, cy = this.ship.y;
+    this.ship = new Ship(cx, cy, ups);
+    _updateShieldHUD(this.ship.shieldCharges);
   }
 
-  _arcadeVictory() {
+  async _arcadeVictory() {
     this.ship.alive = false;
     SFX.thrustStop(); SFX.gameOver();
+    const nick = this.userData?.nickname || 'PILOT';
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    const ARCADE_REWARD = 10000;
+    try {
+      if (tid && !OFFLINE_MODE) {
+        const updated = await dbAddBonusShmips(tid, ARCADE_REWARD);
+        if (updated) this.userData.shmips = updated.shmips;
+      } else {
+        this.userData.shmips = (this.userData.shmips || 0) + ARCADE_REWARD;
+      }
+    } catch (e) { console.warn('[arcade] bonus failed:', e.message); }
+    const isDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) && tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
+    if (!isDev) localStorage.setItem('meyaret_arcade_last', Date.now().toString());
     this._showScreen('gameover');
-    document.getElementById('go-title').textContent = 'ARCADE COMPLETE';
-    document.getElementById('go-score').textContent = `WAVE ${this.arcadeWave} CLEARED`;
-    document.getElementById('go-shmips').textContent = '';
+    document.getElementById('go-title').textContent = `MAZAL TOV ${nick}!!`;
+    document.getElementById('go-score').textContent = '10 WAVES CLEARED';
+    document.getElementById('go-shmips').textContent = `+${ARCADE_REWARD.toLocaleString()} $$ AWARDED!`;
     document.getElementById('go-leaderboard').innerHTML = '';
     document.getElementById('go-play-again').textContent = 'PLAY AGAIN';
-    // go-play-again uses _lastGameMode from addEventListener, will restart arcade
+    document.getElementById('gameover-screen').classList.add('arcade-victory');
   }
 
-  _arcadeSpawnWave1() {
-    if (this._arcadeWaveSpawned) return;
-    this._arcadeWaveSpawned = true;
-    for (let i = 0; i < 6; i++) {
-      const pos = this._findSafeSpawnPoint(40, this.ship, 200);
-      this.asteroids.push(new Asteroid(pos.x, pos.y, 'small', null, 1));
+  _arcadeTickSpawn() {
+    const wc = ARCADE_WAVES[this.arcadeWave - 1];
+    if (!wc) return;
+    if (wc.boss) {
+      if (!this._arcadeBossSpawned) {
+        this._arcadeBossSpawned = true;
+        this._arcadeSpawnBoss();
+      }
+      return;
     }
+    if (this._arcadeWaveStartTime == null) this._arcadeWaveStartTime = this.gameTime;
+    const t = this.gameTime - this._arcadeWaveStartTime;
+    const state = this._arcadeSpawned;
+
+    const r = wc.rocks || {};
+    const totalRocks = (r.small || 0) + (r.med || 0) + (r.large || 0);
+    if (totalRocks > 0 && state.rocks < totalRocks) {
+      const batchInterval = Math.max(40, Math.floor(180 / Math.min(5, Math.ceil(totalRocks / 2))));
+      if (t >= state.rocks * batchInterval) {
+        const toSpawn = Math.min(2, totalRocks - state.rocks);
+        for (let i = 0; i < toSpawn; i++) {
+          const idx = state.rocks + i;
+          let size = idx < (r.small || 0) ? 'small' : idx < (r.small || 0) + (r.med || 0) ? 'medium' : 'large';
+          const pos = this._findSafeSpawnPoint(40, this.ship, 200);
+          this.asteroids.push(new Asteroid(pos.x, pos.y, size, null, 1));
+        }
+        state.rocks = Math.min(state.rocks + toSpawn, totalRocks);
+      }
+    }
+
+    const alienDelay = 90, alienInterval = 100;
+    if (wc.aliens > 0 && state.aliens < wc.aliens && t >= alienDelay + state.aliens * alienInterval) {
+      const { x, y } = this._edgeSpawn();
+      this.yellowAliens.push(new YellowAlien(x, y));
+      state.aliens++;
+    }
+
+    const missileDelay = 150, missileInterval = 110;
+    if (wc.missiles > 0 && state.missiles < wc.missiles && t >= missileDelay + state.missiles * missileInterval) {
+      const { x, y } = this._edgeSpawn();
+      this.orangeRockets.push(new OrangeHomingRocket(x, y));
+      state.missiles++;
+    }
+
+    const jetDelay = 200, jetInterval = 130;
+    if (wc.jets > 0 && state.jets < wc.jets && t >= jetDelay + state.jets * jetInterval) {
+      const { x, y } = this._edgeSpawn();
+      this.redFighters.push(new RedFighter(x, y));
+      state.jets++;
+    }
+  }
+
+  _arcadeSpawnBoss() {
+    this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W));
   }
 
   _maintainAsteroids() {
@@ -3104,8 +3278,10 @@ class Game {
     // Maintain asteroid population (continuous spawning from edges) — skip in Arcade
     if (!this.arcadeMode && !this._spawnFrozen) this._maintainAsteroids();
 
-    // Skip enemy spawns during spawn-freeze grace period — skip in Arcade (wave-based)
-    if (this.arcadeMode) { /* arcade uses wave spawns only */ }
+    // Skip enemy spawns during spawn-freeze grace period — Arcade uses staggered wave spawns
+    if (this.arcadeMode && !this._spawnFrozen) {
+      this._arcadeTickSpawn();
+    }
     else if (this._spawnFrozen) { /* no spawns */ }
     else {
     const chaosAt = this._chaosAtSec ?? 900;
@@ -3210,6 +3386,8 @@ class Game {
     this.yellowAliens.forEach(ya => ya.update(this.rockets, this.W, this.H, this.particles));
     this.yellowAliens = this.yellowAliens.filter(ya => !ya.dead);
     this.orangeRockets.forEach(or => or.update(this.ship, this.W, this.H, this.particles));
+    this.arcadeBosses.forEach(b => b.update(this.ship, this.enemyBullets, this.W, this.H));
+    this.arcadeBosses = this.arcadeBosses.filter(b => !b.dead);
     // Auto-flare: if player has flares and an orange rocket is dangerously close, auto-deploy
     if (this.ship.flares > 0 && this.orangeRockets.length > 0) {
       const autoFlareR = 80;
@@ -3300,12 +3478,20 @@ class Game {
       if (this._arcadeBetweenWaves) {
         if (this.gameTime >= this._arcadeBetweenWavesUntil) {
           this._arcadeBetweenWaves = false;
-          this._arcadeRestockShip();
-          this._arcadeVictory(); // for now: only 1 wave; later: advance to next wave
+          const nextWave = this.arcadeWave + 1;
+          if (nextWave <= 10) {
+            this.arcadeWave = nextWave;
+            this._arcadeRestockShip();
+            this._arcadeWaveStartTime = null;
+            this._arcadeSpawned = { rocks: 0, aliens: 0, missiles: 0, jets: 0 };
+            this._arcadeBossSpawned = false;
+          } else {
+            this._arcadeVictory();
+          }
         }
       } else {
         const allClear = this.asteroids.length === 0 && this.redFighters.length === 0 &&
-          this.yellowAliens.length === 0 && this.orangeRockets.length === 0;
+          this.yellowAliens.length === 0 && this.orangeRockets.length === 0 && this.arcadeBosses.length === 0;
         if (allClear) {
           this._arcadeBetweenWaves = true;
           this._arcadeBetweenWavesUntil = this.gameTime + 180; // 3 seconds
@@ -3456,6 +3642,17 @@ class Game {
           break;
         }
       }
+      for (let ei = this.arcadeBosses.length-1; ei >= 0; ei--) {
+        if (dist(b, this.arcadeBosses[ei]) < this.arcadeBosses[ei].radius) {
+          this.bullets.splice(bi, 1);
+          if (this.arcadeBosses[ei].hit(this.particles)) {
+            burst(this.particles, this.arcadeBosses[ei].x, this.arcadeBosses[ei].y, '#ffd700', 30, 6, 45);
+            this._addScore(5000);
+            this.arcadeBosses.splice(ei, 1);
+          }
+          break;
+        }
+      }
     }
 
     // ── Player rockets — normal (proximity blast) ────────────────────────────
@@ -3464,7 +3661,7 @@ class Game {
       if (r.smart || !r.readyToDetonate) continue;
 
       let nearestDist = Infinity;
-      for (const t of [...this.asteroids, ...this.redFighters, ...this.yellowAliens, ...this.orangeRockets])
+      for (const t of [...this.asteroids, ...this.redFighters, ...this.yellowAliens, ...this.orangeRockets, ...this.arcadeBosses])
         nearestDist = Math.min(nearestDist, dist(r, t) - (t.radius || 0));
       if (nearestDist > r.proximityR) continue;
 
@@ -3502,6 +3699,14 @@ class Game {
         if (dist(r, this.orangeRockets[ei]) < r.blastR + this.orangeRockets[ei].radius) {
           burst(this.particles, this.orangeRockets[ei].x, this.orangeRockets[ei].y, '#ff7700', 12, 3, 25);
           this._addScore(150); this.orangeRockets[ei].dead = true; this.orangeRockets.splice(ei, 1);
+        }
+      }
+      for (let ei = this.arcadeBosses.length-1; ei >= 0; ei--) {
+        if (dist(r, this.arcadeBosses[ei]) < r.blastR + this.arcadeBosses[ei].radius) {
+          if (this.arcadeBosses[ei].hit(this.particles)) {
+            burst(this.particles, this.arcadeBosses[ei].x, this.arcadeBosses[ei].y, '#ffd700', 30, 6, 45);
+            this._addScore(5000); this.arcadeBosses.splice(ei, 1);
+          }
         }
       }
       r.afterDetonate();
@@ -3564,6 +3769,18 @@ class Game {
           this.orangeRockets[ei].dead = true; this.orangeRockets.splice(ei, 1);
           const fin = _smartKill(or_.x, or_.y, '#ff7700', 150, null);
           if (fin) { r.destroy(); break; }
+          break;
+        }
+      }
+      for (let ei = this.arcadeBosses.length-1; ei >= 0 && !r._dead; ei--) {
+        if (dist(r, this.arcadeBosses[ei]) < this.arcadeBosses[ei].radius + r.radius) {
+          const boss = this.arcadeBosses[ei];
+          if (boss.hit(this.particles)) {
+            burst(this.particles, boss.x, boss.y, '#ffd700', 30, 6, 45);
+            this._addScore(5000);
+            this.arcadeBosses.splice(ei, 1);
+          }
+          r.destroy();
           break;
         }
       }
@@ -3647,6 +3864,15 @@ class Game {
       if (dist(rf,ship) < rf.radius+ship.radius) {
         burst(this.particles, rf.x, rf.y, C.enemyRed, 20, 5, 35);
         SFX.enemyDie(); this.redFighters.splice(fi,1);
+        if (ship.hit(this.particles)) { this._gameOver(); return; }
+        _updateShieldHUD(ship.shieldCharges);
+      }
+    }
+
+    // Arcade boss vs ship
+    for (let fi = this.arcadeBosses.length-1; fi >= 0; fi--) {
+      const boss = this.arcadeBosses[fi];
+      if (dist(boss, ship) < boss.radius + ship.radius) {
         if (ship.hit(this.particles)) { this._gameOver(); return; }
         _updateShieldHUD(ship.shieldCharges);
       }
@@ -3780,10 +4006,12 @@ class Game {
       this._addScore(CFG.enemyYellowScore * 3);
     });
     this.orangeRockets.forEach(() => this._addScore(150));
+    this.arcadeBosses.forEach(b => { burst(this.particles, b.x, b.y, '#ffd700', 20, 5, 35); this._addScore(5000); });
     this.asteroids = [];
     this.redFighters = [];
     this.yellowAliens = [];
     this.orangeRockets = [];
+    this.arcadeBosses = [];
     this.rockets = [];
     this.enemyBullets = [];
     new FloatingText(fb.x, fb.y - 30, 'KABOOM!', '#ffff00');
@@ -3833,6 +4061,7 @@ class Game {
     this.redFighters.forEach(rf=>rf.draw(ctx));
     this.yellowAliens.forEach(ya=>ya.draw(ctx));
     this.orangeRockets.forEach(or=>or.draw(ctx));
+    this.arcadeBosses.forEach(b=>b.draw(ctx));
     this.fireballs.forEach(fb=>fb.draw(ctx));
     if (this.ship?.alive) this.ship.draw(ctx);
     if (this.xforceActiveUntil > 0 && this.gameTime < this.xforceActiveUntil) this._drawXforceLasers(ctx);
@@ -3871,6 +4100,7 @@ class Game {
   async _gameOver() {
     this.ship.alive = false;
     SFX.thrustStop(); SFX.gameOver();
+    document.getElementById('gameover-screen')?.classList.remove('arcade-victory');
     this._showScreen('gameover');
 
     const rawScore       = this.score;

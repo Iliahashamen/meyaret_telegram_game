@@ -722,6 +722,10 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 .mode-select-btns { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
 .mode-select-btns .btn-big { margin-top: 0; }
 .mode-arcade-hint { font-size: 7px; color: var(--muted2); margin-top: 6px; letter-spacing: 1px; }
+.arcade-victory { animation: arcade-trip 0.4s ease-in-out infinite; }
+.arcade-victory .go-title { animation: arcade-rainbow 2s linear infinite; }
+@keyframes arcade-trip { 0%,100% { transform: translate(0,0) rotate(-0.3deg); } 25% { transform: translate(2px,-1px) rotate(0.2deg); } 50% { transform: translate(-1px,2px) rotate(0.3deg); } 75% { transform: translate(-2px,1px) rotate(-0.2deg); } }
+@keyframes arcade-rainbow { 0% { color: #ff0077; } 16% { color: #ff8800; } 33% { color: #ffee00; } 50% { color: #00ff88; } 66% { color: #00ffcc; } 83% { color: #0088ff; } 100% { color: #ff0077; } }
 .weekly-timer { font-size: 9px; letter-spacing: 2px; color: var(--yellow); margin-bottom: 10px; font-family: var(--font); }
 .weekly-info { font-size: 7px; color: var(--muted2); margin-bottom: 12px; letter-spacing: 1px; line-height: 1.6; }
 
