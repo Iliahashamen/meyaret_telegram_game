@@ -79,8 +79,16 @@ const ARCADE_WAVES = [
     rocks:{ total:36, small:20, med:12, large:4 }, aliens:5, missiles:9, jets:8, boss:false },
   { jet:'plane_astrozoinker', skin:'skin_candy', thrust:'spectrum', bullet:'bullet_spectrum', upgrades:['xforce_lavian','tripple_threat'],
     bonus:{ life:1, flare:1, shield:1, rocket:1 }, rocks:{ total:44, small:24, med:14, large:6 }, aliens:6, missiles:20, jets:11, boss:false },
-  { jet:'starter', skin:'skin_acid', thrust:null, bullet:null, upgrades:[], boss:true }, // troll boss — easy!
+  { jet:'starter', skin:'skin_acid', thrust:null, bullet:null, upgrades:[], bonus:{ life:0, flare:0, shield:0, rocket:0 }, boss:true }, // troll boss — starter only, no extras
 ];
+function _arcadeAccumulatedUpgrades(waveNum) {
+  if (waveNum >= 10) return [];
+  const set = new Set();
+  for (let w = 1; w <= waveNum; w++) {
+    (ARCADE_WAVES[w - 1].upgrades || []).forEach(id => set.add(id));
+  }
+  return Array.from(set);
+}
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
@@ -1851,7 +1859,7 @@ function drawGrid(ctx, W, H, tick) {
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
-function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, ripFuryActive, warnings, xforceCooldownSec, ripCountdownSec }) {
+function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multiplierEndMs, rocketAmmo, shieldCharges, scoreX2, ripFuryActive, warnings, xforceCooldownSec, ripCountdownSec, arcadeWave }) {
   const FONT = '"Press Start 2P", "Courier New", monospace';
   const s = 1;
   const glowCap = (b) => Math.min(b * s, 14); // cap blur to reduce lag
@@ -1877,12 +1885,13 @@ function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multip
 
   ctx.textAlign = 'left';
 
-  // ── SCORE (big) ──
+  // ── SCORE or WAVE (arcade) ──
   ctx.font = `${Math.round(7 * s)}px ${FONT}`; glow(ctx, C.hud, glowCap(4));
-  ctx.fillStyle = '#00ffcc55'; ctx.fillText('SCORE', 14, 20 * s);
+  ctx.fillStyle = '#00ffcc55';
+  ctx.fillText(arcadeWave ? 'WAVE' : 'SCORE', 14, 20 * s);
   ctx.font = `${Math.round(15 * s)}px ${FONT}`; glow(ctx, C.hud, glowCap(8));
   ctx.fillStyle = C.hud;
-  ctx.fillText(score.toLocaleString(), 14, 42 * s);
+  ctx.fillText(arcadeWave ? String(arcadeWave) : score.toLocaleString(), 14, 42 * s);
   if (scoreX2 && scoreX2 > 1) {
     ctx.font = `${Math.round(7 * s)}px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', glowCap(6));
     const mult = ripFuryActive ? scoreX2 * 10 : scoreX2;
@@ -2666,14 +2675,34 @@ class Game {
     if (!modal) return;
     const tid = TG_USER?.id ?? this.userData?.telegram_id;
     const arcadeBtn = document.getElementById('btn-mode-arcade');
-    const arcadeHint = document.getElementById('mode-arcade-hint');
-    const canArcade = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
+    const timerEl = document.getElementById('mode-arcade-timer');
+    const isDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
       tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
+    const canArcade = isDev;
     if (arcadeBtn) {
       arcadeBtn.style.display = canArcade ? '' : 'none';
       arcadeBtn.disabled = !canArcade;
     }
-    if (arcadeHint) arcadeHint.classList.toggle('hidden', !canArcade);
+    const last = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
+    const cooldownMs = 60 * 60 * 1000;
+    const remaining = last && (Date.now() - last < cooldownMs) ? cooldownMs - (Date.now() - last) : 0;
+    if (timerEl) {
+      if (remaining > 0 && canArcade) {
+        timerEl.classList.remove('hidden');
+        const tick = () => {
+          const r = Math.max(0, cooldownMs - (Date.now() - last));
+          if (r <= 0) { timerEl.textContent = ''; timerEl.classList.add('hidden'); return; }
+          const m = Math.floor(r / 60000); const s = Math.floor((r % 60000) / 1000);
+          timerEl.textContent = `ARCADE: ${m}:${String(s).padStart(2,'0')}`;
+          if (document.getElementById('mode-select-modal')?.classList.contains('hidden')) return;
+          setTimeout(tick, 1000);
+        };
+        tick();
+      } else {
+        timerEl.classList.add('hidden');
+        timerEl.textContent = '';
+      }
+    }
     modal.classList.remove('hidden');
   }
 
@@ -2683,13 +2712,12 @@ class Game {
       const isDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
         tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
       if (!isDev) return;
-      if (!isDev) {
-        const last = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
-        if (last && Date.now() - last < 24 * 60 * 60 * 1000) {
-          const left = Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - last)) / 60000);
-          alert(`ARCADE COOLDOWN\nPlay again in ${left} minutes!`);
-          return;
-        }
+      const last = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
+      const cooldownMs = 60 * 60 * 1000; // 1 hour
+      if (last && Date.now() - last < cooldownMs && !isDev) {
+        const left = Math.ceil((cooldownMs - (Date.now() - last)) / 60000);
+        alert(`ARCADE COOLDOWN\nPlay again in ${left} minutes!`);
+        return;
       }
     }
     try { this._doStartGame(mode); } catch(e) {
@@ -2724,6 +2752,9 @@ class Game {
     this._arcadeBossSpawned = false;
     this._arcadeBetweenWaves = false;
     this._arcadeBetweenWavesUntil = 0;
+    this._arcadeWaveStartTime = null;
+    this._arcadeSpawned = null;
+    this._arcadeFinalBossIntro = false;
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ups = {};
@@ -2833,7 +2864,7 @@ class Game {
       if (wc.thrust && thrustColors[wc.thrust]) ups.thrustColor = thrustColors[wc.thrust];
       const bulletItems = { bullet_stars:{ shape:'star', color:'#ffd700' }, bullet_diamonds:{ shape:'diamond', color:'#00ffee' }, bullet_hearts:{ shape:'heart', color:'#ff69b4' }, bullet_aurora:{ shape:'default', color:'aurora' }, bullet_spectrum:{ shape:'default', color:'spectrum' } };
       if (wc.bullet && bulletItems[wc.bullet]) { ups.bulletShape = bulletItems[wc.bullet].shape; ups.bulletColor = bulletItems[wc.bullet].color; }
-      (wc.upgrades || []).forEach(id => ups[id] = 1);
+      _arcadeAccumulatedUpgrades(this.arcadeWave).forEach(id => ups[id] = 1);
       if ((wc.bonus || {}).life) ups.extra_life = 1;
       if ((wc.bonus || {}).flare) ups.extra_flare = 1;
       if ((wc.bonus || {}).shield) ups.extra_shield = 1;
@@ -2847,7 +2878,7 @@ class Game {
     const nick = this.userData?.nickname || 'PILOT';
     this._showScreen('game');
     this._showGoodLuckSplash(this.arcadeMode ? `WAVE ${this.arcadeWave}` : nick);
-    if (this.runScoreMultiplier >= 2) {
+    if (!this.arcadeMode && this.runScoreMultiplier >= 2) {
       setTimeout(() => new FloatingText(this.W/2, this.H/2, `x${this.runScoreMultiplier} SCORE ACTIVE!`, '#ffee00'), 1200);
     }
     // After 2s, unfreeze spawns
@@ -3013,7 +3044,7 @@ class Game {
     if (wc.thrust && thrustColors[wc.thrust]) ups.thrustColor = thrustColors[wc.thrust];
     const bulletItems = { bullet_stars:{ shape:'star', color:'#ffd700' }, bullet_diamonds:{ shape:'diamond', color:'#00ffee' }, bullet_hearts:{ shape:'heart', color:'#ff69b4' }, bullet_aurora:{ shape:'default', color:'aurora' }, bullet_spectrum:{ shape:'default', color:'spectrum' } };
     if (wc.bullet && bulletItems[wc.bullet]) { ups.bulletShape = bulletItems[wc.bullet].shape; ups.bulletColor = bulletItems[wc.bullet].color; }
-    (wc.upgrades || []).forEach(id => ups[id] = 1);
+    _arcadeAccumulatedUpgrades(this.arcadeWave).forEach(id => ups[id] = 1);
     if ((wc.bonus || {}).life) ups.extra_life = 1;
     if ((wc.bonus || {}).flare) ups.extra_flare = 1;
     if ((wc.bonus || {}).shield) ups.extra_shield = 1;
@@ -3044,7 +3075,10 @@ class Game {
     document.getElementById('go-score').textContent = '10 WAVES CLEARED';
     document.getElementById('go-shmips').textContent = `+${ARCADE_REWARD.toLocaleString()} $$ AWARDED!`;
     document.getElementById('go-leaderboard').innerHTML = '';
-    document.getElementById('go-play-again').textContent = 'PLAY AGAIN';
+    const pa = document.getElementById('go-play-again');
+    if (pa) { pa.style.display = 'none'; }
+    const gm = document.getElementById('go-menu');
+    if (gm) { gm.textContent = 'MAIN MENU'; gm.classList.add('btn-primary'); gm.classList.remove('btn-secondary'); }
     document.getElementById('gameover-screen').classList.add('arcade-victory');
   }
 
@@ -3052,6 +3086,8 @@ class Game {
     const wc = ARCADE_WAVES[this.arcadeWave - 1];
     if (!wc) return;
     if (wc.boss) {
+      if (this._arcadeFinalBossIntro && this.gameTime < (this._arcadeFinalBossIntroUntil || 0)) return;
+      if (this._arcadeFinalBossIntro) this._arcadeFinalBossIntro = false;
       if (!this._arcadeBossSpawned) {
         this._arcadeBossSpawned = true;
         this._arcadeSpawnBoss();
@@ -3098,6 +3134,21 @@ class Game {
       this.redFighters.push(new RedFighter(x, y));
       state.jets++;
     }
+  }
+
+  async _arcadeAwardWaveShmips(waveNum) {
+    const rewards = { 7: 3000, 8: 5000, 9: 7000 };
+    const amt = rewards[waveNum];
+    if (!amt) return;
+    const tid = TG_USER?.id || this.userData?.telegram_id;
+    try {
+      if (tid && !OFFLINE_MODE) {
+        const updated = await dbAddBonusShmips(tid, amt);
+        if (updated) this.userData.shmips = updated.shmips;
+      } else {
+        this.userData.shmips = (this.userData.shmips || 0) + amt;
+      }
+    } catch (e) { console.warn('[arcade] wave reward failed:', e.message); }
   }
 
   _arcadeSpawnBoss() {
@@ -3480,11 +3531,18 @@ class Game {
           this._arcadeBetweenWaves = false;
           const nextWave = this.arcadeWave + 1;
           if (nextWave <= 10) {
+            const clearedWave = this.arcadeWave;
             this.arcadeWave = nextWave;
             this._arcadeRestockShip();
             this._arcadeWaveStartTime = null;
             this._arcadeSpawned = { rocks: 0, aliens: 0, missiles: 0, jets: 0 };
             this._arcadeBossSpawned = false;
+            if (nextWave === 10) {
+              this._arcadeFinalBossIntro = true;
+              this._arcadeFinalBossIntroUntil = this.gameTime + 120; // 2 sec
+              SFX.startGameMusic(50); // intense/scary tier
+            }
+            this._arcadeAwardWaveShmips(clearedWave);
           } else {
             this._arcadeVictory();
           }
@@ -3495,7 +3553,7 @@ class Game {
         if (allClear) {
           this._arcadeBetweenWaves = true;
           this._arcadeBetweenWavesUntil = this.gameTime + 180; // 3 seconds
-          new FloatingText(this.W/2, this.H/2, `WAVE ${this.arcadeWave} CLEARED!`, '#00ff88');
+          this._arcadeLastClearedWave = this.arcadeWave;
         }
       }
     }
@@ -4037,6 +4095,7 @@ class Game {
   }
 
   _addScore(pts) {
+    if (this.arcadeMode) return; // no score in arcade
     const base = this.runScoreMultiplier || 1;
     const ripMult = (this.ripFuryUntil > 0 && this.gameTime < this.ripFuryUntil) ? 10 : 1;
     this.score += Math.floor(pts * base * ripMult);
@@ -4071,7 +4130,8 @@ class Game {
       ? (xforceActive ? -1 : Math.max(0, Math.ceil((this.xforceCooldownUntil - this.gameTime) / 60)))
       : undefined;
     drawHUD(ctx, W, H, {
-      score:          this.score,
+      score:          this.arcadeMode ? 0 : this.score,
+      arcadeWave:     this.arcadeMode ? this.arcadeWave : 0,
       lives:          _lives,
       maxLives:       this.ship?.maxLives ?? 3,
       flares:         this.ship?.flares   ?? 0,
@@ -4094,6 +4154,38 @@ class Game {
       },
     });
     if (this.ripFuryUntil > 0 && this.gameTime < this.ripFuryUntil) this._drawRipFuryOverlay(ctx);
+    if (this.arcadeMode) this._drawArcadeOverlay(ctx);
+  }
+
+  _drawArcadeOverlay(ctx) {
+    const W = this.W, H = this.H;
+    if (this._arcadeBetweenWaves && this._arcadeLastClearedWave != null) {
+      const elapsed = 180 - (this._arcadeBetweenWavesUntil - this.gameTime);
+      const next = this.arcadeWave + 1;
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'bold 28px "Press Start 2P"';
+      glow(ctx, '#00ff88', 20);
+      ctx.fillStyle = '#00ff88';
+      ctx.fillText(`WAVE ${this._arcadeLastClearedWave} CLEARED!`, W/2, H/2 - 20);
+      if (next <= 10) {
+        ctx.font = 'bold 16px "Press Start 2P"';
+        ctx.fillStyle = '#ffcc00';
+        ctx.fillText(`GET READY FOR WAVE ${next}`, W/2, H/2 + 25);
+      }
+      ctx.restore();
+      ctx.shadowBlur = 0;
+    }
+    if (this._arcadeFinalBossIntro) {
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'bold 32px "Press Start 2P"';
+      glow(ctx, '#ff0000', 30);
+      ctx.fillStyle = '#ff0000';
+      ctx.fillText('FINAL BOSS', W/2, H/2);
+      ctx.restore();
+      ctx.shadowBlur = 0;
+    }
   }
 
   // ── Game Over ──────────────────────────────────────────────────────────────
@@ -4101,6 +4193,10 @@ class Game {
     this.ship.alive = false;
     SFX.thrustStop(); SFX.gameOver();
     document.getElementById('gameover-screen')?.classList.remove('arcade-victory');
+    const pa = document.getElementById('go-play-again');
+    if (pa) { pa.style.display = ''; pa.textContent = 'PLAY AGAIN'; }
+    const gm = document.getElementById('go-menu');
+    if (gm) { gm.textContent = 'MAIN MENU'; gm.classList.remove('btn-primary'); gm.classList.add('btn-secondary'); }
     this._showScreen('gameover');
 
     const rawScore       = this.score;
