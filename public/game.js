@@ -59,27 +59,27 @@ const C = {
   hudLevel:     '#ff0077',
 };
 
-// ── Arcade Waves Config ───────────────────────────────────────────────────────
+// ── Arcade Waves Config (each wave = substantial mini-game) ───────────────────
 const ARCADE_WAVES = [
   { jet:'starter', skin:null, thrust:null, bullet:null, upgrades:[], bonus:{ life:0, flare:0, shield:0, rocket:0 },
-    rocks:{ total:6, small:6, med:0, large:0 }, aliens:0, missiles:0, jets:0, boss:false },
+    rocks:{ small:14, med:4, large:2 }, aliens:0, missiles:0, jets:0, boss:false },
   { jet:'starter', skin:'skin_bat_yam', thrust:'#00ff66', bullet:null, upgrades:['kurwa_raketa'],
-    rocks:{ total:10, small:8, med:2, large:0 }, aliens:1, missiles:0, jets:0, boss:false },
+    rocks:{ small:18, med:6, large:3 }, aliens:3, missiles:0, jets:0, boss:false },
   { jet:'plane_hamud', skin:'skin_coffee', thrust:'#0088ff', bullet:'bullet_stars', upgrades:['pew_pew_15'],
-    rocks:{ total:14, small:10, med:4, large:0 }, aliens:2, missiles:2, jets:0, boss:false },
+    rocks:{ small:22, med:8, large:4 }, aliens:5, missiles:5, jets:0, boss:false },
   { jet:'plane_walla_yofi', skin:'skin_chupapi', thrust:'#ff0077', bullet:'bullet_diamonds', upgrades:['magen','jew_method'],
-    rocks:{ total:18, small:12, med:6, large:0 }, aliens:3, missiles:4, jets:0, boss:false },
+    rocks:{ small:26, med:10, large:5 }, aliens:6, missiles:8, jets:0, boss:false },
   { jet:'plane_walla_yofi', skin:'skin_goldie', thrust:'#aa44ff', bullet:'bullet_hearts', upgrades:['ace_upgrade','shplit'],
-    bonus:{ life:0, flare:2, shield:0, rocket:0 }, rocks:{ total:22, small:14, med:6, large:2 }, aliens:4, missiles:6, jets:1, boss:false },
+    bonus:{ life:0, flare:2, shield:0, rocket:0 }, rocks:{ small:30, med:12, large:6 }, aliens:7, missiles:10, jets:3, boss:false },
   { jet:'plane_negev', skin:'skin_acid', thrust:'#00ffcc', bullet:'bullet_diamonds', upgrades:['ace_upgrade','zep_zep_zep','pew_pew_3'],
-    bonus:{ life:0, flare:1, shield:1, rocket:0 }, rocks:{ total:26, small:16, med:8, large:2 }, aliens:4, missiles:7, jets:3, boss:false },
+    bonus:{ life:0, flare:1, shield:1, rocket:0 }, rocks:{ small:34, med:14, large:7 }, aliens:8, missiles:12, jets:5, boss:false },
   { jet:'plane_baba_yaga', skin:'skin_karamba', thrust:'aurora', bullet:'bullet_aurora', upgrades:['smart_rocket','collector','lucky_bstrd'],
-    rocks:{ total:32, small:18, med:10, large:4 }, aliens:5, missiles:8, jets:4, boss:false },
-  { jet:'plane_baba_yaga', skin:'skin_karamba', thrust:'aurora', bullet:'bullet_aurora', upgrades:['smart_rocket','collector','lucky_bstrd','hornet_assistant'],
-    rocks:{ total:36, small:20, med:12, large:4 }, aliens:5, missiles:9, jets:8, boss:false },
-  { jet:'plane_astrozoinker', skin:'skin_candy', thrust:'spectrum', bullet:'bullet_spectrum', upgrades:['xforce_lavian','tripple_threat'],
-    bonus:{ life:1, flare:1, shield:1, rocket:1 }, rocks:{ total:44, small:24, med:14, large:6 }, aliens:6, missiles:20, jets:11, boss:false },
-  { jet:'starter', skin:'skin_acid', thrust:null, bullet:null, upgrades:[], bonus:{ life:0, flare:0, shield:0, rocket:0 }, boss:true }, // troll boss — starter only, no extras
+    rocks:{ small:38, med:16, large:8 }, aliens:9, missiles:15, jets:6, boss:false },
+  { jet:'plane_baba_yaga', skin:'skin_karamba', thrust:'aurora', bullet:'bullet_aurora', upgrades:['smart_rocket','collector','lucky_bstrd'],
+    rocks:{ small:42, med:18, large:9 }, aliens:10, missiles:18, jets:8, boss:false },
+  { jet:'plane_astrozoinker', skin:'skin_candy', thrust:'spectrum', bullet:'bullet_spectrum', upgrades:['tripple_threat'],
+    bonus:{ life:1, flare:1, shield:1, rocket:1 }, rocks:{ small:48, med:20, large:10 }, aliens:12, missiles:22, jets:10, boss:false },
+  { jet:'starter', skin:'skin_acid', thrust:null, bullet:null, upgrades:[], bonus:{ life:0, flare:0, shield:0, rocket:0 }, boss:true }, // troll boss
 ];
 function _arcadeAccumulatedUpgrades(waveNum) {
   if (waveNum >= 10) return [];
@@ -2377,7 +2377,7 @@ class Game {
       if (this._isMobile()) {
         ctrl?.classList.remove('hidden');
         const xfBtn = document.getElementById('ctrl-xforce');
-        if (xfBtn) xfBtn.style.display = this.upgrades?.xforce_lavian ? '' : 'none';
+        if (xfBtn) xfBtn.style.display = this._effUpgrades().xforce_lavian ? '' : 'none';
       }
       SFX.startGameMusic(this.level);
     } else {
@@ -2870,6 +2870,7 @@ class Game {
       if ((wc.bonus || {}).shield) ups.extra_shield = 1;
       if ((wc.bonus || {}).rocket) ups.extra_rocket = 1;
     }
+    this._runUpgrades = { ...ups }; // run-effective upgrades (arcade = wave only; survival = arsenal+boosts)
     this.ship = new Ship(this.W/2, this.H/2, ups);
     _updateShieldHUD(this.ship.shieldCharges);
     // No entities spawned yet — 2-second grace period
@@ -2905,8 +2906,10 @@ class Game {
     setTimeout(() => { el.classList.add('hidden'); el.innerHTML = ''; }, 2000);
   }
 
+  _effUpgrades() { return this.arcadeMode ? (this._runUpgrades || {}) : (this.upgrades || {}); }
+
   _activateXforce() {
-    if (!this.upgrades?.xforce_lavian || !this.ship?.alive) return;
+    if (!this._effUpgrades().xforce_lavian || !this.ship?.alive) return;
     if (this.xforceCooldownUntil > 0 && this.gameTime < this.xforceCooldownUntil) return;
     this.xforceActiveUntil = this.gameTime + 240; // 4 sec
     this.xforceCooldownUntil = this.gameTime + 5 * 60 * 60; // 5 min
@@ -3049,6 +3052,7 @@ class Game {
     if ((wc.bonus || {}).flare) ups.extra_flare = 1;
     if ((wc.bonus || {}).shield) ups.extra_shield = 1;
     if ((wc.bonus || {}).rocket) ups.extra_rocket = 1;
+    this._runUpgrades = { ...ups };
     const cx = this.ship.x, cy = this.ship.y;
     this.ship = new Ship(cx, cy, ups);
     _updateShieldHUD(this.ship.shieldCharges);
@@ -3101,9 +3105,9 @@ class Game {
     const r = wc.rocks || {};
     const totalRocks = (r.small || 0) + (r.med || 0) + (r.large || 0);
     if (totalRocks > 0 && state.rocks < totalRocks) {
-      const batchInterval = Math.max(40, Math.floor(180 / Math.min(5, Math.ceil(totalRocks / 2))));
+      const batchInterval = Math.max(18, Math.floor(120 / Math.min(8, Math.ceil(totalRocks / 4))));
+      const toSpawn = Math.min(4, totalRocks - state.rocks);
       if (t >= state.rocks * batchInterval) {
-        const toSpawn = Math.min(2, totalRocks - state.rocks);
         for (let i = 0; i < toSpawn; i++) {
           const idx = state.rocks + i;
           let size = idx < (r.small || 0) ? 'small' : idx < (r.small || 0) + (r.med || 0) ? 'medium' : 'large';
@@ -3114,21 +3118,21 @@ class Game {
       }
     }
 
-    const alienDelay = 90, alienInterval = 100;
+    const alienDelay = 30, alienInterval = 60;
     if (wc.aliens > 0 && state.aliens < wc.aliens && t >= alienDelay + state.aliens * alienInterval) {
       const { x, y } = this._edgeSpawn();
       this.yellowAliens.push(new YellowAlien(x, y));
       state.aliens++;
     }
 
-    const missileDelay = 150, missileInterval = 110;
+    const missileDelay = 60, missileInterval = 50;
     if (wc.missiles > 0 && state.missiles < wc.missiles && t >= missileDelay + state.missiles * missileInterval) {
       const { x, y } = this._edgeSpawn();
       this.orangeRockets.push(new OrangeHomingRocket(x, y));
       state.missiles++;
     }
 
-    const jetDelay = 200, jetInterval = 130;
+    const jetDelay = 90, jetInterval = 55;
     if (wc.jets > 0 && state.jets < wc.jets && t >= jetDelay + state.jets * jetInterval) {
       const { x, y } = this._edgeSpawn();
       this.redFighters.push(new RedFighter(x, y));
@@ -3227,13 +3231,13 @@ class Game {
 
     // Xforce Lavian — red lasers kill all for 4 sec
     const XFORCE_COOLDOWN = 5 * 60 * 60; // 5 min in frames
-    if (this.upgrades?.xforce_lavian && this.xforceActiveUntil > 0 && this.gameTime < this.xforceActiveUntil) {
+    if (this._effUpgrades().xforce_lavian && this.xforceActiveUntil > 0 && this.gameTime < this.xforceActiveUntil) {
       this._processXforceLasers();
     }
     if (this.gameTime >= this.xforceCooldownUntil) this.xforceCooldownUntil = 0;
 
     // Rip n Dip — full lives 2 min → 10s countdown → 8s rainbow fury
-    if (this.upgrades?.rip_n_dip && this.ship?.alive) {
+    if (this._effUpgrades().rip_n_dip && this.ship?.alive) {
       const maxLives = this.ship.maxLives ?? 5;
       if (this.ship.lives >= maxLives) {
         if (this.ripFullLivesSince === 0) this.ripFullLivesSince = this.gameTime;
@@ -4126,7 +4130,7 @@ class Game {
     if (this.xforceActiveUntil > 0 && this.gameTime < this.xforceActiveUntil) this._drawXforceLasers(ctx);
     const _lives = this.ship?.lives ?? 0;
     const xforceActive = this.xforceActiveUntil > 0 && this.gameTime < this.xforceActiveUntil;
-    const xforceSec = this.upgrades?.xforce_lavian
+    const xforceSec = this._effUpgrades().xforce_lavian
       ? (xforceActive ? -1 : Math.max(0, Math.ceil((this.xforceCooldownUntil - this.gameTime) / 60)))
       : undefined;
     drawHUD(ctx, W, H, {
@@ -4159,19 +4163,20 @@ class Game {
 
   _drawArcadeOverlay(ctx) {
     const W = this.W, H = this.H;
+    const s = Math.min(W, H) / 420;
+    const fontPx = (base) => Math.round(Math.min(base * s, base * 1.2));
     if (this._arcadeBetweenWaves && this._arcadeLastClearedWave != null) {
-      const elapsed = 180 - (this._arcadeBetweenWavesUntil - this.gameTime);
       const next = this.arcadeWave + 1;
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = 'bold 28px "Press Start 2P"';
-      glow(ctx, '#00ff88', 20);
+      ctx.font = `bold ${fontPx(14)}px "Press Start 2P"`;
+      glow(ctx, '#00ff88', 12);
       ctx.fillStyle = '#00ff88';
-      ctx.fillText(`WAVE ${this._arcadeLastClearedWave} CLEARED!`, W/2, H/2 - 20);
+      ctx.fillText(`WAVE ${this._arcadeLastClearedWave} CLEARED!`, W/2, H/2 - fontPx(10));
       if (next <= 10) {
-        ctx.font = 'bold 16px "Press Start 2P"';
+        ctx.font = `bold ${fontPx(10)}px "Press Start 2P"`;
         ctx.fillStyle = '#ffcc00';
-        ctx.fillText(`GET READY FOR WAVE ${next}`, W/2, H/2 + 25);
+        ctx.fillText(`GET READY FOR WAVE ${next}`, W/2, H/2 + fontPx(12));
       }
       ctx.restore();
       ctx.shadowBlur = 0;
@@ -4179,8 +4184,8 @@ class Game {
     if (this._arcadeFinalBossIntro) {
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = 'bold 32px "Press Start 2P"';
-      glow(ctx, '#ff0000', 30);
+      ctx.font = `bold ${fontPx(16)}px "Press Start 2P"`;
+      glow(ctx, '#ff0000', 16);
       ctx.fillStyle = '#ff0000';
       ctx.fillText('FINAL BOSS', W/2, H/2);
       ctx.restore();
