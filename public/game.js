@@ -2338,7 +2338,7 @@ class Game {
     document.getElementById('callsign-confirm').addEventListener('click', () => this._submitCallsign());
     document.getElementById('callsign-input').addEventListener('keydown', e => { if (e.key === 'Enter') this._submitCallsign(); });
 
-    document.getElementById('btn-play').addEventListener('click',    () => this._startGame());
+    document.getElementById('btn-play').addEventListener('click',    () => this._showModeSelect());
     document.getElementById('btn-gift').addEventListener('click',   () => this._openGift());
     document.getElementById('btn-store').addEventListener('click',   () => this._openStore());
     document.getElementById('btn-arsenal').addEventListener('click', () => this._openArsenal());
@@ -2349,6 +2349,14 @@ class Game {
     document.getElementById('btn-weekly-top3')?.addEventListener('click', () => this._showWeeklyPopup());
     document.getElementById('weekly-close')?.addEventListener('click', () => document.getElementById('weekly-modal')?.classList.add('hidden'));
     document.getElementById('weekly-modal')?.querySelector('.top5-backdrop')?.addEventListener('click', () => document.getElementById('weekly-modal')?.classList.add('hidden'));
+
+    const modeModal = document.getElementById('mode-select-modal');
+    if (modeModal) {
+      document.getElementById('btn-mode-survival')?.addEventListener('click', () => { modeModal.classList.add('hidden'); this._startGame('survival'); });
+      document.getElementById('btn-mode-arcade')?.addEventListener('click', () => { modeModal.classList.add('hidden'); this._startGame('arcade'); });
+      document.getElementById('mode-select-close')?.addEventListener('click', () => modeModal.classList.add('hidden'));
+      modeModal.querySelector('.top5-backdrop')?.addEventListener('click', () => modeModal.classList.add('hidden'));
+    }
 
     const muteBtn = document.getElementById('mute-btn');
     if (muteBtn) {
@@ -2381,7 +2389,7 @@ class Game {
       });
     });
 
-    document.getElementById('go-play-again').addEventListener('click', () => this._startGame());
+    document.getElementById('go-play-again').addEventListener('click', () => this._startGame(this._lastGameMode || 'survival'));
     document.getElementById('go-menu').addEventListener('click', () => { this._loadMenu(); this._showScreen('menu'); });
   }
 
@@ -2579,14 +2587,36 @@ class Game {
     tick();
   }
 
-  // ── Start Game ─────────────────────────────────────────────────────────────
-  async _startGame() {
-    try { this._doStartGame(); } catch(e) {
+  // ── Mode Select & Start Game ────────────────────────────────────────────────
+  _showModeSelect() {
+    const modal = document.getElementById('mode-select-modal');
+    if (!modal) return;
+    const tid = TG_USER?.id ?? this.userData?.telegram_id;
+    const arcadeBtn = document.getElementById('btn-mode-arcade');
+    const arcadeHint = document.getElementById('mode-arcade-hint');
+    const canArcade = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
+      tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
+    if (arcadeBtn) {
+      arcadeBtn.style.display = canArcade ? '' : 'none';
+      arcadeBtn.disabled = !canArcade;
+    }
+    if (arcadeHint) arcadeHint.classList.toggle('hidden', !canArcade);
+    modal.classList.remove('hidden');
+  }
+
+  async _startGame(mode = 'survival') {
+    if (mode === 'arcade') {
+      const tid = TG_USER?.id ?? this.userData?.telegram_id;
+      const canArcade = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
+        tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
+      if (!canArcade) return;
+    }
+    try { this._doStartGame(mode); } catch(e) {
       console.error('[_startGame]', e);
       alert('LAUNCH ERROR: ' + e.message + '\n\n' + (e.stack || ''));
     }
   }
-  _doStartGame() {
+  _doStartGame(mode = 'survival') {
     SFX.thrustStop(); this._wasThrusting = false;
     if (!this.multiplierEndMs) this.multiplierEndMs = 0;
     this.score=0; this.gameTime=0; this.tick=0;
@@ -2605,6 +2635,13 @@ class Game {
     this.monsterFuelTimer=rngInt(60 * 120, 60 * 180);
     this.runScoreMultiplier=1; // set to 2 if x2 score boost active
 
+    this._lastGameMode = mode;
+    this.arcadeMode = (mode === 'arcade');
+    this.arcadeWave = this.arcadeMode ? 1 : 0;
+    this._arcadeWaveSpawned = false;
+    this._arcadeBetweenWaves = false;
+    this._arcadeBetweenWavesUntil = 0;
+
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ups = {};
 
@@ -2620,19 +2657,20 @@ class Game {
     }
 
     // ── One-run boosts (max 1 of each per game) ───────────────────────────
-    const boostTypes = ['extra_life','extra_flare','extra_shield','extra_rocket'];
-    const consumeList = [];
-    boostTypes.forEach(id => {
-      if ((this.upgrades[id] || 0) > 0) {
-        ups[id] = 1;
-        consumeList.push(id);
-        this.upgrades[id] = (this.upgrades[id] || 1) - 1;
-        if (this.upgrades[id] <= 0) delete this.upgrades[id];
+    if (!this.arcadeMode) {
+      const boostTypes = ['extra_life','extra_flare','extra_shield','extra_rocket'];
+      const consumeList = [];
+      boostTypes.forEach(id => {
+        if ((this.upgrades[id] || 0) > 0) {
+          ups[id] = 1;
+          consumeList.push(id);
+          this.upgrades[id] = (this.upgrades[id] || 1) - 1;
+          if (this.upgrades[id] <= 0) delete this.upgrades[id];
+        }
+      });
+      if (tid && !OFFLINE_MODE && consumeList.length > 0) {
+        consumeList.forEach(id => dbConsumeBoost(tid, id).catch(() => {}));
       }
-    });
-    // Consume from DB in background (best-effort, non-blocking)
-    if (tid && !OFFLINE_MODE && consumeList.length > 0) {
-      consumeList.forEach(id => dbConsumeBoost(tid, id).catch(() => {}));
     }
 
     // ── Permanent upgrades ────────────────────────────────────────────────
@@ -2699,6 +2737,10 @@ class Game {
     if (this.userData?.has_golden_plane) ups.golden_plane = true;
 
     if (!this.upgrades) this.upgrades = {};
+    if (this.arcadeMode) {
+      Object.keys(ups).forEach(k => delete ups[k]);
+      ups.jetType = 'starter';
+    }
     this.ship = new Ship(this.W/2, this.H/2, ups);
     _updateShieldHUD(this.ship.shieldCharges);
     // No entities spawned yet — 2-second grace period
@@ -2711,12 +2753,16 @@ class Game {
     if (this.runScoreMultiplier >= 2) {
       setTimeout(() => new FloatingText(this.W/2, this.H/2, `x${this.runScoreMultiplier} SCORE ACTIVE!`, '#ffee00'), 1200);
     }
-    // After 2s, unfreeze spawns and seed a few small asteroids
+    // After 2s, unfreeze spawns
     setTimeout(() => {
       this._spawnFrozen = false;
-      for (let i = 0; i < 3; i++) {
-        const pos = this._findSafeSpawnPoint(40, this.ship, 200);
-        this.asteroids.push(new Asteroid(pos.x, pos.y, 'small', null, 1));
+      if (this.arcadeMode) {
+        this._arcadeSpawnWave1();
+      } else {
+        for (let i = 0; i < 3; i++) {
+          const pos = this._findSafeSpawnPoint(40, this.ship, 200);
+          this.asteroids.push(new Asteroid(pos.x, pos.y, 'small', null, 1));
+        }
       }
     }, 2000);
   }
@@ -2851,6 +2897,37 @@ class Game {
     this.orangeRockets = this.orangeRockets.filter(e => dist(e, this.ship) > rad + e.radius);
     this.rockets = this.rockets.filter(e => dist(e, this.ship) > rad + e.radius);
     this.enemyBullets = this.enemyBullets.filter(e => dist(e, this.ship) > rad + e.radius);
+  }
+
+  _arcadeRestockShip() {
+    const s = this.ship;
+    if (!s) return;
+    s.lives = 2; s.maxLives = 2;
+    s.flares = 1; s.maxFlares = 1;
+    s.rocketAmmo = 0;
+    s.shieldCharges = 0;
+    _updateShieldHUD(s.shieldCharges);
+  }
+
+  _arcadeVictory() {
+    this.ship.alive = false;
+    SFX.thrustStop(); SFX.gameOver();
+    this._showScreen('gameover');
+    document.getElementById('go-title').textContent = 'ARCADE COMPLETE';
+    document.getElementById('go-score').textContent = `WAVE ${this.arcadeWave} CLEARED`;
+    document.getElementById('go-shmips').textContent = '';
+    document.getElementById('go-leaderboard').innerHTML = '';
+    document.getElementById('go-play-again').textContent = 'PLAY AGAIN';
+    // go-play-again uses _lastGameMode from addEventListener, will restart arcade
+  }
+
+  _arcadeSpawnWave1() {
+    if (this._arcadeWaveSpawned) return;
+    this._arcadeWaveSpawned = true;
+    for (let i = 0; i < 6; i++) {
+      const pos = this._findSafeSpawnPoint(40, this.ship, 200);
+      this.asteroids.push(new Asteroid(pos.x, pos.y, 'small', null, 1));
+    }
   }
 
   _maintainAsteroids() {
@@ -3024,11 +3101,12 @@ class Game {
       SFX.startGameMusic(musicTier * 5);
     }
 
-    // Maintain asteroid population (continuous spawning from edges)
-    if (!this._spawnFrozen) this._maintainAsteroids();
+    // Maintain asteroid population (continuous spawning from edges) — skip in Arcade
+    if (!this.arcadeMode && !this._spawnFrozen) this._maintainAsteroids();
 
-    // Skip enemy spawns during spawn-freeze grace period
-    if (this._spawnFrozen) { /* no spawns */ }
+    // Skip enemy spawns during spawn-freeze grace period — skip in Arcade (wave-based)
+    if (this.arcadeMode) { /* arcade uses wave spawns only */ }
+    else if (this._spawnFrozen) { /* no spawns */ }
     else {
     const chaosAt = this._chaosAtSec ?? 900;
     const chaos = timeS >= chaosAt;
@@ -3170,22 +3248,27 @@ class Game {
     this.monsterFuels = this.monsterFuels.filter(m => !m.dead);
     }
 
-    // Green Star booster spawn: one star every 3-5 minutes, stays 3s
+    // Green Star booster spawn: one star every 3-5 minutes, stays 3s — skip in Arcade
+    if (!this.arcadeMode) {
     this.greenStarTimer--;
     if (this.greenStarTimer <= 0 && this.greenStars.length === 0) {
       const p = this._findSafeSpawnPoint(80, this.ship, 190);
       this.greenStars.push(new GreenStarPickup(p.x, p.y));
       this.greenStarTimer = rngInt(60 * 90, 60 * 150);
     }
-    // Hover/collect behavior
+    }
+    // Hover/collect behavior (skip in Arcade — no green stars)
+    if (!this.arcadeMode) {
     for (let si = this.greenStars.length - 1; si >= 0; si--) {
       if (dist(this.greenStars[si], this.ship) < this.ship.radius + this.greenStars[si].radius + 10) {
         this._activateGreenStar(this.greenStars[si]);
         this.greenStars.splice(si, 1);
       }
     }
+    }
 
-    // Monster Fuel spawn: every 3-4 minutes, less common than $ and ?
+    // Monster Fuel spawn: every 3-4 minutes, less common than $ and ? — skip in Arcade
+    if (!this.arcadeMode) {
     this.monsterFuelTimer--;
     if (this.monsterFuelTimer <= 0 && this.monsterFuels.length === 0) {
       const p = this._findSafeSpawnPoint(80, this.ship, 190);
@@ -3198,8 +3281,10 @@ class Game {
         this.monsterFuels.splice(mi, 1);
       }
     }
+    }
 
-    // Spawn pickups (no spawn during 2s grace)
+    // Spawn pickups (no spawn during 2s grace) — skip in Arcade
+    if (!this.arcadeMode) {
     this.pickupSpawnTimer++;
     if (!this._spawnFrozen && this.pickupSpawnTimer > 360 && this.coins.length === 0 && this.mysteryPickups.length === 0) {
       this.pickupSpawnTimer = 0;
@@ -3207,6 +3292,26 @@ class Game {
       const x = p.x, y = p.y;
       if (Math.random() < 0.53) this.coins.push(new CoinPickup(x, y));
       else this.mysteryPickups.push(new MysteryPickup(x, y));
+    }
+    }
+
+    // Arcade: wave clear check + between-waves restock
+    if (this.arcadeMode && this.ship?.alive) {
+      if (this._arcadeBetweenWaves) {
+        if (this.gameTime >= this._arcadeBetweenWavesUntil) {
+          this._arcadeBetweenWaves = false;
+          this._arcadeRestockShip();
+          this._arcadeVictory(); // for now: only 1 wave; later: advance to next wave
+        }
+      } else {
+        const allClear = this.asteroids.length === 0 && this.redFighters.length === 0 &&
+          this.yellowAliens.length === 0 && this.orangeRockets.length === 0;
+        if (allClear) {
+          this._arcadeBetweenWaves = true;
+          this._arcadeBetweenWavesUntil = this.gameTime + 180; // 3 seconds
+          new FloatingText(this.W/2, this.H/2, `WAVE ${this.arcadeWave} CLEARED!`, '#00ff88');
+        }
+      }
     }
 
     this._collisions();
