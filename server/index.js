@@ -12,7 +12,7 @@ import { scoresRouter } from './routes/scores.js';
 import { storeRouter }  from './routes/store.js';
 import { supabase }     from './supabase.js';
 import { requireTelegramAuth } from './middleware/auth.js';
-import { scheduleWeeklyPayout } from './weeklyEvent.js';
+import { scheduleWeeklyPayout, runWeeklyPayout } from './weeklyEvent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
@@ -61,6 +61,20 @@ app.get('/api/config', (_req, res) => {
   }
   res.set('Cache-Control', 'public, max-age=3600');
   res.json({ supaUrl: supaUrl + '/rest/v1', supaKey });
+});
+
+// ── Cron: weekly payout (external cron can hit this; set CRON_SECRET in env)
+app.post('/api/cron/weekly-payout', async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  const provided = req.headers['x-cron-secret'] || req.query?.secret;
+  if (!secret || provided !== secret) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    await runWeeklyPayout(bot);
+    res.json({ ok: true, msg: 'Weekly payout completed' });
+  } catch (e) {
+    console.error('[cron/weekly-payout]', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── Health Check ──────────────────────────────────────────────────────────────
@@ -267,6 +281,7 @@ function adminToolsKeyboard() {
   keyboard.push([{ text: '🔄 RESET PLAYER', callback_data: 'tools_reset' }]);
   keyboard.push([{ text: '📣 ANNOUNCE', callback_data: 'tools_announce' }]);
   keyboard.push([{ text: '📨 PROMO MESSAGE', callback_data: 'tools_promo' }]);
+  keyboard.push([{ text: '🏆 RUN WEEKLY PAYOUT', callback_data: 'tools_weekly_payout' }]);
   return keyboard;
 }
 
@@ -809,6 +824,22 @@ bot.callbackQuery('tools_back', async (ctx) => {
       reply_markup: { inline_keyboard: adminToolsKeyboard() },
     });
   } catch (e) { console.error('[tools_back]', e.message); }
+});
+
+// ── RUN WEEKLY PAYOUT (manual reset) ───────────────────────────────────────────
+bot.callbackQuery('tools_weekly_payout', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
+  await ctx.answerCallbackQuery('Running payout...');
+  try {
+    await runWeeklyPayout(bot);
+    await ctx.editMessageText(
+      '*WEEKLY PAYOUT DONE*\n\nTop 3 from last week have been paid 6,500 $$ each. Weekly Top 3 display will show the new week.',
+      { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back' }]] } },
+    );
+  } catch (e) {
+    console.error('[tools_weekly_payout]', e);
+    await ctx.editMessageText('Error: ' + e.message, { reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back' }]] } });
+  }
 });
 
 // ── ANNOUNCE ──────────────────────────────────────────────────────────────────

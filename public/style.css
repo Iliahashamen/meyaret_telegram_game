@@ -721,7 +721,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
 .top5-panel .btn-primary { margin-top: 0; }
 .mode-select-btns { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
 .mode-select-btns .btn-big { margin-top: 0; }
-.mode-arcade-hint { font-size: 7px; color: var(--muted2); margin-top: 6px; letter-spacing: 1px; }
+.mode-arcade-timer { font-size: 9px; letter-spacing: 2px; color: var(--yellow); margin-top: 6px; font-family: var(--font); }
 .arcade-victory { animation: arcade-trip 0.4s ease-in-out infinite; }
 .arcade-victory .go-title { animation: arcade-rainbow 2s linear infinite; }
 @keyframes arcade-trip { 0%,100% { transform: translate(0,0) rotate(-0.3deg); } 25% { transform: translate(2px,-1px) rotate(0.2deg); } 50% { transform: translate(-1px,2px) rotate(0.3deg); } 75% { transform: translate(-2px,1px) rotate(-0.2deg); } }

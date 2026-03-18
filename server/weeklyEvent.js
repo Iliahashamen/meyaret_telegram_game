@@ -192,7 +192,7 @@ export async function getWeeklyEventData() {
 
 export function scheduleWeeklyPayout(bot) {
   cron.schedule('0 10 * * 2', async () => {
-    console.log('[weekly] Running scheduled payout...');
+    console.log('[weekly] Cron: Running payout...');
     await runWeeklyPayout(bot);
   }, { timezone: WEEKLY_EVENT_TZ });
   console.log('[weekly] Payout scheduled: Tuesdays 10:00', WEEKLY_EVENT_TZ);

@@ -89,6 +89,22 @@ function _arcadeAccumulatedUpgrades(waveNum) {
   }
   return Array.from(set);
 }
+function _arcadeWaveArsenal(waveNum) {
+  if (waveNum > 10) return null;
+  const wc = ARCADE_WAVES[waveNum - 1];
+  if (!wc) return null;
+  const jetName = wc.jet === 'starter' ? 'STARTER JET' : (CATALOG.find(c => c.id === wc.jet)?.name || wc.jet);
+  const skinName = wc.skin ? (CATALOG.find(c => c.id === wc.skin)?.name || wc.skin) : null;
+  const upgIds = _arcadeAccumulatedUpgrades(waveNum);
+  const upgradeNames = upgIds.map(id => CATALOG.find(c => c.id === id)?.name || id);
+  const b = wc.bonus || {};
+  const bonusLines = [];
+  if (b.life) bonusLines.push(`+${b.life} life`);
+  if (b.flare) bonusLines.push(`+${b.flare} flare${b.flare > 1 ? 's' : ''}`);
+  if (b.shield) bonusLines.push(`+${b.shield} shield`);
+  if (b.rocket) bonusLines.push(`+${b.rocket} rocket`);
+  return { jetName, skinName, upgradeNames, bonusLines };
+}
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const CFG = {
@@ -1892,7 +1908,7 @@ function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multip
   ctx.font = `${Math.round(15 * s)}px ${FONT}`; glow(ctx, C.hud, glowCap(8));
   ctx.fillStyle = C.hud;
   ctx.fillText(arcadeWave ? String(arcadeWave) : score.toLocaleString(), 14, 42 * s);
-  if (scoreX2 && scoreX2 > 1) {
+  if (scoreX2 && scoreX2 > 1 && !arcadeWave) {
     ctx.font = `${Math.round(7 * s)}px ${FONT}`; ctx.fillStyle = '#ffee00'; glow(ctx, '#ffee00', glowCap(6));
     const mult = ripFuryActive ? scoreX2 * 10 : scoreX2;
     ctx.fillText(`x${mult}`, 6 + panelW - 28, 20 * s);
@@ -1979,7 +1995,7 @@ function drawHUD(ctx, W, H, { score, lives, maxLives, flares, multiplier, multip
 
   ctx.globalAlpha = 1;
 
-  if (multiplier > 1) {
+  if (multiplier > 1 && !arcadeWave) {
     const remainMs  = Math.max(0, (multiplierEndMs || 0) - Date.now());
     const remainMin = Math.floor(remainMs / 60000);
     const remainSec = Math.floor((remainMs % 60000) / 1000);
@@ -2373,6 +2389,8 @@ class Game {
 
     if (name === 'game') {
       this.canvas.style.display = 'block';
+      const mb = document.getElementById('multiplier-banner');
+      if (mb && this.arcadeMode) mb.classList.add('hidden');
       const ctrl = document.getElementById('controls-overlay');
       if (this._isMobile()) {
         ctrl?.classList.remove('hidden');
@@ -2684,7 +2702,7 @@ class Game {
       arcadeBtn.disabled = !canArcade;
     }
     const last = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
-    const cooldownMs = 60 * 60 * 1000;
+    const cooldownMs = 2 * 60 * 60 * 1000; // 2 hours (only after full 10-wave clear)
     const remaining = last && (Date.now() - last < cooldownMs) ? cooldownMs - (Date.now() - last) : 0;
     if (timerEl) {
       if (remaining > 0 && canArcade) {
@@ -2692,8 +2710,9 @@ class Game {
         const tick = () => {
           const r = Math.max(0, cooldownMs - (Date.now() - last));
           if (r <= 0) { timerEl.textContent = ''; timerEl.classList.add('hidden'); return; }
-          const m = Math.floor(r / 60000); const s = Math.floor((r % 60000) / 1000);
-          timerEl.textContent = `ARCADE: ${m}:${String(s).padStart(2,'0')}`;
+          const h = Math.floor(r / 3600000); const m = Math.floor((r % 3600000) / 60000); const s = Math.floor((r % 60000) / 1000);
+          const timeStr = h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+          timerEl.textContent = `ARCADE: ${timeStr}`;
           if (document.getElementById('mode-select-modal')?.classList.contains('hidden')) return;
           setTimeout(tick, 1000);
         };
@@ -2713,7 +2732,7 @@ class Game {
         tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
       if (!isDev) return;
       const last = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
-      const cooldownMs = 60 * 60 * 1000; // 1 hour
+      const cooldownMs = 2 * 60 * 60 * 1000; // 2 hours (only after full 10-wave clear)
       if (last && Date.now() - last < cooldownMs && !isDev) {
         const left = Math.ceil((cooldownMs - (Date.now() - last)) / 60000);
         alert(`ARCADE COOLDOWN\nPlay again in ${left} minutes!`);
@@ -3033,6 +3052,21 @@ class Game {
     this.enemyBullets = this.enemyBullets.filter(e => dist(e, this.ship) > rad + e.radius);
   }
 
+  _arcadePurgeBetweenWaves() {
+    this.asteroids = [];
+    this.bullets = [];
+    this.enemyBullets = [];
+    this.rockets = [];
+    this.playerRockets = [];
+    this.megaRaketas = [];
+    this.fireballs = [];
+    this.particles = [];
+    this.redFighters = [];
+    this.yellowAliens = [];
+    this.orangeRockets = [];
+    this.arcadeBosses = [];
+  }
+
   _arcadeRestockShip() {
     const wc = ARCADE_WAVES[this.arcadeWave - 1];
     if (!wc || !this.ship) return;
@@ -3141,7 +3175,7 @@ class Game {
   }
 
   async _arcadeAwardWaveShmips(waveNum) {
-    const rewards = { 7: 3000, 8: 5000, 9: 7000 };
+    const rewards = { 7: 1000, 8: 4000, 9: 6000 };
     const amt = rewards[waveNum];
     if (!amt) return;
     const tid = TG_USER?.id || this.userData?.telegram_id;
@@ -3552,11 +3586,20 @@ class Game {
           }
         }
       } else {
-        const allClear = this.asteroids.length === 0 && this.redFighters.length === 0 &&
+        const wc = ARCADE_WAVES[this.arcadeWave - 1];
+        const state = this._arcadeSpawned || { rocks: 0, aliens: 0, missiles: 0, jets: 0 };
+        const r = wc?.rocks || {};
+        const totalRocks = (r.small || 0) + (r.med || 0) + (r.large || 0);
+        const waveHasContent = totalRocks > 0 || (wc?.aliens || 0) > 0 || (wc?.missiles || 0) > 0 || (wc?.jets || 0) > 0 || wc?.boss;
+        const spawnedSomething = (state.rocks + state.aliens + state.missiles + state.jets) > 0 || (wc?.boss && this._arcadeBossSpawned);
+        const entitiesGone = this.asteroids.length === 0 && this.redFighters.length === 0 &&
           this.yellowAliens.length === 0 && this.orangeRockets.length === 0 && this.arcadeBosses.length === 0;
+        const minTimeElapsed = this._arcadeWaveStartTime != null && (this.gameTime - this._arcadeWaveStartTime) > 90;
+        const allClear = entitiesGone && (!waveHasContent || (spawnedSomething && minTimeElapsed));
         if (allClear) {
+          this._arcadePurgeBetweenWaves();
           this._arcadeBetweenWaves = true;
-          this._arcadeBetweenWavesUntil = this.gameTime + 180; // 3 seconds
+          this._arcadeBetweenWavesUntil = this.gameTime + 360; // 6 seconds
           this._arcadeLastClearedWave = this.arcadeWave;
         }
       }
@@ -4167,16 +4210,57 @@ class Game {
     const fontPx = (base) => Math.round(Math.min(base * s, base * 1.2));
     if (this._arcadeBetweenWaves && this._arcadeLastClearedWave != null) {
       const next = this.arcadeWave + 1;
+      const arsenal = next <= 10 ? _arcadeWaveArsenal(next) : null;
+      const secLeft = Math.max(0, Math.ceil((this._arcadeBetweenWavesUntil - this.gameTime) / 60));
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = `bold ${fontPx(14)}px "Press Start 2P"`;
-      glow(ctx, '#00ff88', 12);
+      ctx.font = `bold ${fontPx(12)}px "Press Start 2P"`;
+      glow(ctx, '#00ff88', 10);
       ctx.fillStyle = '#00ff88';
-      ctx.fillText(`WAVE ${this._arcadeLastClearedWave} CLEARED!`, W/2, H/2 - fontPx(10));
+      ctx.fillText(`WAVE ${this._arcadeLastClearedWave} CLEARED!`, W/2, H/2 - fontPx(50));
       if (next <= 10) {
-        ctx.font = `bold ${fontPx(10)}px "Press Start 2P"`;
+        ctx.font = `bold ${fontPx(9)}px "Press Start 2P"`;
         ctx.fillStyle = '#ffcc00';
-        ctx.fillText(`GET READY FOR WAVE ${next}`, W/2, H/2 + fontPx(12));
+        ctx.fillText(`GET READY FOR WAVE ${next}`, W/2, H/2 - fontPx(30));
+        if (arsenal) {
+          ctx.font = `${fontPx(7)}px "Press Start 2P"`;
+          ctx.fillStyle = '#00ccff';
+          ctx.fillText('── YOUR ARSENAL ──', W/2, H/2 - fontPx(5));
+          ctx.fillStyle = '#ffffff';
+          let y = H/2 + fontPx(8);
+          ctx.fillText(`JET: ${arsenal.jetName}`, W/2, y);
+          y += fontPx(10);
+          if (arsenal.skinName) {
+            ctx.fillText(`SKIN: ${arsenal.skinName}`, W/2, y);
+            y += fontPx(10);
+          }
+          if (arsenal.upgradeNames.length > 0) {
+            const upgStr = arsenal.upgradeNames.join(', ');
+            const maxW = W - 40;
+            const words = upgStr.split(/,\s*/);
+            let line = '', lines = [];
+            for (const w of words) {
+              const test = line ? line + ', ' + w : w;
+              if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; } else { line = test; }
+            }
+            if (line) lines.push(line);
+            lines.forEach((ln, i) => { ctx.fillText((i === 0 ? 'UPS: ' : '') + ln, W/2, y); y += fontPx(10); });
+            y += fontPx(2);
+          }
+          if (arsenal.bonusLines.length > 0) {
+            ctx.fillStyle = '#88ff88';
+            ctx.fillText(`BONUS: ${arsenal.bonusLines.join(', ')}`, W/2, y);
+            y += fontPx(12);
+          }
+          y += fontPx(8);
+        }
+        ctx.font = `bold ${fontPx(14)}px "Press Start 2P"`;
+        ctx.fillStyle = '#ff6600';
+        glow(ctx, '#ff6600', 8);
+        ctx.fillText(`${secLeft}`, W/2, H - fontPx(40));
+        ctx.font = `${fontPx(7)}px "Press Start 2P"`;
+        ctx.fillStyle = '#888888';
+        ctx.fillText('sec until next wave', W/2, H - fontPx(28));
       }
       ctx.restore();
       ctx.shadowBlur = 0;
@@ -4256,13 +4340,17 @@ class Game {
       this.userData.best_score = Math.max(this.userData.best_score||0, effectiveScore);
     }
 
-    try {
-      const rows = await dbGetLeaderboard();
-      this._top5Cache = rows;
-      const lines = rows.map((e,i) => `${i+1}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`).join('\n');
-      document.getElementById('go-leaderboard').innerHTML =
-        `<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">${lines}</pre>`;
-    } catch { /* non-critical */ }
+    const lbEl = document.getElementById('go-leaderboard');
+    if (this.arcadeMode) {
+      if (lbEl) lbEl.innerHTML = '<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">WAVE REWARDS:\n7 → 1,000 $$\n8 → 4,000 $$\n9 → 6,000 $$</pre>';
+    } else {
+      try {
+        const rows = await dbGetLeaderboard();
+        this._top5Cache = rows;
+        const lines = rows.map((e,i) => `${i+1}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`).join('\n');
+        if (lbEl) lbEl.innerHTML = `<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">${lines}</pre>`;
+      } catch { /* non-critical */ }
+    }
   }
 
   // ── Profile ────────────────────────────────────────────────────────────────
