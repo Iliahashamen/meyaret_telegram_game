@@ -968,20 +968,43 @@ bot.callbackQuery('promo_confirm', async (ctx) => {
   await ctx.answerCallbackQuery('Sending promo...');
   delete _adminState[ADMIN_ID];
 
-  const { data: users } = await supabase.from('users').select('telegram_id');
-  let sent = 0, failed = 0;
-  for (const u of (users || [])) {
+  if (!supabase) {
     try {
+      await ctx.editMessageText('DB not connected. Check Railway env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.', { reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back' }]] } });
+    } catch { /* ignore */ }
+    return;
+  }
+  const { data: users, error } = await supabase.from('users').select('telegram_id');
+  if (error) {
+    console.error('[promo] Supabase error:', error);
+    try {
+      await ctx.editMessageText(`DB error: ${error.message}`, { reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back' }]] } });
+    } catch { /* ignore */ }
+    return;
+  }
+  if (!users?.length) {
+    try {
+      await ctx.editMessageText('No users in database. Users are added when they open the game via Telegram.', { reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back' }]] } });
+    } catch { /* ignore */ }
+    return;
+  }
+  let sent = 0, failed = 0;
+  for (const u of users) {
+    try {
+      const tid = Number(u.telegram_id) || u.telegram_id;
       if (promoPhotoFileId) {
-        await bot.api.sendPhoto(u.telegram_id, promoPhotoFileId, {
+        await bot.api.sendPhoto(tid, promoPhotoFileId, {
           caption: promoText || undefined,
         });
       } else {
-        await bot.api.sendMessage(u.telegram_id, promoText, { parse_mode: 'Markdown' });
+        await bot.api.sendMessage(tid, promoText, { parse_mode: 'Markdown' });
       }
       sent++;
       await new Promise(r => setTimeout(r, 50));
-    } catch { failed++; }
+    } catch (e) {
+      failed++;
+      console.warn('[promo] Failed to send to', u.telegram_id, e?.message || e);
+    }
   }
 
   try {
