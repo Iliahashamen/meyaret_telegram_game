@@ -1627,16 +1627,14 @@ class PlayerRocket {
 
   get readyToDetonate() { return !this._dead && this._cooldown <= 0; }
 
-  update(W, H, targets = [], ship = null) {
+  update(W, H, targets = [], ship = null, rocketIndex = 0) {
     if (this._cooldown > 0) this._cooldown--;
 
-    // Pick highest-threat target (protects player most)
+    // Pick target: smart rockets each get a different target (by threat rank); normal rockets all chase highest threat
     if (targets.length > 0 && ship) {
-      let bestTarget = null, bestScore = -Infinity;
-      for (const t of targets) {
-        const score = _rocketThreatScore(t, ship);
-        if (score > bestScore) { bestScore = score; bestTarget = t; }
-      }
+      const sorted = [...targets].sort((a, b) => _rocketThreatScore(b, ship) - _rocketThreatScore(a, ship));
+      const idx = this.smart ? (rocketIndex % sorted.length) : 0;
+      const bestTarget = sorted[idx] || null;
       if (bestTarget) {
         const ta = Math.atan2(bestTarget.y - this.y, bestTarget.x - this.x);
         let da = ta - this.angle;
@@ -1648,11 +1646,9 @@ class PlayerRocket {
       }
     } else if (targets.length > 0) {
       // Fallback: nearest target if ship not available
-      let nearestDist = Infinity, nearest = null;
-      for (const t of targets) {
-        const d = dist(this, t);
-        if (d < nearestDist) { nearestDist = d; nearest = t; }
-      }
+      const sorted = [...targets].sort((a, b) => dist(this, a) - dist(this, b));
+      const idx = this.smart ? (rocketIndex % sorted.length) : 0;
+      const nearest = sorted[idx] || null;
       if (nearest) {
         const ta = Math.atan2(nearest.y - this.y, nearest.x - this.x);
         let da = ta - this.angle;
@@ -3836,7 +3832,7 @@ class Game {
     this.rockets.forEach(r => r.update(this.W, this.H));
     this.rockets = this.rockets.filter(r => !r.dead);
     const _rocketTargets = [...this.orangeRockets, ...this.redFighters, ...this.yellowAliens, ...this.asteroids];
-    this.playerRockets.forEach(r => r.update(this.W, this.H, _rocketTargets, this.ship));
+    this.playerRockets.forEach((r, i) => r.update(this.W, this.H, _rocketTargets, this.ship, i));
     this.playerRockets = this.playerRockets.filter(r => !r.dead);
     // MegaRaketa: fly forward then split into 7 mini homing rockets
     this.megaRaketas.forEach(mr => mr.update(this.W, this.H));
