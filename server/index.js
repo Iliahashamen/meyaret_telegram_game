@@ -987,6 +987,9 @@ bot.on('callback_query', async (ctx) => ctx.answerCallbackQuery().catch(() => {}
 if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
   const WEBHOOK_BASE = (process.env.WEBHOOK_URL || '').trim();
   const webhookPath  = `/bot${BOT_TOKEN}`;
+  console.warn(
+    '[bot] Webhook mode: Telegram allows ONE webhook per BOT_TOKEN. If another service uses the same token with WEBHOOK_URL, this deploy will steal updates from that service. See docs/DEPLOY.md'
+  );
   app.use(webhookPath, webhookCallback(bot, 'express'));
 
   app.listen(PORT, async () => {
