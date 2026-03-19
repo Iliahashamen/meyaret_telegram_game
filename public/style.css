@@ -750,7 +750,7 @@ input[type="text"]:focus { outline: none; border-color: var(--cyan); box-shadow:
   font-size: 8px; letter-spacing: 1px; color: var(--muted2); text-align: center;
   line-height: 2.2; margin-bottom: 10px; background: var(--card);
   border: var(--px) solid var(--border-m); padding: 10px 14px;
-  width: min(290px, 90vw); box-shadow: 4px 4px 0 #ff007722;
+  width: min(290px, 90vw); min-height: 72px; box-shadow: 4px 4px 0 #ff007722;
 }
 
 /* ── Top 5 Modal ──────────────────────────────────────────── */

@@ -3387,16 +3387,19 @@ class Game {
     } catch (e) { console.warn('[arcade] bonus failed:', e.message); }
     localStorage.setItem('meyaret_arcade_last', Date.now().toString());
     this._arcadeOutroActive = false;
-    this._showScreen('gameover');
+    this._resetGameOverScreen();
+    const s = document.getElementById('gameover-screen');
+    const pa = document.getElementById('go-play-again');
+    const gm = document.getElementById('go-menu');
+    if (pa) pa.style.display = 'none';
+    if (gm) { gm.textContent = 'MAIN MENU'; gm.classList.add('btn-primary'); gm.classList.remove('btn-secondary'); }
     document.getElementById('go-title').textContent = `MAZAL TOV ${nick}!!`;
     document.getElementById('go-score').textContent = '10 WAVES CLEARED';
     document.getElementById('go-shmips').textContent = `+${ARCADE_REWARD.toLocaleString()} $$ AWARDED!`;
-    document.getElementById('go-leaderboard').innerHTML = '<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">WAVE REWARDS:\n7 → 1,000 $$\n8 → 4,000 $$\n9 → 6,000 $$</pre>';
-    const pa = document.getElementById('go-play-again');
-    if (pa) { pa.style.display = 'none'; }
-    const gm = document.getElementById('go-menu');
-    if (gm) { gm.textContent = 'MAIN MENU'; gm.classList.add('btn-primary'); gm.classList.remove('btn-secondary'); }
-    document.getElementById('gameover-screen').classList.add('arcade-victory');
+    const lb = document.getElementById('go-leaderboard');
+    if (lb) lb.innerHTML = '<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">WAVE REWARDS:\n7 → 1,000 $$\n8 → 4,000 $$\n9 → 6,000 $$</pre>';
+    if (s) s.classList.add('arcade-victory');
+    this._showScreen('gameover');
   }
 
   _arcadeTickSpawn() {
@@ -4795,10 +4798,21 @@ class Game {
     return { type: 'cash', value: cash, label: `+${cash.toLocaleString()} $$` };
   }
 
+  _resetGameOverScreen() {
+    const s = document.getElementById('gameover-screen');
+    const lb = document.getElementById('go-leaderboard');
+    const pa = document.getElementById('go-play-again');
+    const gm = document.getElementById('go-menu');
+    if (s) s.classList.remove('arcade-victory');
+    if (lb) lb.innerHTML = '';
+    if (pa) { pa.style.display = ''; pa.textContent = 'PLAY AGAIN'; pa.classList.add('btn-primary'); pa.classList.remove('btn-secondary'); }
+    if (gm) { gm.textContent = 'MAIN MENU'; gm.classList.remove('btn-primary'); gm.classList.add('btn-secondary'); }
+  }
+
   async _bossmanGameOver() {
     this.ship.alive = false;
     SFX.thrustStop(); SFX.gameOver();
-    document.getElementById('gameover-screen')?.classList.remove('arcade-victory');
+    this._resetGameOverScreen();
     this._showScreen('gameover');
     const kills = this._bossmanKills || 0;
     const reward = this._rollBossmanReward(kills);
@@ -4829,22 +4843,13 @@ class Game {
     if (scoreEl) scoreEl.textContent = `BOSSES KILLED: ${kills}`;
     if (shmipsEl) shmipsEl.textContent = reward.type === 'upgrade' ? `REWARD: ${reward.label}` : reward.label;
     if (lbEl) lbEl.innerHTML = '<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">Kills &lt;13: $$, skins, bullets, thrust only.\n13+ kills: upgrade drops possible.\n15+ kills: top-tier upgrades unlocked.</pre>';
-
-    const pa = document.getElementById('go-play-again');
-    if (pa) { pa.style.display = ''; pa.textContent = 'PLAY AGAIN'; }
-    const gm = document.getElementById('go-menu');
-    if (gm) { gm.textContent = 'MAIN MENU'; gm.classList.remove('btn-primary'); gm.classList.add('btn-secondary'); }
   }
 
   async _gameOver() {
     if (this.bossmanMode) { await this._bossmanGameOver(); return; }
     this.ship.alive = false;
     SFX.thrustStop(); SFX.gameOver();
-    document.getElementById('gameover-screen')?.classList.remove('arcade-victory');
-    const pa = document.getElementById('go-play-again');
-    if (pa) { pa.style.display = ''; pa.textContent = 'PLAY AGAIN'; }
-    const gm = document.getElementById('go-menu');
-    if (gm) { gm.textContent = 'MAIN MENU'; gm.classList.remove('btn-primary'); gm.classList.add('btn-secondary'); }
+    this._resetGameOverScreen();
     this._showScreen('gameover');
 
     const rawScore       = this.score;
@@ -4900,15 +4905,17 @@ class Game {
     }
 
     const lbEl = document.getElementById('go-leaderboard');
+    const preStyle = 'font-size:8px;letter-spacing:1px;line-height:2.2';
     if (this.arcadeMode) {
-      if (lbEl) lbEl.innerHTML = '<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">WAVE REWARDS:\n7 → 1,000 $$\n8 → 4,000 $$\n9 → 6,000 $$</pre>';
+      if (lbEl) lbEl.innerHTML = `<pre style="${preStyle}">WAVE REWARDS:\n7 → 1,000 $$\n8 → 4,000 $$\n9 → 6,000 $$</pre>`;
     } else {
-      try {
-        const rows = await dbGetLeaderboard();
+      if (lbEl) lbEl.innerHTML = `<pre style="${preStyle}">TOP 5\n—</pre>`;
+      dbGetLeaderboard().then(rows => {
         this._top5Cache = rows;
         const lines = rows.map((e,i) => `${i+1}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`).join('\n');
-        if (lbEl) lbEl.innerHTML = `<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">${lines}</pre>`;
-      } catch { /* non-critical */ }
+        const el = document.getElementById('go-leaderboard');
+        if (el) el.innerHTML = `<pre style="${preStyle}">${lines}</pre>`;
+      }).catch(() => {});
     }
   }
 
