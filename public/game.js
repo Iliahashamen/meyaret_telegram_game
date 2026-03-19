@@ -3176,10 +3176,10 @@ class Game {
       }
     }
     if (pcEl && pcText) {
-      if (charging && !this._isMobile()) {
-        pcText.textContent = `ROCKET SALVO in ${sec.toFixed(1)}s (hold R)`;
+      if (charging) {
+        pcText.textContent = this._isMobile() ? `SALVO in ${sec.toFixed(1)}s` : `SALVO in ${sec.toFixed(1)}s (hold R)`;
         pcEl.classList.remove('hidden');
-      } else if (!forceHide && this._rocketSalvoActive && !this._isMobile() && (this.ship?.rocketAmmo ?? 0) > 0) {
+      } else if (!forceHide && this._rocketSalvoActive && (this.ship?.rocketAmmo ?? 0) > 0) {
         pcText.textContent = 'SALVO!';
         pcEl.classList.remove('hidden');
       } else {
