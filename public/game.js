@@ -1118,6 +1118,23 @@ class Bullet {
       ctx.lineTo(0, this.radius * 1.2);
       ctx.lineTo(-this.radius, 0);
       ctx.closePath(); ctx.fill();
+    } else if (this.shape === 'bolt') {
+      ctx.beginPath();
+      ctx.moveTo(this.radius * 0.2, -this.radius * 1.3);
+      ctx.lineTo(this.radius * 1.1, -this.radius * 0.2);
+      ctx.lineTo(this.radius * 0.15, -this.radius * 0.15);
+      ctx.lineTo(-this.radius * 0.4, this.radius * 1.25);
+      ctx.lineTo(-this.radius * 0.9, this.radius * 0.35);
+      ctx.lineTo(-this.radius * 0.15, this.radius * 0.1);
+      ctx.closePath(); ctx.fill();
+    } else if (this.shape === 'shard') {
+      ctx.beginPath();
+      ctx.moveTo(0, -this.radius * 1.45);
+      ctx.lineTo(this.radius * 1.05, this.radius * 0.35);
+      ctx.lineTo(this.radius * 0.45, this.radius * 0.9);
+      ctx.lineTo(-this.radius * 0.35, this.radius * 1.0);
+      ctx.lineTo(-this.radius * 0.85, -this.radius * 0.25);
+      ctx.closePath(); ctx.fill();
     } else {
       ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, TAU); ctx.fill();
     }
@@ -1855,6 +1872,44 @@ class BigBossAlien {
     if (this.health <= 0) SFX.enemyDie();
     return this.health <= 0;
   }
+}
+
+/** Survival & Bossman: same base curve; boss #10+ hard, #20+ impossible (elite glow) */
+function buildScaledBossOpts(bossIndexDefeated) {
+  const n = bossIndexDefeated;
+  const bossNum = n + 1;
+  const STRONG = 1.6;
+  let health = 5 * Math.pow(1.2, n) * STRONG;
+  const fireMult = 1 + (0.2 * n);
+  const canShootRockets = n >= 2;
+  let shootRate = Math.max(16, Math.floor(81 / fireMult));
+  let rocketRate = Math.max(50, Math.floor((160 - n * 8) / STRONG));
+  let vx = (0.24 + n * 0.01) * STRONG;
+  let vy = (0.34 + n * 0.01) * STRONG;
+  let elite = false;
+  if (bossNum >= 20) {
+    health *= 2.15;
+    shootRate = Math.max(10, Math.floor(shootRate / 1.5));
+    rocketRate = Math.max(32, Math.floor(rocketRate / 1.5));
+    vx *= 1.35;
+    vy *= 1.35;
+    elite = true;
+  } else if (bossNum >= 10) {
+    health *= 1.42;
+    shootRate = Math.max(12, Math.floor(shootRate / 1.22));
+    rocketRate = Math.max(40, Math.floor(rocketRate / 1.22));
+    vx *= 1.18;
+    vy *= 1.18;
+  }
+  return {
+    health,
+    shootRate: Math.max(10, shootRate),
+    canShootRockets,
+    rocketRate: Math.max(28, rocketRate),
+    vx,
+    vy,
+    elite,
+  };
 }
 
 // ── Background ────────────────────────────────────────────────────────────────
@@ -2716,19 +2771,15 @@ class Game {
     const bossmanBtn = document.getElementById('btn-mode-bossman');
     const arcadeTimerEl = document.getElementById('mode-arcade-timer');
     const bossmanTimerEl = document.getElementById('mode-bossman-timer');
-    const isArcadeDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
-      tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
-    const isBossmanDev = (typeof window !== 'undefined' && window.BOSSMAN_TEST_USER_ID != null) &&
-      tid != null && String(tid) === String(window.BOSSMAN_TEST_USER_ID);
-    const canArcade = isArcadeDev;
-    const canBossman = isBossmanDev;
+    const noBossmanCd = (typeof window !== 'undefined' && window.BOSSMAN_NO_COOLDOWN_USER_ID != null) &&
+      tid != null && String(tid) === String(window.BOSSMAN_NO_COOLDOWN_USER_ID);
     if (arcadeBtn) {
-      arcadeBtn.style.display = canArcade ? '' : 'none';
-      arcadeBtn.disabled = !canArcade;
+      arcadeBtn.style.display = '';
+      arcadeBtn.disabled = false;
     }
     if (bossmanBtn) {
-      bossmanBtn.style.display = canBossman ? '' : 'none';
-      bossmanBtn.disabled = !canBossman;
+      bossmanBtn.style.display = '';
+      bossmanBtn.disabled = false;
     }
 
     const formatTime = (ms) => {
@@ -2742,12 +2793,12 @@ class Game {
     const arcadeCooldownMs = 2 * 60 * 60 * 1000;
     const arcadeRemaining = arcadeLast && (Date.now() - arcadeLast < arcadeCooldownMs) ? arcadeCooldownMs - (Date.now() - arcadeLast) : 0;
     if (arcadeTimerEl) {
-      if (arcadeRemaining > 0 && canArcade) {
+      if (arcadeRemaining > 0) {
         arcadeTimerEl.classList.remove('hidden');
         const tick = () => {
           const r = Math.max(0, arcadeCooldownMs - (Date.now() - arcadeLast));
           if (r <= 0) { arcadeTimerEl.textContent = ''; arcadeTimerEl.classList.add('hidden'); return; }
-          arcadeTimerEl.textContent = `ARCADE: ${formatTime(r)}`;
+          arcadeTimerEl.textContent = `ARCADE-BETA: ${formatTime(r)}`;
           if (document.getElementById('mode-select-modal')?.classList.contains('hidden')) return;
           setTimeout(tick, 1000);
         };
@@ -2759,10 +2810,11 @@ class Game {
     }
 
     const bossmanLast = parseInt(localStorage.getItem('meyaret_bossman_last') || '0', 10);
-    const bossmanCooldownMs = 5 * 60 * 60 * 1000;
-    const bossmanRemaining = bossmanLast && (Date.now() - bossmanLast < bossmanCooldownMs) ? bossmanCooldownMs - (Date.now() - bossmanLast) : 0;
+    const bossmanCooldownMs = 4 * 60 * 60 * 1000;
+    const bossmanRemaining = !noBossmanCd && bossmanLast && (Date.now() - bossmanLast < bossmanCooldownMs)
+      ? bossmanCooldownMs - (Date.now() - bossmanLast) : 0;
     if (bossmanTimerEl) {
-      if (bossmanRemaining > 0 && canBossman) {
+      if (bossmanRemaining > 0) {
         bossmanTimerEl.classList.remove('hidden');
         const tick = () => {
           const r = Math.max(0, bossmanCooldownMs - (Date.now() - bossmanLast));
@@ -2782,30 +2834,27 @@ class Game {
 
   async _startGame(mode = 'survival') {
     if (mode === 'arcade') {
-      const tid = TG_USER?.id ?? this.userData?.telegram_id;
-      const isDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) &&
-        tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
-      if (!isDev) return;
       const last = parseInt(localStorage.getItem('meyaret_arcade_last') || '0', 10);
-      const cooldownMs = 2 * 60 * 60 * 1000; // 2 hours (only after full 10-wave clear)
+      const cooldownMs = 2 * 60 * 60 * 1000; // 2h after beating final boss only
       if (last && Date.now() - last < cooldownMs) {
         const left = Math.ceil((cooldownMs - (Date.now() - last)) / 60000);
-        alert(`ARCADE COOLDOWN\nPlay again in ${left} minutes!`);
+        alert(`ARCADE-BETA COOLDOWN\nPlay again in ${left} minutes!`);
         return;
       }
     } else if (mode === 'bossman') {
       const tid = TG_USER?.id ?? this.userData?.telegram_id;
-      const isDev = (typeof window !== 'undefined' && window.BOSSMAN_TEST_USER_ID != null) &&
-        tid != null && String(tid) === String(window.BOSSMAN_TEST_USER_ID);
-      if (!isDev) return;
-      const last = parseInt(localStorage.getItem('meyaret_bossman_last') || '0', 10);
-      const cooldownMs = 5 * 60 * 60 * 1000; // 5 hours
-      if (last && Date.now() - last < cooldownMs) {
-        const left = Math.ceil((cooldownMs - (Date.now() - last)) / 60000);
-        alert(`BOSSMAN COOLDOWN\nPlay again in ${left} minutes!`);
-        return;
+      const noCd = (typeof window !== 'undefined' && window.BOSSMAN_NO_COOLDOWN_USER_ID != null) &&
+        tid != null && String(tid) === String(window.BOSSMAN_NO_COOLDOWN_USER_ID);
+      if (!noCd) {
+        const last = parseInt(localStorage.getItem('meyaret_bossman_last') || '0', 10);
+        const cooldownMs = 4 * 60 * 60 * 1000;
+        if (last && Date.now() - last < cooldownMs) {
+          const left = Math.ceil((cooldownMs - (Date.now() - last)) / 60000);
+          alert(`BOSSMAN COOLDOWN\nPlay again in ${left} minutes!`);
+          return;
+        }
+        localStorage.setItem('meyaret_bossman_last', Date.now().toString());
       }
-      localStorage.setItem('meyaret_bossman_last', Date.now().toString());
     }
     try { this._doStartGame(mode); } catch(e) {
       console.error('[_startGame]', e);
@@ -2926,6 +2975,8 @@ class Game {
       skin_aurora:        { color:'#00ddff', accent:'#aa66ff' },
       skin_inferno:       { color:'#ff3300', accent:'#ff9900' },
       skin_crimson:       { color:'#cc0044', accent:'#ff4466' },
+      skin_plasma_veil:   { color:'#00f5d4', accent:'#9b5de5' },
+      skin_rust_moon:     { color:'#b5651d', accent:'#e8a0bf' },
     };
 
     if (equippedSkin && this.upgrades[equippedSkin] && skinColors[equippedSkin]) {
@@ -3200,8 +3251,7 @@ class Game {
         this.userData.shmips = (this.userData.shmips || 0) + ARCADE_REWARD;
       }
     } catch (e) { console.warn('[arcade] bonus failed:', e.message); }
-    const isDev = (typeof window !== 'undefined' && window.ARCADE_TEST_USER_ID != null) && tid != null && String(tid) === String(window.ARCADE_TEST_USER_ID);
-    if (!isDev) localStorage.setItem('meyaret_arcade_last', Date.now().toString());
+    localStorage.setItem('meyaret_arcade_last', Date.now().toString());
     this._arcadeOutroActive = false;
     this._showScreen('gameover');
     document.getElementById('go-title').textContent = `MAZAL TOV ${nick}!!`;
@@ -3293,19 +3343,18 @@ class Game {
     this._survivalBossFight = true;
     this._arcadePurgeBetweenWaves();
     const n = this._survivalBossesDefeated;
-    const STRONG = 1.6; // 60% buff
-    const health = 5 * Math.pow(1.2, n) * STRONG;
-    const fireMult = 1 + (0.2 * n);
-    const canShootRockets = n >= 2; // from 3rd boss (earlier rockets)
+    const o = buildScaledBossOpts(n);
     this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, {
-      health,
-      shootRate: Math.max(16, Math.floor(81 / fireMult)),
-      canShootRockets,
-      rocketRate: Math.max(50, Math.floor((160 - n * 8) / STRONG)),
-      vx: (0.24 + n * 0.01) * STRONG,
-      vy: (0.34 + n * 0.01) * STRONG,
+      health: o.health,
+      shootRate: o.shootRate,
+      canShootRockets: o.canShootRockets,
+      rocketRate: o.rocketRate,
+      vx: o.vx,
+      vy: o.vy,
+      elite: o.elite,
     }));
-    new FloatingText(this.W / 2, this.H / 2, `BOSS ${n + 1} INCOMING`, '#ffd700');
+    const tier = n + 1 >= 20 ? ' — IMPOSSIBLE' : n + 1 >= 10 ? ' — HARD' : '';
+    new FloatingText(this.W / 2, this.H / 2, `BOSS ${n + 1} INCOMING${tier}`, '#ffd700');
   }
 
   _onBossKilled() {
@@ -3327,22 +3376,15 @@ class Game {
 
   _spawnBossmanBoss() {
     const n = this._bossmanKills;
-    const bossNum = n + 1;
-    const isElite = bossNum % 10 === 0; // 10th, 20th, 30th...
-    const eliteMult = isElite ? 2.5 : 1;
-    // 20% buffier: health scales 1.46 instead of 1.22; elite gets extra multiplier
-    const health = 8 * Math.pow(1.46, n) * eliteMult;
-    const fireMult = 1 + (0.28 * n) * (isElite ? 1.4 : 1);
-    const canShootRockets = n >= 0; // all bosses shoot rockets
-    const rocketMult = isElite ? 0.5 : 1; // elite fires rockets 2x faster
+    const o = buildScaledBossOpts(n);
     this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, {
-      health,
-      shootRate: Math.max(12, Math.floor(100 / fireMult)),
-      canShootRockets,
-      rocketRate: Math.max(35, Math.floor((120 - n * 5) * rocketMult)),
-      vx: (0.26 + n * 0.015) * (isElite ? 1.3 : 1),
-      vy: (0.36 + n * 0.012) * (isElite ? 1.3 : 1),
-      elite: isElite,
+      health: o.health,
+      shootRate: o.shootRate,
+      canShootRockets: o.canShootRockets,
+      rocketRate: o.rocketRate,
+      vx: o.vx,
+      vy: o.vy,
+      elite: o.elite,
     }));
   }
 
@@ -4564,16 +4606,27 @@ class Game {
   _rollBossmanReward(kills) {
     const upgrades = CATALOG.filter(c => c.category === 'upgrade').sort((a, b) => a.cost - b.cost);
     const maxUpgradeCost = upgrades[upgrades.length - 1]?.cost || 6666;
-    const upgradeChance = Math.min(0.08 + kills * 0.07, 0.8);
-    const topTierCost = 2500; // no top-tier until 15 kills
-    const allowedUpgrades = kills >= 15 ? upgrades : upgrades.filter(u => u.cost < topTierCost);
-    if (Math.random() < upgradeChance && allowedUpgrades.length) {
+    const upgradeChance = kills >= 13 ? Math.min(0.08 + kills * 0.07, 0.78) : 0;
+    const topTierCost = 2500;
+    const cosmeticIds = [
+      ...CATALOG.filter(c => c.category === 'skin').map(c => c.id),
+      ...CATALOG.filter(c => c.category === 'bullet' && c.id !== 'bullet_default').map(c => c.id),
+      ...CATALOG.filter(c => c.category === 'thrust' && c.id !== 'thrust_default').map(c => c.id),
+    ];
+    if (kills >= 13 && Math.random() < upgradeChance && upgrades.length) {
+      const allowedUpgrades = kills >= 15 ? upgrades : upgrades.filter(u => u.cost < topTierCost);
       const rawTarget = Math.min(maxUpgradeCost, 600 + kills * kills * 180);
       const target = kills < 15 ? Math.min(rawTarget, topTierCost - 1) : rawTarget;
       const pool = allowedUpgrades.filter(u => u.cost <= target);
       const pickPool = pool.length ? pool : allowedUpgrades;
       const pick = pickPool[rngInt(0, pickPool.length - 1)];
       return { type: 'upgrade', value: pick.id, label: pick.name };
+    }
+    const cosmeticWeight = kills >= 13 ? 0.4 : 0.5;
+    if (cosmeticIds.length && Math.random() < cosmeticWeight) {
+      const id = cosmeticIds[rngInt(0, cosmeticIds.length - 1)];
+      const item = CATALOG.find(c => c.id === id);
+      return { type: 'upgrade', value: id, label: item?.name || id };
     }
     const maxCash = Math.max(10, Math.min(maxUpgradeCost, 50 + kills * kills * 120 + rngInt(0, 240)));
     const cash = rngInt(10, maxCash);
@@ -4613,7 +4666,7 @@ class Game {
     if (titleEl) titleEl.textContent = 'BOSSMAN COMPLETE';
     if (scoreEl) scoreEl.textContent = `BOSSES KILLED: ${kills}`;
     if (shmipsEl) shmipsEl.textContent = reward.type === 'upgrade' ? `REWARD: ${reward.label}` : reward.label;
-    if (lbEl) lbEl.innerHTML = '<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">Kill more bosses for better rewards.\nCash rewards scale up to top-upgrade range.\nUpgrade drop chance rises with kills.</pre>';
+    if (lbEl) lbEl.innerHTML = '<pre style="font-size:8px;letter-spacing:1px;line-height:2.2">Kills &lt;13: $$, skins, bullets, thrust only.\n13+ kills: upgrade drops possible.\n15+ kills: top-tier upgrades unlocked.</pre>';
 
     const pa = document.getElementById('go-play-again');
     if (pa) { pa.style.display = ''; pa.textContent = 'PLAY AGAIN'; }

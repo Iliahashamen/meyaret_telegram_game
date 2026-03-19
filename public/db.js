@@ -38,7 +38,7 @@ async function supa(path, opts = {}) {
 }
 
 // ── Store Catalog ─────────────────────────────────────────────────────────────
-// 4 boosts · 14 upgrades · 17 skins · 4 planes (starter is free/default)
+// 4 boosts · 14 upgrades · 19 skins · 4 planes (starter is free/default)
 export const CATALOG = [
   // ── Boosts (per-run) ─────────────────────────────────────────────────
   { id: 'extra_life',   name: 'Extra Life',   category: 'boost', cost: 15,  description: '+1 life for your next run',    stackable: true },
@@ -75,6 +75,8 @@ export const CATALOG = [
   { id: 'thrust_purple',  name: 'PURPLE',    category: 'thrust', cost: 152, description: 'Purple thrust glow',     color: '#aa44ff' },
   { id: 'thrust_aurora',  name: 'AURORA',    category: 'thrust', cost: 228, description: 'Cyan-purple-blue cycling', color: 'aurora' },
   { id: 'thrust_spectrum', name: 'SPECTRUM', category: 'thrust', cost: 266, description: 'Full rainbow cycling',    color: 'spectrum' },
+  { id: 'thrust_quasar_neon', name: 'QUASAR NEON', category: 'thrust', cost: 198, description: 'Electric cyber-lime core', color: '#39ff14' },
+  { id: 'thrust_corona_blush', name: 'CORONA BLUSH', category: 'thrust', cost: 212, description: 'Peach plasma with hot coral rim', color: '#ff9a6b' },
 
   // ── Bullet shapes ────────────────────────────────────────────────────────
   { id: 'bullet_default', name: 'DEFAULT',    category: 'bullet', cost: 0,   description: 'Standard red bullets',     shape: 'default', color: '#ff2200' },
@@ -84,6 +86,8 @@ export const CATALOG = [
   { id: 'bullet_circles', name: 'CIRCLES',  category: 'bullet', cost: 95,  description: 'Green circular bullets',    shape: 'circle',  color: '#00ff88' },
   { id: 'bullet_aurora',  name: 'AURORA',   category: 'bullet', cost: 209, description: 'Cyan-purple cycling',      shape: 'default', color: 'aurora' },
   { id: 'bullet_spectrum', name: 'SPECTRUM', category: 'bullet', cost: 247, description: 'Rainbow cycling bullets',   shape: 'default', color: 'spectrum' },
+  { id: 'bullet_ion_bolt',     name: 'ION BOLT',     category: 'bullet', cost: 224, description: 'Jagged electric ice bolts',     shape: 'bolt',    color: '#66f0ff' },
+  { id: 'bullet_comet_shard', name: 'COMET SHARD',  category: 'bullet', cost: 238, description: 'Angled burn-orange comet slugs', shape: 'shard',   color: '#ff5c00' },
 
   // ── Skins (color palette for any jet) ────────────────────────────────────
   { id: 'skin_breast_cancer', name: 'I SUPPORT BREAST CANCER', category: 'skin', cost: 1,   description: 'Pink hull — fight the fight',         color: '#ff69b4', accent: '#ffffff' },
@@ -106,6 +110,8 @@ export const CATALOG = [
   { id: 'skin_aurora',     name: 'AURORA',                     category: 'skin', cost: 247, description: 'Northern lights cyan and purple',       color: '#00ddff', accent: '#aa66ff' },
   { id: 'skin_inferno',    name: 'INFERNO',                  category: 'skin', cost: 266, description: 'Red to orange color-shifting flame',   color: '#ff3300', accent: '#ff9900' },
   { id: 'skin_crimson',    name: 'CRIMSON',                  category: 'skin', cost: 228, description: 'Deep red pulsing glow',                color: '#cc0044', accent: '#ff4466' },
+  { id: 'skin_plasma_veil', name: 'PLASMA VEIL',             category: 'skin', cost: 334, description: 'Seafoam core wrapped in violet haze', color: '#00f5d4', accent: '#9b5de5' },
+  { id: 'skin_rust_moon',   name: 'RUST MOON',               category: 'skin', cost: 346, description: 'Copper hull with dusty rose reflections', color: '#b5651d', accent: '#e8a0bf' },
 
   // ── Jets ─────────────────────────────────────────────────────────────────
   { id: 'plane_hamud',      name: 'HAMUDI',         category: 'plane', cost: 2280,

@@ -14,7 +14,6 @@
 
   console.log('[MEYARET] API base:', window.MEYARET_API || '(same origin)');
 
-  // Arcade mode: testing only — replace with your Telegram user ID
-  window.ARCADE_TEST_USER_ID = 1357754255;
-  window.BOSSMAN_TEST_USER_ID = 1357754255;
+  // No cooldown / unlimited Bossman runs for this Telegram ID only (others: 4h)
+  window.BOSSMAN_NO_COOLDOWN_USER_ID = 1357754255;
 })();

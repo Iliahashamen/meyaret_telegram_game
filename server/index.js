@@ -263,6 +263,9 @@ bot.command('help', (ctx) =>
 const ADMIN_ID = Number(process.env.ADMIN_TELEGRAM_ID || 0);
 if (!ADMIN_ID) console.warn('[bot] ADMIN_TELEGRAM_ID not set — admin tools will be inaccessible');
 
+/** Admin multi-step flows (promo, set score, gift, …) */
+const _adminState = {};
+
 // /ping — returns your own Telegram ID only (does not reveal admin identity)
 bot.command('ping', async (ctx) => {
   const id   = ctx.from?.id;
@@ -798,7 +801,7 @@ bot.on('message:text', async (ctx) => {
       delete _adminState[ADMIN_ID];
       return ctx.reply('Promo cancelled. Back to /tools');
     }
-    _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: text };
+    _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: text, promoPhotoFileId: null };
     await ctx.reply(
       `*PREVIEW — this is what all players will receive:*\n\n${text}\n\n_Send to all players?_`,
       {
@@ -812,6 +815,34 @@ bot.on('message:text', async (ctx) => {
       },
     );
   }
+});
+
+// Admin: promo with image (+ optional caption)
+bot.on('message:photo', async (ctx) => {
+  if (ctx.from?.id !== ADMIN_ID) return;
+  const state = _adminState[ADMIN_ID];
+  if (state?.step !== 'awaiting_promo') return;
+  const photos = ctx.message.photo;
+  if (!photos?.length) return;
+  const fileId = photos[photos.length - 1].file_id;
+  const caption = (ctx.message.caption || '').trim();
+  if (caption === '/cancel') {
+    delete _adminState[ADMIN_ID];
+    return ctx.reply('Promo cancelled. Back to /tools');
+  }
+  _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: caption, promoPhotoFileId: fileId };
+  const capPreview = caption ? `${caption}\n\n` : '';
+  await ctx.reply(
+    `PREVIEW (photo + caption):\n\n${capPreview}Send this photo to all players?`,
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '✅ SEND TO ALL', callback_data: 'promo_confirm' }],
+          [{ text: '❌ CANCEL', callback_data: 'promo_cancel' }],
+        ],
+      },
+    },
+  );
 });
 
 // Back to tools menu (shared)
@@ -873,8 +904,6 @@ bot.callbackQuery('tools_announce', async (ctx) => {
 });
 
 // ── PROMO MESSAGE ─────────────────────────────────────────────────────────────
-// In-memory state: tracks admin waiting to type a promo message
-const _adminState = {};
 
 bot.callbackQuery('tools_promo', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
@@ -882,8 +911,8 @@ bot.callbackQuery('tools_promo', async (ctx) => {
   _adminState[ADMIN_ID] = { step: 'awaiting_promo' };
   try {
     await ctx.editMessageText(
-      '*PROMO MESSAGE*\n\nType your message now and send it\\. I\'ll show you a preview before sending to all players\\.\n\n_Send /cancel to abort\\._',
-      { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back_promo' }]] } },
+      'PROMO MESSAGE\n\nSend text OR a photo (optional caption). I\'ll show a preview before broadcasting.\n\nSend /cancel to abort.',
+      { reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back_promo' }]] } },
     );
   } catch { /* ignore */ }
 });
@@ -901,11 +930,13 @@ bot.callbackQuery('tools_back_promo', async (ctx) => {
   } catch { /* ignore */ }
 });
 
-// Confirm promo — send to all
+// Confirm promo — send to all (text and/or photo)
 bot.callbackQuery('promo_confirm', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return ctx.answerCallbackQuery('Unauthorized.');
-  const promoText = _adminState[ADMIN_ID]?.promoText;
-  if (!promoText) return ctx.answerCallbackQuery('No message saved.');
+  const st = _adminState[ADMIN_ID];
+  const promoText = st?.promoText ?? '';
+  const promoPhotoFileId = st?.promoPhotoFileId;
+  if (!promoText && !promoPhotoFileId) return ctx.answerCallbackQuery('Nothing to send.');
   await ctx.answerCallbackQuery('Sending promo...');
   delete _adminState[ADMIN_ID];
 
@@ -913,7 +944,13 @@ bot.callbackQuery('promo_confirm', async (ctx) => {
   let sent = 0, failed = 0;
   for (const u of (users || [])) {
     try {
-      await bot.api.sendMessage(u.telegram_id, promoText);
+      if (promoPhotoFileId) {
+        await bot.api.sendPhoto(u.telegram_id, promoPhotoFileId, {
+          caption: promoText || undefined,
+        });
+      } else {
+        await bot.api.sendMessage(u.telegram_id, promoText, { parse_mode: 'Markdown' });
+      }
       sent++;
       await new Promise(r => setTimeout(r, 50));
     } catch { failed++; }
