@@ -8,7 +8,7 @@ let SUPA_URL = '';
 let SUPA_KEY = '';
 
 /** Avoid infinite “loading…” when Railway / DNS / device network hangs without closing TCP. */
-const FETCH_TIMEOUT_MS = 22_000;
+const FETCH_TIMEOUT_MS = 8_000;
 
 async function fetchWithTimeout(url, options = {}, ms = FETCH_TIMEOUT_MS) {
   const ctrl = new AbortController();
@@ -22,6 +22,15 @@ async function fetchWithTimeout(url, options = {}, ms = FETCH_TIMEOUT_MS) {
 
 async function _ensureConfig() {
   if (SUPA_URL && SUPA_KEY) return;
+  const clean = (s) => String(s ?? '').trim().replace(/\r?\n/g, '');
+  if (window._meyaretConfigPromise) {
+    const cfg = await window._meyaretConfigPromise;
+    if (cfg && cfg.supaUrl && cfg.supaKey) {
+      SUPA_URL = clean(cfg.supaUrl);
+      SUPA_KEY = clean(cfg.supaKey);
+      return;
+    }
+  }
   const base = (window.MEYARET_API || '').trim();
   let res;
   try {
@@ -32,7 +41,6 @@ async function _ensureConfig() {
   }
   if (!res.ok) throw new Error('Config not available');
   const cfg = await res.json();
-  const clean = (s) => String(s ?? '').trim().replace(/\r?\n/g, '');
   SUPA_URL = clean(cfg.supaUrl);
   SUPA_KEY = clean(cfg.supaKey);
   if (!SUPA_URL || !SUPA_KEY) throw new Error('Invalid config from server');
