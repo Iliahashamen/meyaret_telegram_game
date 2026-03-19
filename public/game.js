@@ -3,14 +3,14 @@
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
 // Bump ?v= when changing db/sounds so Telegram / browsers reload module graph
-import { SFX } from './sounds.js?v=1.8.9';
+import { SFX } from './sounds.js?v=1.9.0';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost, dbGrantUpgrade,
-} from './db.js?v=1.8.9';
+} from './db.js?v=1.9.0';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -22,8 +22,8 @@ async function waitForTelegramUser() {
   if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
     return window.Telegram.WebApp.initDataUnsafe.user;
   }
-  for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 100));
+  for (let i = 0; i < 10; i++) {
+    await new Promise(r => setTimeout(r, 80));
     const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
     if (u?.id) return u;
   }
@@ -1895,6 +1895,15 @@ class BigBossAlien {
   }
 }
 
+/** Random spawn position along screen edges (top/right/bottom/left) */
+function _randomBossSpawnPos(W, H) {
+  const edge = rngInt(0, 3);
+  if (edge === 0) return { x: rng(80, W - 80), y: -40 };
+  if (edge === 1) return { x: W + 40, y: rng(80, H - 80) };
+  if (edge === 2) return { x: rng(80, W - 80), y: H + 40 };
+  return { x: -40, y: rng(80, H - 80) };
+}
+
 /** Survival & Bossman: same base curve; boss #10+ hard, #20+ impossible (elite glow) */
 function buildScaledBossOpts(bossIndexDefeated) {
   const n = bossIndexDefeated;
@@ -2386,25 +2395,12 @@ class Game {
       if (debugMode && status) { status.textContent = `sandbox skip: tid=${!!tid} initData=${!!initData}`; await this._sleep(4000); }
     }
     if (tid && initData) {
-      try {
-        const base = API_BASE || window.location.origin;
-        const url = `${base}/api/sandbox`;
-        const ctrl = new AbortController();
-        const st = setTimeout(() => ctrl.abort(), 15_000);
-        let res;
-        try {
-          res = await fetch(url, { headers: { 'X-Telegram-Init-Data': initData }, signal: ctrl.signal });
-        } finally {
-          clearTimeout(st);
-        }
-        const data = res.ok ? await res.json() : null;
-        const sandbox = !!(data && data.sandbox);
-        SANDBOX_MODE = sandbox;
-        this.sandboxMode = sandbox;
-        if (debugMode && status) { status.textContent = `sandbox: ${res.status} → BETA ${sandbox}`; await this._sleep(4000); }
-      } catch (e) {
-        if (debugMode && status) { status.textContent = `sandbox err: ${e?.message || 'failed'}`; await this._sleep(4000); }
-      }
+      const base = API_BASE || window.location.origin;
+      const url = `${base}/api/sandbox`;
+      fetch(url, { headers: { 'X-Telegram-Init-Data': initData } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { SANDBOX_MODE = !!(d && d.sandbox); this.sandboxMode = SANDBOX_MODE; })
+        .catch(() => {});
     }
     const hasWebApp = !!window.Telegram?.WebApp;
     _ss(tid ? 'PILOT LINK ESTABLISHED' : (hasWebApp ? 'WAITING FOR PILOT LINK...' : 'COMM CHANNEL OFFLINE'), tid ? '#00ffcc' : '#ff4466');
@@ -2414,14 +2410,14 @@ class Game {
     label.textContent = 'SYNCING HANGAR...';
     if (bar?.style) bar.style.width = '40%';
     let data = null;
-    for (let attempt = 1; attempt <= 5; attempt++) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        _ss(`SYNCING HANGAR DATA... (${attempt}/5)`,'#ffee00');
+        _ss(`SYNCING HANGAR... (${attempt}/3)`,'#ffee00');
         data = await dbGetOrCreateUser(tid);
         break;
       } catch(e) {
-        if (attempt < 5) { _ss('RETRYING COMMS LINK...','#ff9900'); await this._sleep(2000); }
-        else { _ss('HANGAR LINK LOST — OFFLINE MODE','#ff4466'); await this._sleep(2500); this._goOffline(bar, label); return; }
+        if (attempt < 3) { _ss('RETRYING...','#ff9900'); await this._sleep(600); }
+        else { _ss('HANGAR LINK LOST — OFFLINE MODE','#ff4466'); await this._sleep(1200); this._goOffline(bar, label); return; }
       }
     }
 
@@ -2432,13 +2428,9 @@ class Game {
       const ups = data.upgrades || [];
       const hadLazer = ups.some(u => u.upgrade_id === 'lazer_pew');
       if (hadLazer && !localStorage.getItem('meyaret_lazer_refund_done')) {
-        try {
-          const ref = await dbRefundLazerPew(tid);
-          if (ref) {
-            this.userData.shmips = ref.shmips;
-            localStorage.setItem('meyaret_lazer_refund_done', '1');
-          }
-        } catch (_) {}
+        dbRefundLazerPew(tid).then(ref => {
+          if (ref) { this.userData.shmips = ref.shmips; localStorage.setItem('meyaret_lazer_refund_done', '1'); }
+        }).catch(() => {});
       }
       this._parseUpgrades(ups.filter(u => u.upgrade_id !== 'lazer_pew'));
       if (data.user.multiplier_end && new Date(data.user.multiplier_end) > new Date()) {
@@ -2448,13 +2440,13 @@ class Game {
       }
       if (bar?.style) bar.style.width = '100%';
       label.textContent = 'READY FOR LAUNCH';
-      await this._sleep(600);
+      await this._sleep(200);
       document.getElementById('loading-screen').style.display = 'none';
       if (data.isNew) {
         const saved = localStorage.getItem('meyaret_callsign');
         if (saved && saved !== 'ACE') {
-          try { const u = await dbSaveCallsign(tid, saved); this.userData = u; this._loadMenu(); this._showScreen('menu'); }
-          catch { this._showScreen('onboarding'); }
+          this._loadMenu(); this._showScreen('menu');
+          dbSaveCallsign(tid, saved).then(u => { this.userData = u; }).catch(() => { this._showScreen('onboarding'); });
         } else { this._showScreen('onboarding'); }
       } else {
         localStorage.setItem('meyaret_callsign', data.user.nickname);
@@ -3478,7 +3470,8 @@ class Game {
   }
 
   _arcadeSpawnBoss() {
-    this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, { health: 7.2 })); // +20% HP
+    const { x, y } = _randomBossSpawnPos(this.W, this.H);
+    this.arcadeBosses.push(new BigBossAlien(x, y, this.W, { health: 7.2 })); // +20% HP
   }
 
   _startSurvivalBossFight() {
@@ -3487,7 +3480,8 @@ class Game {
     this._arcadePurgeBetweenWaves();
     const n = this._survivalBossesDefeated;
     const o = buildScaledBossOpts(n);
-    this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, {
+    const { x, y } = _randomBossSpawnPos(this.W, this.H);
+    this.arcadeBosses.push(new BigBossAlien(x, y, this.W, {
       health: o.health,
       shootRate: o.shootRate,
       canShootRockets: o.canShootRockets,
@@ -3535,7 +3529,8 @@ class Game {
       hpRamp *= 1.35;
     }
     const bulletSpread = n >= 8 ? 'triple' : n >= 3 ? 'split' : 'single';
-    this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, {
+    const { x, y } = _randomBossSpawnPos(this.W, this.H);
+    this.arcadeBosses.push(new BigBossAlien(x, y, this.W, {
       health: o.health * BM * hpRamp * lateHell,
       shootRate: Math.max(4, Math.floor(o.shootRate / (1.32 * aggro * hellAggro))),
       canShootRockets: true,
@@ -3544,7 +3539,6 @@ class Game {
       vy: o.vy * 1.14 * moveRamp * (n >= 15 ? 1.08 : 1),
       elite: o.elite,
       bulletSpread,
-      spawnIFrames: 110,
     }));
   }
 
