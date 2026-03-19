@@ -8,6 +8,7 @@ Thumbs.db
 scripts/*
 !scripts/test-all.js
 !scripts/generate-story-pdf.js
+!scripts/setup-db.js
 supabase-full-wipe.sql
 supabase-soft-reset.sql
 MEYARET_FULL_DOCUMENT.html
