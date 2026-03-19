@@ -47,7 +47,8 @@ async function _ensureConfig() {
 }
 
 // Core fetch helper — throws on HTTP error with Supabase error message
-async function supa(path, opts = {}) {
+// Retries once on timeout/connection error (helps when Supabase project is waking up)
+async function supa(path, opts = {}, retried = false) {
   await _ensureConfig();
   const HDR = {
     'apikey':        SUPA_KEY,
@@ -59,6 +60,11 @@ async function supa(path, opts = {}) {
   try {
     res = await fetchWithTimeout(url, { ...opts, headers: { ...HDR, ...opts.headers } });
   } catch (e) {
+    const isRetryable = e?.name === 'AbortError' || /timeout|connection|terminated|failed to fetch/i.test(e?.message || '');
+    if (isRetryable && !retried) {
+      await new Promise(r => setTimeout(r, 1500));
+      return supa(path, opts, true);
+    }
     const msg = e?.name === 'AbortError' ? 'Database request timed out' : (e?.message || 'Network error');
     throw new Error(msg);
   }

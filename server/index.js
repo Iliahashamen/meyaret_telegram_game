@@ -89,6 +89,25 @@ app.get('/health', (_req, res) => {
   res.json({ ok: configured, ts: new Date().toISOString() });
 });
 
+// ── Force webhook re-set (when bot stops responding) ─────────────────────────
+app.post('/api/webhook-reset', async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  const provided = req.headers['x-cron-secret'] || req.query?.secret;
+  if (!secret || provided !== secret) return res.status(403).json({ error: 'Forbidden' });
+  const webhookBase = (process.env.WEBHOOK_URL || '').trim();
+  const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  if (!webhookBase || !token) return res.status(400).json({ error: 'WEBHOOK_URL and TELEGRAM_BOT_TOKEN required' });
+  const url = `${webhookBase}/bot${token}`;
+  try {
+    await bot.api.setWebhook(url);
+    console.log('[webhook-reset] Set →', url);
+    res.json({ ok: true, url });
+  } catch (e) {
+    console.error('[webhook-reset]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Fallback: serve index.html for all non-API routes ─────────────────────────
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/') || req.path.startsWith('/bot')) return res.status(404).end();
