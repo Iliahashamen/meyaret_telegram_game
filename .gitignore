@@ -4,7 +4,10 @@ node_modules/
 .DS_Store
 Thumbs.db
 .cursor/
-scripts/
+# Ignore ad-hoc scripts; allow tracked tooling
+scripts/*
+!scripts/test-all.js
+!scripts/generate-story-pdf.js
 supabase-full-wipe.sql
 supabase-soft-reset.sql
 MEYARET_FULL_DOCUMENT.html
