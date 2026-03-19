@@ -2,14 +2,15 @@
 // MEYARET — Full Game Engine
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
-import { SFX } from './sounds.js';
+// Bump ?v= when changing db/sounds so Telegram / browsers reload module graph
+import { SFX } from './sounds.js?v=1.8.8';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost, dbGrantUpgrade,
-} from './db.js';
+} from './db.js?v=1.8.8';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -2339,6 +2340,17 @@ class Game {
     const status = document.getElementById('loading-status');
     const _ss = (msg, color) => { if (status) { status.textContent = msg; status.style.color = color || '#00ffcc'; } };
 
+    try {
+      await this._initCore(bar, label, status, _ss);
+    } catch (err) {
+      console.error('[MEYARET] _init error:', err);
+      _ss(`STARTUP: ${(err && err.message) ? err.message : String(err)}`.slice(0, 72), '#ff4466');
+      await this._sleep(2200);
+      this._goOffline(bar, label);
+    }
+  }
+
+  async _initCore(bar, label, status, _ss) {
     const OPENING_TEXTS = [
       'SYNCING HANGAR...', 'LOADING ROCKETS...', 'CALIBRATING RETRO RADAR...',
       'ARMING CANNONS...', 'INITIALIZING THRUST...', 'SCANNING ASTEROIDS...',
@@ -2346,7 +2358,7 @@ class Game {
       'PRIMING FLARES...'
     ];
     const pick = OPENING_TEXTS[Math.floor(Math.random() * OPENING_TEXTS.length)];
-    bar.style.width = '10%';
+    if (bar?.style) bar.style.width = '10%';
     SFX.startOpeningMusic && SFX.startOpeningMusic();
     label.textContent = pick;
     _ss(pick, '#00ffcc');
@@ -2364,7 +2376,14 @@ class Game {
       try {
         const base = API_BASE || window.location.origin;
         const url = `${base}/api/sandbox`;
-        const res = await fetch(url, { headers: { 'X-Telegram-Init-Data': initData } });
+        const ctrl = new AbortController();
+        const st = setTimeout(() => ctrl.abort(), 15_000);
+        let res;
+        try {
+          res = await fetch(url, { headers: { 'X-Telegram-Init-Data': initData }, signal: ctrl.signal });
+        } finally {
+          clearTimeout(st);
+        }
         const data = res.ok ? await res.json() : null;
         const sandbox = !!(data && data.sandbox);
         SANDBOX_MODE = sandbox;
@@ -2380,7 +2399,7 @@ class Game {
     if (!tid) { this._goOffline(bar, label); return; }
 
     label.textContent = 'SYNCING HANGAR...';
-    bar.style.width = '40%';
+    if (bar?.style) bar.style.width = '40%';
     let data = null;
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
@@ -2394,7 +2413,7 @@ class Game {
     }
 
     try {
-      bar.style.width = '85%';
+      if (bar?.style) bar.style.width = '85%';
       _ss(`WELCOME ${data.isNew ? 'PILOT' : data.user.nickname}`,'#00ffcc');
       this.userData = data.user;
       const ups = data.upgrades || [];
@@ -2414,7 +2433,8 @@ class Game {
         this.multiplierEndMs  = new Date(data.user.multiplier_end).getTime();
         this._showMultiplierBanner();
       }
-      bar.style.width = '100%'; label.textContent = 'READY FOR LAUNCH';
+      if (bar?.style) bar.style.width = '100%';
+      label.textContent = 'READY FOR LAUNCH';
       await this._sleep(600);
       document.getElementById('loading-screen').style.display = 'none';
       if (data.isNew) {
@@ -2436,7 +2456,8 @@ class Game {
 
   _goOffline(bar, label) {
     OFFLINE_MODE = true;
-    bar.style.width = '100%'; label.textContent = 'OFFLINE';
+    if (bar?.style) bar.style.width = '100%';
+    if (label) label.textContent = 'OFFLINE';
     const saved = localStorage.getItem('meyaret_callsign');
     this.userData = { ...DEMO_USER, nickname: saved || null };
     this._sleep(2500).then(() => {

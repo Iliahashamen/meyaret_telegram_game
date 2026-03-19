@@ -7,14 +7,35 @@
 let SUPA_URL = '';
 let SUPA_KEY = '';
 
+/** Avoid infinite “loading…” when Railway / DNS / device network hangs without closing TCP. */
+const FETCH_TIMEOUT_MS = 22_000;
+
+async function fetchWithTimeout(url, options = {}, ms = FETCH_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function _ensureConfig() {
   if (SUPA_URL && SUPA_KEY) return;
   const base = (window.MEYARET_API || '').trim();
-  const res = await fetch(`${base}/api/config`);
+  let res;
+  try {
+    res = await fetchWithTimeout(`${base}/api/config`);
+  } catch (e) {
+    const msg = e?.name === 'AbortError' ? 'Config request timed out' : (e?.message || 'Config request failed');
+    throw new Error(msg);
+  }
   if (!res.ok) throw new Error('Config not available');
-  const { supaUrl, supaKey } = await res.json();
-  SUPA_URL = supaUrl;
-  SUPA_KEY = supaKey;
+  const cfg = await res.json();
+  const clean = (s) => String(s ?? '').trim().replace(/\r?\n/g, '');
+  SUPA_URL = clean(cfg.supaUrl);
+  SUPA_KEY = clean(cfg.supaKey);
+  if (!SUPA_URL || !SUPA_KEY) throw new Error('Invalid config from server');
 }
 
 // Core fetch helper — throws on HTTP error with Supabase error message
@@ -26,7 +47,13 @@ async function supa(path, opts = {}) {
     'Content-Type':  'application/json',
   };
   const url = `${SUPA_URL}/${path}`;
-  const res = await fetch(url, { ...opts, headers: { ...HDR, ...opts.headers } });
+  let res;
+  try {
+    res = await fetchWithTimeout(url, { ...opts, headers: { ...HDR, ...opts.headers } });
+  } catch (e) {
+    const msg = e?.name === 'AbortError' ? 'Database request timed out' : (e?.message || 'Network error');
+    throw new Error(msg);
+  }
   const text = await res.text();
   let body;
   try { body = JSON.parse(text); } catch { body = text; }

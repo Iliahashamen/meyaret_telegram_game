@@ -54,13 +54,16 @@ app.get('/api/sandbox', requireTelegramAuth, (req, res) => {
 
 // ── Public client config — serves anon key from env var, never from source ────
 app.get('/api/config', (_req, res) => {
-  const supaUrl = process.env.SUPABASE_URL;
-  const supaKey = process.env.SUPABASE_ANON_KEY;
-  if (!supaUrl || !supaKey) {
+  // Railway / pasted env often includes trailing \n — breaks fetch() URL + JWT auth
+  const rawUrl = (process.env.SUPABASE_URL || '').trim().replace(/\r?\n/g, '');
+  const supaKey = (process.env.SUPABASE_ANON_KEY || '').trim().replace(/\r?\n/g, '');
+  if (!rawUrl || !supaKey) {
     return res.status(503).json({ error: 'Server not configured yet.' });
   }
+  const base = rawUrl.replace(/\/+$/, '');
+  const supaUrl = `${base}/rest/v1`;
   res.set('Cache-Control', 'public, max-age=3600');
-  res.json({ supaUrl: supaUrl + '/rest/v1', supaKey });
+  res.json({ supaUrl, supaKey });
 });
 
 // ── Cron: weekly payout (external cron can hit this; set CRON_SECRET in env)

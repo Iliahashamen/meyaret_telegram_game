@@ -1,11 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey =
+function _trimEnv(v) {
+  return (v && String(v).trim().replace(/\r?\n/g, '')) || '';
+}
+const supabaseUrl = _trimEnv(process.env.SUPABASE_URL);
+const supabaseKey = _trimEnv(
   process.env.SUPABASE_SERVICE_ROLE_KEY &&
-  process.env.SUPABASE_SERVICE_ROLE_KEY !== 'PASTE_YOUR_SERVICE_ROLE_KEY_HERE'
+    process.env.SUPABASE_SERVICE_ROLE_KEY !== 'PASTE_YOUR_SERVICE_ROLE_KEY_HERE'
     ? process.env.SUPABASE_SERVICE_ROLE_KEY
-    : process.env.SUPABASE_ANON_KEY;
+    : process.env.SUPABASE_ANON_KEY
+);
 
 // Log clearly what is missing — server will still start so /health responds
 if (!supabaseUrl) {
