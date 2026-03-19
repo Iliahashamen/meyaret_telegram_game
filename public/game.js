@@ -3,14 +3,14 @@
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
 // Bump ?v= when changing db/sounds so Telegram / browsers reload module graph
-import { SFX } from './sounds.js?v=1.8.8';
+import { SFX } from './sounds.js?v=1.8.9';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost, dbGrantUpgrade,
-} from './db.js?v=1.8.8';
+} from './db.js?v=1.8.9';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -2293,7 +2293,17 @@ function _doFinalBlast(r, game) {
 class Game {
   constructor() {
     this.canvas = document.getElementById('game-canvas');
+    if (!this.canvas) {
+      const st = document.getElementById('loading-status');
+      if (st) { st.textContent = 'MISSING game-canvas in HTML'; st.style.color = '#ff4466'; }
+      throw new Error('game-canvas not found');
+    }
     this.ctx    = this.canvas.getContext('2d');
+    if (!this.ctx) {
+      const st = document.getElementById('loading-status');
+      if (st) { st.textContent = '2D Canvas not available'; st.style.color = '#ff4466'; }
+      throw new Error('getContext(2d) failed');
+    }
     this.W = 0; this.H = 0;
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -2341,7 +2351,10 @@ class Game {
     const _ss = (msg, color) => { if (status) { status.textContent = msg; status.style.color = color || '#00ffcc'; } };
 
     try {
-      await this._initCore(bar, label, status, _ss);
+      await Promise.race([
+        this._initCore(bar, label, status, _ss),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('STARTUP TIMEOUT (90s)')), 90_000)),
+      ]);
     } catch (err) {
       console.error('[MEYARET] _init error:', err);
       _ss(`STARTUP: ${(err && err.message) ? err.message : String(err)}`.slice(0, 72), '#ff4466');
@@ -2359,7 +2372,7 @@ class Game {
     ];
     const pick = OPENING_TEXTS[Math.floor(Math.random() * OPENING_TEXTS.length)];
     if (bar?.style) bar.style.width = '10%';
-    SFX.startOpeningMusic && SFX.startOpeningMusic();
+    try { SFX.startOpeningMusic && SFX.startOpeningMusic(); } catch (e) { console.warn('[MEYARET] opening music:', e); }
     label.textContent = pick;
     _ss(pick, '#00ffcc');
 
@@ -5538,4 +5551,12 @@ class Game {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => { new Game(); });
+// Module scripts are deferred: DOM is parsed (incl. #game-canvas) before this runs.
+// Do not rely on DOMContentLoaded — some embedded WebViews fire it late or not at all.
+try {
+  window.__MEYARET_GAME__ = new Game();
+} catch (e) {
+  console.error('[MEYARET] boot', e);
+  const st = document.getElementById('loading-status');
+  if (st) { st.textContent = 'BOOT: ' + (e && e.message ? e.message : String(e)); st.style.color = '#ff4466'; }
+}

@@ -10,11 +10,34 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.8.8" />
+  <link rel="stylesheet" href="style.css?v=1.8.9" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="config.js"></script>
 </head>
 <body>
+  <script>
+    (function () {
+      window.MEYARET_T0 = Date.now();
+      function st(msg, col) {
+        var el = document.getElementById('loading-status');
+        if (el) { el.textContent = msg; if (col) el.style.color = col; }
+      }
+      window.addEventListener('error', function (ev) {
+        var m = ev.message || (ev.error && ev.error.message) || 'Script error';
+        st('ERR: ' + m, '#ff4466');
+      }, true);
+      window.addEventListener('unhandledrejection', function (ev) {
+        var r = ev.reason;
+        st('PROMISE: ' + ((r && r.message) ? r.message : String(r || '?')), '#ff4466');
+      });
+      setTimeout(function () {
+        var ls = document.getElementById('loading-screen');
+        if (!ls || ls.style.display === 'none') return;
+        var sec = Math.round((Date.now() - window.MEYARET_T0) / 1000);
+        st('Still stuck (' + sec + 's)? Update Telegram / check Wi‑Fi. v1.8.9', '#ff9900');
+      }, 38000);
+    })();
+  </script>
   <!-- Loading Screen -->
   <div id="loading-screen">
     <div id="loading-logo" class="logo-text">MEYARET</div>
@@ -237,6 +260,6 @@
     <button id="go-menu"       class="btn-secondary btn-big">MAIN MENU</button>
   </div>
 
-  <script type="module" src="game.js?v=1.8.8"></script>
+  <script type="module" src="game.js?v=1.8.9"></script>
 </body>
 </html>
