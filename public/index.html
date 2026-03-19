@@ -197,6 +197,7 @@
 
   <!-- Game Canvas -->
   <canvas id="game-canvas"></canvas>
+  <div id="rocket-hold-overlay" class="rocket-hold-overlay hidden" aria-hidden="true"><span id="rocket-hold-text"></span></div>
 
   <!-- Good Luck Splash (centered, shown for 2s on game start) -->
   <div id="goodluck-splash" class="goodluck-splash hidden"></div>
@@ -221,7 +222,7 @@
       <button id="ctrl-shield" class="ctrl-abs ctrl-shield-btn">SHLD</button>
       <button id="ctrl-flare"  class="ctrl-abs ctrl-flare-btn">FLARE</button>
       <button id="ctrl-fire"   class="ctrl-abs ctrl-fire-btn">SHOOT</button>
-      <button id="ctrl-rocket" class="ctrl-abs ctrl-rocket-btn">ROCKET</button>
+      <button id="ctrl-rocket" class="ctrl-abs ctrl-rocket-btn"><span class="ctrl-rocket-label">ROCKET</span><span id="ctrl-rocket-hold" class="ctrl-rocket-hold hidden"></span></button>
       <button id="ctrl-thrust" class="ctrl-abs ctrl-thrust-btn">THRUST</button>
     </div>
   </div>

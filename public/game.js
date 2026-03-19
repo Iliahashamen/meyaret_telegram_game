@@ -877,14 +877,14 @@ class Ship {
     }
   }
 
-  fireRocket(bullets) {
+  fireRocket(bullets, forceSalvo = false) {
     if (this.rocketAmmo <= 0) {
       new FloatingText(this.x, this.y - 30, 'NO ROCKETS!', '#ff4444');
       return false;
     }
-    if (this.rocketCooldown > 0) return false;
+    if (!forceSalvo && this.rocketCooldown > 0) return false;
     this.rocketAmmo--;
-    this.rocketCooldown = this.rocketRate;
+    this.rocketCooldown = forceSalvo ? 0 : this.rocketRate;
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
     bullets.push(new PlayerRocket(nose.x, nose.y, this.angle, this.smartRocket));
     SFX.rocketFire();
@@ -1824,9 +1824,26 @@ class BigBossAlien {
     this.canShootRockets = !!opts.canShootRockets;
     this.color = '#ffd700';
     this.elite = !!opts.elite; // red+green glow, beefier
+    /** 'single' | 'split' (2) | 'triple' (3-spread) */
+    this.bulletSpread = opts.bulletSpread || 'single';
+    this.spawnIFrames = Math.max(0, Math.floor(opts.spawnIFrames ?? 0));
+  }
+  _bossFireVolley(enemyBullets, ship) {
+    const base = Math.atan2(ship.y - this.y, ship.x - this.x);
+    const push = (a) => { enemyBullets.push(new EnemyBullet(this.x, this.y, a, '#ffaa00')); };
+    if (this.bulletSpread === 'triple') {
+      const s = 0.32;
+      push(base - s); push(base); push(base + s);
+    } else if (this.bulletSpread === 'split') {
+      const s = 0.14;
+      push(base - s); push(base + s);
+    } else {
+      push(base);
+    }
   }
   update(ship, enemyBullets, W, H, orangeRockets = null) {
     this.bobTimer++;
+    if (this.spawnIFrames > 0) this.spawnIFrames--;
     this.x += this.vx; this.y += this.vy;
     if (this.x < 80) { this.x = 80; this.vx = Math.abs(this.vx); }
     if (this.x > W - 80) { this.x = W - 80; this.vx = -Math.abs(this.vx); }
@@ -1835,8 +1852,7 @@ class BigBossAlien {
     this.shootTimer++;
     if (this.shootTimer >= this.shootRate) {
       this.shootTimer = 0;
-      const ang = Math.atan2(ship.y - this.y, ship.x - this.x);
-      enemyBullets.push(new EnemyBullet(this.x, this.y, ang, '#ffaa00'));
+      this._bossFireVolley(enemyBullets, ship);
     }
     if (this.canShootRockets && orangeRockets) {
       this.rocketTimer++;
@@ -1867,6 +1883,10 @@ class BigBossAlien {
     ctx.fillRect(this.x - barW/2, this.y - this.radius - 18, barW * (this.health / this.maxHealth), barH);
   }
   hit(particles, dmg = 1) {
+    if (this.spawnIFrames > 0) {
+      burst(particles, this.x, this.y, '#ffffff', 4, 2, 12);
+      return false;
+    }
     burst(particles, this.x, this.y, this.color, 12, 4, 30);
     this.health -= Math.max(0.05, Number(dmg) || 0);
     if (this.health <= 0) SFX.enemyDie();
@@ -2903,6 +2923,9 @@ class Game {
     this._bossmanBetweenBosses = false;
     this._bossmanBetweenUntil = 0;
     this._bossmanIntroUntil = 0;
+    this._rocketHoldFrames = 0;
+    this._rocketSalvoActive = false;
+    this._rocketSalvoNextFrame = 0;
 
     const tid = TG_USER?.id || this.userData?.telegram_id;
     const ups = {};
@@ -3062,6 +3085,83 @@ class Game {
 
   _effUpgrades() { return this.arcadeMode ? (this._runUpgrades || {}) : (this.upgrades || {}); }
 
+  /** Hold rocket 3s → fire all rockets rapidly; quick tap → single rocket */
+  _tickRocketHoldAndSalvo() {
+    const ship = this.ship;
+    if (!ship || this.ramboActive) {
+      if (this.ramboActive) { this._rocketHoldFrames = 0; this._rocketSalvoActive = false; }
+      return;
+    }
+    const ROCKET_HOLD = 180;
+    const SALVO_GAP = 5;
+
+    if (this._rocketSalvoActive) {
+      if (ship.rocketAmmo <= 0) {
+        this._rocketSalvoActive = false;
+        this._updateRocketHoldUI(true);
+        return;
+      }
+      if (this.gameTime >= this._rocketSalvoNextFrame) {
+        ship.fireRocket(this.playerRockets, true);
+        this._rocketSalvoNextFrame = this.gameTime + SALVO_GAP;
+      }
+      this._updateRocketHoldUI(false);
+      return;
+    }
+
+    if (this.keys.rocket) {
+      if (ship.rocketAmmo > 0) {
+        this._rocketHoldFrames++;
+        if (this._rocketHoldFrames >= ROCKET_HOLD) {
+          this._rocketHoldFrames = 0;
+          this._rocketSalvoActive = true;
+          this._rocketSalvoNextFrame = this.gameTime;
+          new FloatingText(ship.x, ship.y - 40, 'SALVO!!', '#ffcc00');
+        }
+      }
+      this._updateRocketHoldUI(false);
+    } else {
+      if (this._rocketHoldFrames > 0 && this._rocketHoldFrames < ROCKET_HOLD) {
+        const TAP_MAX = 24;
+        if (this._rocketHoldFrames <= TAP_MAX) ship.fireRocket(this.playerRockets, false);
+      }
+      this._rocketHoldFrames = 0;
+      this._updateRocketHoldUI(true);
+    }
+  }
+
+  _updateRocketHoldUI(forceHide) {
+    const ROCKET_HOLD = 180;
+    const holdEl = document.getElementById('ctrl-rocket-hold');
+    const pcEl = document.getElementById('rocket-hold-overlay');
+    const pcText = document.getElementById('rocket-hold-text');
+    const charging = !forceHide && this._rocketHoldFrames > 0 && this.ship?.rocketAmmo > 0 && !this._rocketSalvoActive;
+    const sec = Math.max(0, (ROCKET_HOLD - this._rocketHoldFrames) / 60);
+
+    if (holdEl) {
+      if (charging && this._isMobile()) {
+        holdEl.textContent = sec.toFixed(1);
+        holdEl.classList.remove('hidden');
+      } else if (this._rocketSalvoActive && this._isMobile() && this.ship?.rocketAmmo > 0) {
+        holdEl.textContent = '!!';
+        holdEl.classList.remove('hidden');
+      } else {
+        holdEl.classList.add('hidden');
+      }
+    }
+    if (pcEl && pcText) {
+      if (charging && !this._isMobile()) {
+        pcText.textContent = `ROCKET SALVO in ${sec.toFixed(1)}s (hold R)`;
+        pcEl.classList.remove('hidden');
+      } else if (!forceHide && this._rocketSalvoActive && !this._isMobile() && (this.ship?.rocketAmmo ?? 0) > 0) {
+        pcText.textContent = 'SALVO!';
+        pcEl.classList.remove('hidden');
+      } else {
+        pcEl.classList.add('hidden');
+      }
+    }
+  }
+
   _activateXforce() {
     if (!this._effUpgrades().xforce_lavian || !this.ship?.alive) return;
     if (this.xforceCooldownUntil > 0 && this.gameTime < this.xforceCooldownUntil) return;
@@ -3088,6 +3188,14 @@ class Game {
     this.orangeRockets.forEach(o => { burst(this.particles, o.x, o.y, '#ff7700', 10, 3, 22); this._addScore(150); });
     this.orangeRockets = [];
     this.enemyBullets = [];
+    // Xforce one-shots any boss (arcade / bossman / survival milestone)
+    for (let bi = this.arcadeBosses.length - 1; bi >= 0; bi--) {
+      const boss = this.arcadeBosses[bi];
+      burst(this.particles, boss.x, boss.y, '#ffd700', 36, 8, 50);
+      SFX.enemyDie();
+      this._onBossKilled();
+      this.arcadeBosses.splice(bi, 1);
+    }
   }
 
   _drawXforceLasers(ctx) {
@@ -3273,6 +3381,7 @@ class Game {
       if (this._arcadeFinalBossIntro) this._arcadeFinalBossIntro = false;
       if (!this._arcadeBossSpawned) {
         this._arcadeBossSpawned = true;
+        if (this._arcadeWaveStartTime == null) this._arcadeWaveStartTime = this.gameTime;
         this._arcadeSpawnBoss();
       }
       return;
@@ -3377,14 +3486,31 @@ class Game {
   _spawnBossmanBoss() {
     const n = this._bossmanKills;
     const o = buildScaledBossOpts(n);
+    const BM = 1.75;
+    // Stronger every boss: compound HP + faster shots/rockets + speed (n = bosses already cleared)
+    let hpRamp = Math.pow(1.11, n);
+    const aggro = 1 + n * 0.055;
+    const moveRamp = 1 + n * 0.028;
+    // After 15th boss cleared (16th+): near-impossible tier
+    let lateHell = 1;
+    let hellAggro = 1;
+    if (n >= 15) {
+      const k = n - 14;
+      lateHell = Math.pow(1.26, k) * (1 + k * 0.12);
+      hellAggro = 1 + k * 0.11;
+      hpRamp *= 1.35;
+    }
+    const bulletSpread = n >= 8 ? 'triple' : n >= 3 ? 'split' : 'single';
     this.arcadeBosses.push(new BigBossAlien(this.W / 2, -40, this.W, {
-      health: o.health,
-      shootRate: o.shootRate,
-      canShootRockets: o.canShootRockets,
-      rocketRate: o.rocketRate,
-      vx: o.vx,
-      vy: o.vy,
+      health: o.health * BM * hpRamp * lateHell,
+      shootRate: Math.max(4, Math.floor(o.shootRate / (1.32 * aggro * hellAggro))),
+      canShootRockets: true,
+      rocketRate: Math.max(10, Math.floor(o.rocketRate / (1.28 * (1 + n * 0.048) * hellAggro))),
+      vx: o.vx * 1.14 * moveRamp * (n >= 15 ? 1.08 : 1),
+      vy: o.vy * 1.14 * moveRamp * (n >= 15 ? 1.08 : 1),
       elite: o.elite,
+      bulletSpread,
+      spawnIFrames: 110,
     }));
   }
 
@@ -3480,17 +3606,20 @@ class Game {
     if (!betweenWaves) {
       if (this.keys.fire && !this.ramboActive) this.ship.fire(this.bullets, this.fireballs, this.megaRaketas);
       if (this.keys.flare) { this.ship.useFlare(this.rockets, this.particles, this.orangeRockets); this.keys.flare = false; }
-      if (this.keys.rocket){ this.ship.fireRocket(this.playerRockets); this.keys.rocket = false; }
+      this._tickRocketHoldAndSalvo();
       if (this.keys.shield){ this.ship.deployShield(); this.keys.shield = false; }
       if (this.keys.xforce){ this._activateXforce(); this.keys.xforce = false; }
     } else {
       this.keys.fire = this.keys.flare = this.keys.rocket = this.keys.shield = this.keys.xforce = false;
+      this._rocketHoldFrames = 0;
+      this._rocketSalvoActive = false;
       this.bullets = [];
       this.playerRockets = [];
       this.rockets = [];
       this.enemyBullets = [];
       this.fireballs = [];
       this.megaRaketas = [];
+      this._updateRocketHoldUI(true);
     }
 
     // Xforce Lavian — red lasers kill all for 4 sec
@@ -3841,12 +3970,17 @@ class Game {
         const entitiesGone = this.asteroids.length === 0 && this.redFighters.length === 0 &&
           this.yellowAliens.length === 0 && this.orangeRockets.length === 0 && this.arcadeBosses.length === 0;
         const minTimeElapsed = this._arcadeWaveStartTime != null && (this.gameTime - this._arcadeWaveStartTime) > 120;
-        const allClear = entitiesGone && (!waveHasContent || (spawnDone && minTimeElapsed));
+        const bossWaveCanEnd = !!wc?.boss && spawnDone && entitiesGone;
+        const allClear = entitiesGone && (!waveHasContent || (spawnDone && (bossWaveCanEnd || minTimeElapsed)));
         if (allClear) {
           this._arcadePurgeBetweenWaves();
-          this._arcadeBetweenWaves = true;
-          this._arcadeBetweenWavesUntil = this.gameTime + 480; // 8 seconds
           this._arcadeLastClearedWave = this.arcadeWave;
+          if (this.arcadeWave >= 10) {
+            this._arcadeVictory();
+          } else {
+            this._arcadeBetweenWaves = true;
+            this._arcadeBetweenWavesUntil = this.gameTime + 480; // 8 seconds
+          }
         }
       }
     }
