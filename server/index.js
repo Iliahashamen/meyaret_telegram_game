@@ -804,9 +804,11 @@ bot.on('message:text', async (ctx) => {
       delete _adminState[ADMIN_ID];
       return ctx.reply('Promo cancelled. Back to /tools');
     }
-    _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: text, promoPhotoFileId: null };
+    const existingPhoto = state.promoPhotoFileId ?? null;
+    _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: text, promoPhotoFileId: existingPhoto };
+    const header = existingPhoto ? '*PREVIEW (photo + caption):*' : '*PREVIEW — this is what all players will receive:*';
     await ctx.reply(
-      `*PREVIEW — this is what all players will receive:*\n\n${text}\n\n_Send to all players?_`,
+      `${header}\n\n${text}\n\n_Send to all players?_`,
       {
         parse_mode: 'Markdown',
         reply_markup: {
@@ -820,7 +822,7 @@ bot.on('message:text', async (ctx) => {
   }
 });
 
-// Admin: promo with image (+ optional caption)
+// Admin: promo with image (+ optional caption, or add text later)
 bot.on('message:photo', async (ctx) => {
   if (ctx.from?.id !== ADMIN_ID) return;
   const state = _adminState[ADMIN_ID];
@@ -833,19 +835,23 @@ bot.on('message:photo', async (ctx) => {
     delete _adminState[ADMIN_ID];
     return ctx.reply('Promo cancelled. Back to /tools');
   }
-  _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: caption, promoPhotoFileId: fileId };
-  const capPreview = caption ? `${caption}\n\n` : '';
-  await ctx.reply(
-    `PREVIEW (photo + caption):\n\n${capPreview}Send this photo to all players?`,
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '✅ SEND TO ALL', callback_data: 'promo_confirm' }],
-          [{ text: '❌ CANCEL', callback_data: 'promo_cancel' }],
-        ],
+  if (caption) {
+    _adminState[ADMIN_ID] = { step: 'confirming_promo', promoText: caption, promoPhotoFileId: fileId };
+    await ctx.reply(
+      `PREVIEW (photo + caption):\n\n${caption}\n\nSend this to all players?`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ SEND TO ALL', callback_data: 'promo_confirm' }],
+            [{ text: '❌ CANCEL', callback_data: 'promo_cancel' }],
+          ],
+        },
       },
-    },
-  );
+    );
+  } else {
+    _adminState[ADMIN_ID] = { step: 'awaiting_promo', promoPhotoFileId: fileId };
+    await ctx.reply('Photo saved. Now send the text for this promo (or /cancel to abort).');
+  }
 });
 
 // Back to tools menu (shared)
@@ -914,7 +920,7 @@ bot.callbackQuery('tools_promo', async (ctx) => {
   _adminState[ADMIN_ID] = { step: 'awaiting_promo' };
   try {
     await ctx.editMessageText(
-      'PROMO MESSAGE\n\nSend text OR a photo (optional caption). I\'ll show a preview before broadcasting.\n\nSend /cancel to abort.',
+      'PROMO MESSAGE\n\nSend text, or a photo (with caption), or a photo first — then send the text separately. I\'ll show a preview before broadcasting.\n\nSend /cancel to abort.',
       { reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back_promo' }]] } },
     );
   } catch { /* ignore */ }
