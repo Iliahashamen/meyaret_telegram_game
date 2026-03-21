@@ -131,6 +131,7 @@ export const CATALOG = [
   { id: 'bullet_comet_shard', name: 'COMET SHARD',  category: 'bullet', cost: 238, description: 'Angled burn-orange comet slugs', shape: 'shard',   color: '#ff5c00' },
 
   // ── Skins (color palette for any jet) ────────────────────────────────────
+  { id: 'skin_chuck_norris',   name: 'THE CHUCK NORRIS',        category: 'skin', cost: 0,   description: 'Before there was space, there was CHUCK NORRIS!', color: '#4a5d23', accent: '#6b4423' },
   { id: 'skin_breast_cancer', name: 'I SUPPORT BREAST CANCER', category: 'skin', cost: 1,   description: 'Pink hull — fight the fight',         color: '#ff69b4', accent: '#ffffff' },
   { id: 'skin_shemesh',       name: 'SHEMESH',                  category: 'skin', cost: 137, description: 'Blazing sun — deep orange core',      color: '#ff8800', accent: '#ffee00' },
   { id: 'skin_bat_yam',       name: 'BAT YAM',                  category: 'skin', cost: 114, description: 'Ocean blue with teal shimmer',        color: '#0077ff', accent: '#00ffee' },

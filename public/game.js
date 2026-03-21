@@ -3,14 +3,14 @@
 // Asteroids-style physics, Synthwave aesthetics
 // ============================================================
 // Bump ?v= when changing db/sounds so Telegram / browsers reload module graph
-import { SFX } from './sounds.js?v=1.9.0';
+import { SFX } from './sounds.js?v=1.9.1';
 import {
   CATALOG,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost, dbGrantUpgrade,
-} from './db.js?v=1.9.0';
+} from './db.js?v=1.9.1';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -177,6 +177,24 @@ function crimsonColor(t) {
   // Deep red pulsing glow
   const pulse = 0.6 + 0.4 * Math.sin(t * 0.08);
   return `hsl(350, 90%, ${Math.round(25 + 15 * pulse)}%)`;
+}
+
+// Army camo pattern — stripes of green, brown, black dots (Chuck Norris tribute)
+const CAMO = { green: '#3d5c1e', brown: '#5c4033', black: '#1a1a1a' };
+let _camoPattern = null;
+function getCamoPattern(ctx) {
+  if (_camoPattern) return _camoPattern;
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 48;
+  const cx = c.getContext('2d');
+  cx.fillStyle = CAMO.green;
+  cx.fillRect(0, 0, 48, 48);
+  cx.fillStyle = CAMO.brown;
+  [[4,4,10,6],[28,6,8,10],[8,28,12,8],[36,32,10,10],[16,12,6,14]].forEach(([x,y,w,h]) => cx.fillRect(x,y,w,h));
+  cx.fillStyle = CAMO.black;
+  [[12,8,4,4],[32,16,5,5],[6,34,4,4],[24,4,3,3],[38,24,4,4],[18,36,5,5]].forEach(([x,y,w,h]) => cx.fillRect(x,y,w,h));
+  _camoPattern = ctx.createPattern(c, 'repeat');
+  return _camoPattern;
 }
 
 // ── Particle ──────────────────────────────────────────────────────────────────
@@ -384,6 +402,7 @@ class Ship {
     if (this.skinId === 'skin_zion')  return zionColor(this.bobTimer);
     if (this.skinId === 'skin_inferno') return infernoColor(this.bobTimer);
     if (this.skinId === 'skin_crimson') return crimsonColor(this.bobTimer);
+    if (this.skinId === 'skin_chuck_norris') return CAMO.green;
     return this.color;
   }
 
@@ -468,7 +487,10 @@ class Ship {
 
   _drawStarter(ctx, col, sz) {
     const ac = this.accent || col;
-    ctx.strokeStyle = col;
+    const camo = this.skinId === 'skin_chuck_norris';
+    const strokeCol = camo ? CAMO.green : col;
+    const accentCol = camo ? CAMO.brown : ac;
+    ctx.strokeStyle = strokeCol;
     ctx.lineWidth   = this.golden ? 2.5 : 1.8;
     ctx.beginPath();
     ctx.moveTo(0, -sz);
@@ -476,14 +498,15 @@ class Ship {
     ctx.lineTo(0, sz * 0.3);
     ctx.lineTo(-sz * 0.55, sz * 0.6);
     ctx.closePath();
+    if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
     ctx.stroke();
     // Accent crossbar + tip dot
-    glow(ctx, ac, 8);
-    ctx.strokeStyle = ac; ctx.lineWidth = 1.5;
+    glow(ctx, accentCol, 8);
+    ctx.strokeStyle = accentCol; ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(-sz * 0.38, sz * 0.15); ctx.lineTo(sz * 0.38, sz * 0.15);
     ctx.stroke();
-    ctx.fillStyle = ac;
+    ctx.fillStyle = accentCol;
     ctx.beginPath(); ctx.arc(0, -sz * 0.7, sz * 0.08, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
     this._drawFlame(ctx, col, sz);
@@ -491,18 +514,22 @@ class Ship {
 
   _drawHamud(ctx, col, sz) {
     const ac = this.accent || col;
+    const camo = this.skinId === 'skin_chuck_norris';
+    const strokeCol = camo ? CAMO.green : col;
+    const accentCol = camo ? CAMO.brown : ac;
     // Body
-    ctx.strokeStyle = col; ctx.lineWidth = 1.8;
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 1.8;
     ctx.beginPath();
     ctx.moveTo(0, -sz);
     ctx.lineTo(sz * 0.45, sz * 0.3);
     ctx.lineTo(0, sz * 0.2);
     ctx.lineTo(-sz * 0.45, sz * 0.3);
     ctx.closePath();
+    if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
     ctx.stroke();
     // Wings — accent colored
-    glow(ctx, ac, 10);
-    ctx.strokeStyle = ac; ctx.lineWidth = 1.6;
+    glow(ctx, accentCol, 10);
+    ctx.strokeStyle = accentCol; ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.moveTo(-sz * 0.45, sz * 0.3);
     ctx.lineTo(-sz * 1.1, sz * 0.5);
@@ -514,7 +541,7 @@ class Ship {
     ctx.lineTo(sz * 0.5, sz * 0.6);
     ctx.stroke();
     // Cockpit stripe in main color
-    ctx.strokeStyle = col; ctx.lineWidth = 1;
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(-sz * 0.35, 0); ctx.lineTo(sz * 0.35, 0);
     ctx.stroke();
@@ -524,8 +551,11 @@ class Ship {
 
   _drawWallaYofi(ctx, col, sz) {
     const ac = this.accent || col;
+    const camo = this.skinId === 'skin_chuck_norris';
+    const strokeCol = camo ? CAMO.green : col;
+    const accentCol = camo ? CAMO.brown : ac;
     // Sleeker fuselage
-    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, -sz * 1.1);
     ctx.lineTo(sz * 0.35, sz * 0.1);
@@ -534,10 +564,11 @@ class Ship {
     ctx.lineTo(-sz * 0.5, sz * 0.6);
     ctx.lineTo(-sz * 0.35, sz * 0.1);
     ctx.closePath();
+    if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
     ctx.stroke();
     // Delta wings — accent colored
-    glow(ctx, ac, 10);
-    ctx.strokeStyle = ac; ctx.lineWidth = 1.8;
+    glow(ctx, accentCol, 10);
+    ctx.strokeStyle = accentCol; ctx.lineWidth = 1.8;
     ctx.beginPath();
     ctx.moveTo(-sz * 0.35, sz * 0.1);
     ctx.lineTo(-sz * 1.2, sz * 0.45);
@@ -550,7 +581,7 @@ class Ship {
     ctx.stroke();
     ctx.shadowBlur = 0;
     // Glowing cockpit
-    const glowColor = ac;
+    const glowColor = accentCol;
     ctx.fillStyle = `${glowColor}55`;
     glow(ctx, glowColor, 14);
     ctx.beginPath(); ctx.ellipse(0, -sz * 0.35, sz * 0.2, sz * 0.3, 0, 0, TAU); ctx.fill();
@@ -558,7 +589,9 @@ class Ship {
   }
 
   _drawVeryScary(ctx, col, sz) {
-    const purp = col; // use passed color so skins (zion, beast, etc.) work on all jets
+    const camo = this.skinId === 'skin_chuck_norris';
+    const purp = camo ? CAMO.green : col;
+    const accentCol = camo ? CAMO.brown : purp;
 
     // Engine glow aura
     glow(ctx, purp, 22);
@@ -567,13 +600,13 @@ class Ship {
     ctx.shadowBlur = 0;
 
     // Delta-body fill
-    ctx.fillStyle = purp + '22';
     ctx.beginPath();
     ctx.moveTo(0, -sz * 1.05);
     ctx.lineTo(sz * 0.55, sz * 0.35);
     ctx.lineTo(0, sz * 0.55);
     ctx.lineTo(-sz * 0.55, sz * 0.35);
-    ctx.closePath(); ctx.fill();
+    ctx.closePath();
+    if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); } else { ctx.fillStyle = purp + '22'; ctx.fill(); }
 
     // Main fuselage outline
     glow(ctx, purp, 14);
@@ -642,9 +675,12 @@ class Ship {
 
   _drawAstrozoinker(ctx, col, sz) {
     const ac = this.accent || col;
+    const camo = this.skinId === 'skin_chuck_norris';
+    const strokeCol = camo ? CAMO.green : col;
+    const accentCol = camo ? CAMO.brown : ac;
     // Hybrid: sharp starter nose, hamud wings, walla body lines, scary angular fins — intimidating
-    glow(ctx, col, 20);
-    ctx.strokeStyle = col; ctx.lineWidth = 2.2;
+    glow(ctx, strokeCol, 20);
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 2.2;
     // Sharp pointed nose (starter-inspired, more aggressive)
     ctx.beginPath();
     ctx.moveTo(0, -sz * 1.15);
@@ -654,10 +690,11 @@ class Ship {
     ctx.lineTo(-sz * 0.25, sz * 0.55);
     ctx.lineTo(-sz * 0.5, sz * 0.25);
     ctx.closePath();
+    if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
     ctx.stroke();
     // Widened swept wings (hamud + very scary hybrid)
-    glow(ctx, ac, 12);
-    ctx.strokeStyle = ac; ctx.lineWidth = 1.8;
+    glow(ctx, accentCol, 12);
+    ctx.strokeStyle = accentCol; ctx.lineWidth = 1.8;
     [-1, 1].forEach(side => {
       ctx.beginPath();
       ctx.moveTo(side * sz * 0.5, sz * 0.25);
@@ -665,6 +702,7 @@ class Ship {
       ctx.lineTo(side * sz * 1.0, sz * 0.9);
       ctx.lineTo(side * sz * 0.25, sz * 0.55);
       ctx.closePath();
+      if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
       ctx.stroke();
       // Canard spike (scary)
       ctx.beginPath();
@@ -675,7 +713,7 @@ class Ship {
       ctx.stroke();
     });
     // Spine + crossbar (starter + walla)
-    ctx.strokeStyle = col; ctx.lineWidth = 1;
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, -sz * 1.15); ctx.lineTo(0, sz * 0.35);
     ctx.stroke();
@@ -683,8 +721,8 @@ class Ship {
     ctx.moveTo(-sz * 0.35, sz * 0.1); ctx.lineTo(sz * 0.35, sz * 0.1);
     ctx.stroke();
     // Cockpit glow
-    glow(ctx, ac, 12);
-    ctx.fillStyle = ac + '44';
+    glow(ctx, accentCol, 12);
+    ctx.fillStyle = accentCol + '44';
     ctx.beginPath(); ctx.ellipse(0, -sz * 0.4, sz * 0.14, sz * 0.22, 0, 0, TAU); ctx.fill();
     ctx.shadowBlur = 0;
     this._drawFlame(ctx, col, sz);
@@ -692,8 +730,11 @@ class Ship {
 
   _drawNegev(ctx, col, sz) {
     const ac = this.accent || col;
-    glow(ctx, col, 16);
-    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    const camo = this.skinId === 'skin_chuck_norris';
+    const strokeCol = camo ? CAMO.green : col;
+    const accentCol = camo ? CAMO.brown : ac;
+    glow(ctx, strokeCol, 16);
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, -sz * 1.05);
     ctx.lineTo(sz * 0.48, sz * 0.35);
@@ -702,9 +743,10 @@ class Ship {
     ctx.lineTo(-sz * 0.3, sz * 0.6);
     ctx.lineTo(-sz * 0.48, sz * 0.35);
     ctx.closePath();
+    if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
     ctx.stroke();
-    glow(ctx, ac, 10);
-    ctx.strokeStyle = ac; ctx.lineWidth = 1.6;
+    glow(ctx, accentCol, 10);
+    ctx.strokeStyle = accentCol; ctx.lineWidth = 1.6;
     [-1, 1].forEach(side => {
       ctx.beginPath();
       ctx.moveTo(side * sz * 0.48, sz * 0.35);
@@ -712,12 +754,13 @@ class Ship {
       ctx.lineTo(side * sz * 0.85, sz * 0.75);
       ctx.lineTo(side * sz * 0.3, sz * 0.6);
       ctx.closePath();
+      if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
       ctx.stroke();
     });
-    ctx.strokeStyle = col; ctx.lineWidth = 1;
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, -sz * 1.05); ctx.lineTo(0, sz * 0.4); ctx.stroke();
-    glow(ctx, ac, 8);
-    ctx.fillStyle = ac + '44';
+    glow(ctx, accentCol, 8);
+    ctx.fillStyle = accentCol + '44';
     ctx.beginPath(); ctx.ellipse(0, -sz * 0.45, sz * 0.15, sz * 0.24, 0, 0, TAU); ctx.fill();
     ctx.shadowBlur = 0;
     this._drawFlame(ctx, col, sz);
@@ -725,8 +768,11 @@ class Ship {
 
   _drawBabaYaga(ctx, col, sz) {
     const ac = this.accent || col;
-    glow(ctx, col, 24);
-    ctx.strokeStyle = col; ctx.lineWidth = 2.2;
+    const camo = this.skinId === 'skin_chuck_norris';
+    const strokeCol = camo ? CAMO.green : col;
+    const accentCol = camo ? CAMO.brown : ac;
+    glow(ctx, strokeCol, 24);
+    ctx.strokeStyle = strokeCol; ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.moveTo(0, -sz * 1.2);
     ctx.lineTo(sz * 0.55, sz * 0.3);
@@ -735,9 +781,10 @@ class Ship {
     ctx.lineTo(-sz * 0.35, sz * 0.65);
     ctx.lineTo(-sz * 0.55, sz * 0.3);
     ctx.closePath();
+    if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
     ctx.stroke();
-    glow(ctx, ac, 14);
-    ctx.strokeStyle = ac; ctx.lineWidth = 1.9;
+    glow(ctx, accentCol, 14);
+    ctx.strokeStyle = accentCol; ctx.lineWidth = 1.9;
     [-1, 1].forEach(side => {
       ctx.beginPath();
       ctx.moveTo(side * sz * 0.55, sz * 0.3);
@@ -745,18 +792,20 @@ class Ship {
       ctx.lineTo(side * sz * 1.15, sz * 0.95);
       ctx.lineTo(side * sz * 0.35, sz * 0.65);
       ctx.closePath();
+      if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(side * sz * 0.2, -sz * 0.65);
       ctx.lineTo(side * sz * 0.72, sz * 0);
       ctx.lineTo(side * sz * 0.55, sz * 0.15);
       ctx.closePath();
+      if (camo) { ctx.fillStyle = getCamoPattern(ctx); ctx.fill(); }
       ctx.stroke();
     });
-    ctx.strokeStyle = '#ff666688'; ctx.lineWidth = 1.2;
+    ctx.strokeStyle = camo ? (CAMO.brown + '88') : '#ff666688'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(0, -sz * 1.2); ctx.lineTo(0, sz * 0.5); ctx.stroke();
-    glow(ctx, '#ff8888', 12);
-    ctx.fillStyle = '#ff666633';
+    glow(ctx, camo ? accentCol : '#ff8888', 12);
+    ctx.fillStyle = camo ? (accentCol + '33') : '#ff666633';
     ctx.beginPath(); ctx.ellipse(0, -sz * 0.55, sz * 0.16, sz * 0.26, 0, 0, TAU); ctx.fill();
     ctx.shadowBlur = 0;
     this._drawFlame(ctx, col, sz);
@@ -3000,6 +3049,7 @@ class Game {
 
     // ── Skin color ────────────────────────────────────────────────────────
     const skinColors = {
+      skin_chuck_norris:   { color:'camo' },
       skin_breast_cancer: { color:'#ff69b4', accent:'#ffffff' },
       skin_shemesh:       { color:'#ff8800', accent:'#ffee00' },
       skin_bat_yam:       { color:'#0077ff', accent:'#00ffee' },
@@ -3029,8 +3079,13 @@ class Game {
       const sc = skinColors[equippedSkin];
       const animated = ['skin_beast','skin_acid','skin_zion','skin_inferno','skin_crimson'].includes(equippedSkin);
       if (!animated) {
-        ups.skin_color = sc.color;
-        if (sc.accent) ups.skin_accent = sc.accent;
+        if (sc.color === 'camo') {
+          ups.skin_color = CAMO.green;
+          ups.skin_accent = CAMO.brown;
+        } else {
+          ups.skin_color = sc.color;
+          if (sc.accent) ups.skin_accent = sc.accent;
+        }
       }
     }
 
@@ -3051,9 +3106,9 @@ class Game {
       Object.keys(ups).forEach(k => delete ups[k]);
       ups.jetType = wc.jet;
       if (wc.skin) {
-        const skinColors = { skin_bat_yam:{ color:'#0077ff', accent:'#00ffee' }, skin_coffee:{ color:'#6b3a1f', accent:'#f5d9a8' }, skin_chupapi:{ color:'#00dd44', accent:'#ccff00' }, skin_goldie:{ color:'#ffd700', accent:'#ffffff' }, skin_acid:{ color:'acid' }, skin_karamba:{ color:'#ff2255', accent:'#ff9900' }, skin_candy:{ color:'#ff88cc', accent:'#88ffdd' } };
+        const skinColors = { skin_chuck_norris:{ color:'camo' }, skin_bat_yam:{ color:'#0077ff', accent:'#00ffee' }, skin_coffee:{ color:'#6b3a1f', accent:'#f5d9a8' }, skin_chupapi:{ color:'#00dd44', accent:'#ccff00' }, skin_goldie:{ color:'#ffd700', accent:'#ffffff' }, skin_acid:{ color:'acid' }, skin_karamba:{ color:'#ff2255', accent:'#ff9900' }, skin_candy:{ color:'#ff88cc', accent:'#88ffdd' } };
         const sc = skinColors[wc.skin];
-        if (sc) { ups.skinId = wc.skin; if (sc.color !== 'acid') { ups.skin_color = sc.color; ups.skin_accent = sc.accent; } }
+        if (sc) { ups.skinId = wc.skin; if (sc.color === 'camo') { ups.skin_color = CAMO.green; ups.skin_accent = CAMO.brown; } else if (sc.color !== 'acid') { ups.skin_color = sc.color; ups.skin_accent = sc.accent; } }
       }
       const thrustColors = { '#00ff66':'#00ff66', '#0088ff':'#0088ff', '#ff0077':'#ff0077', '#aa44ff':'#aa44ff', '#00ffcc':'#00ffcc', 'aurora':'aurora', 'spectrum':'spectrum' };
       if (wc.thrust && thrustColors[wc.thrust]) ups.thrustColor = thrustColors[wc.thrust];
@@ -3338,9 +3393,9 @@ class Game {
     const ups = {};
     ups.jetType = wc.jet;
     if (wc.skin) {
-      const skinColors = { skin_bat_yam:{ color:'#0077ff', accent:'#00ffee' }, skin_coffee:{ color:'#6b3a1f', accent:'#f5d9a8' }, skin_chupapi:{ color:'#00dd44', accent:'#ccff00' }, skin_goldie:{ color:'#ffd700', accent:'#ffffff' }, skin_acid:{ color:'acid' }, skin_karamba:{ color:'#ff2255', accent:'#ff9900' }, skin_candy:{ color:'#ff88cc', accent:'#88ffdd' } };
+      const skinColors = { skin_chuck_norris:{ color:'camo' }, skin_bat_yam:{ color:'#0077ff', accent:'#00ffee' }, skin_coffee:{ color:'#6b3a1f', accent:'#f5d9a8' }, skin_chupapi:{ color:'#00dd44', accent:'#ccff00' }, skin_goldie:{ color:'#ffd700', accent:'#ffffff' }, skin_acid:{ color:'acid' }, skin_karamba:{ color:'#ff2255', accent:'#ff9900' }, skin_candy:{ color:'#ff88cc', accent:'#88ffdd' } };
       const sc = skinColors[wc.skin];
-      if (sc) { ups.skinId = wc.skin; if (sc.color !== 'acid') { ups.skin_color = sc.color; ups.skin_accent = sc.accent; } }
+      if (sc) { ups.skinId = wc.skin; if (sc.color === 'camo') { ups.skin_color = CAMO.green; ups.skin_accent = CAMO.brown; } else if (sc.color !== 'acid') { ups.skin_color = sc.color; ups.skin_accent = sc.accent; } }
     }
     const thrustColors = { '#00ff66':'#00ff66', '#0088ff':'#0088ff', '#ff0077':'#ff0077', '#aa44ff':'#aa44ff', '#00ffcc':'#00ffcc', 'aurora':'aurora', 'spectrum':'spectrum' };
     if (wc.thrust && thrustColors[wc.thrust]) ups.thrustColor = thrustColors[wc.thrust];
