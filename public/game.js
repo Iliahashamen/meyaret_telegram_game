@@ -5058,6 +5058,9 @@ class Game {
       entriesEl.innerHTML = top3.length > 0
         ? top3.map(e => `${e.rank}. ${e.nickname}  ${Number(e.best_score).toLocaleString()}`).join('<br>')
         : 'NO SCORES THIS WEEK';
+      const prize = data.prizeShmips != null ? Number(data.prizeShmips).toLocaleString() : '—';
+      const infoEl = document.getElementById('weekly-info');
+      if (infoEl) infoEl.textContent = `Top 3 pilots each week get ${prize} $$. Closes Tuesday 10:01.`;
       const ms = data.countdownMs || 0;
       const d = Math.floor(ms / 86400000);
       const h = Math.floor((ms % 86400000) / 3600000);

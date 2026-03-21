@@ -1,8 +1,8 @@
 // ============================================================
 // MEYARET — Weekly Top 3 Event
-// Resets each Tuesday 10:00 (WEEKLY_EVENT_TZ). Top 5 global is UNCHANGED.
-// Display rules: blank until first real score; after 24h with no scores, fill
-// with bots; if 1–2 players enter, fill remaining slots with bots.
+// Resets each Tuesday 10:01 (WEEKLY_EVENT_TZ). Top 5 global is UNCHANGED.
+// Display: bots fill empty slots until real users play.
+// Prize: set WEEKLY_PRIZE_SHMIPS in env (default 6500).
 // ============================================================
 
 import cron from 'node-cron';
@@ -10,7 +10,7 @@ import { supabase } from './supabase.js';
 
 const WEEKLY_EVENT_TZ = process.env.WEEKLY_EVENT_TZ || 'Asia/Jerusalem';
 const ADMIN_TELEGRAM_ID = Number(process.env.ADMIN_TELEGRAM_ID || 0);
-const WEEKLY_PRIZE_SHMIPS = 6500;
+const WEEKLY_PRIZE_SHMIPS = Number(process.env.WEEKLY_PRIZE_SHMIPS) || 6500;
 
 const FAKE_CALLSIGNS = [
   'VIPER', 'GHOST', 'RAVEN', 'BLAZE', 'COBRA', 'STORM', 'PHANTOM', 'FALCON',
@@ -18,7 +18,7 @@ const FAKE_CALLSIGNS = [
   'CHROME', 'EMBER', 'PULSE', 'SLASH', 'WRAITH', 'SALVO', 'RICOCHET', 'VENOM',
 ];
 
-function getNextTuesday10am() {
+function getNextTuesday1001() {
   const now = Date.now();
   const tz = WEEKLY_EVENT_TZ;
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -32,16 +32,17 @@ function getNextTuesday10am() {
     const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
     const second = parseInt(parts.find(p => p.type === 'second')?.value || '0', 10);
     if (weekday === 'Tue' && hour === 10) {
-      const adjustMs = (minute * 60 + second) * 1000;
-      const tuesday10 = new Date(cand.getTime() - adjustMs);
-      if (tuesday10.getTime() > now + 60000) return tuesday10;
+      const targetMin = 1;
+      const adjustMs = ((minute - targetMin) * 60 + second) * 1000;
+      const tuesday1001 = new Date(cand.getTime() - adjustMs);
+      if (tuesday1001.getTime() > now + 60000) return tuesday1001;
     }
   }
   return new Date(now + 7 * 24 * 60 * 60 * 1000);
 }
 
 function getCurrentWeekBounds() {
-  const next = getNextTuesday10am();
+  const next = getNextTuesday1001();
   const end = new Date(next);
   const start = new Date(next);
   start.setDate(start.getDate() - 7);
@@ -102,12 +103,7 @@ export async function getWeeklyTop3(weekBounds, options = {}) {
     .sort((a, b) => b.best_score - a.best_score)
     .slice(0, 3);
 
-  // Display rules: blank until first score; 24h no scores → fill bots; 1–2 players → fill rest
-  if (forDisplay && entries.length === 0) {
-    const hoursSinceStart = (Date.now() - start.getTime()) / (3600 * 1000);
-    if (hoursSinceStart < 24) return { top3: [], error: null };
-  }
-
+  // Bots fill empty slots until real users play (no 24h blank)
   const realIds = entries.map(e => e.telegram_id).filter(Boolean);
   const nickMap = new Map();
   if (realIds.length && supabase) {
@@ -150,7 +146,7 @@ export async function runWeeklyPayout(bot) {
     console.error('[weekly] getWeeklyTop3 error:', error);
     return;
   }
-  const realWinners = top3.filter(e => !e.isBot);
+  const realWinners = top3.filter(e => !e.isBot).slice(0, 3);
   for (const w of realWinners) {
     const { data: user } = await supabase
       .from('users')
@@ -177,7 +173,7 @@ export async function runWeeklyPayout(bot) {
 
 export async function getWeeklyEventData() {
   const { start, end } = getCurrentWeekBounds();
-  const nextClose = getNextTuesday10am();
+  const nextClose = getNextTuesday1001();
   const countdownMs = Math.max(0, nextClose.getTime() - Date.now());
   const { top3 } = await getWeeklyTop3({ start, end }, { forDisplay: true });
   return {
@@ -185,15 +181,35 @@ export async function getWeeklyEventData() {
     countdownMs,
     weekStart: start.toISOString(),
     weekEnd: end.toISOString(),
+    prizeShmips: WEEKLY_PRIZE_SHMIPS,
     top3: top3.map(({ rank, nickname, best_score, isBot }) =>
       ({ rank, nickname, best_score, isBot })),
   };
 }
 
+export function scheduleWeeklyReminder(bot) {
+  if (!ADMIN_TELEGRAM_ID) return;
+  cron.schedule('0 8 * * 2', async () => {
+    try {
+      await bot.api.sendMessage(
+        ADMIN_TELEGRAM_ID,
+        '⏰ *WEEKLY PAYOUT REMINDER*\n\nRun the payout in ~2 hours (closes 10:01). Top 3 only.',
+        {
+          parse_mode: 'Markdown',
+          reply_markup: { inline_keyboard: [[{ text: '🏆 RUN WEEKLY PAYOUT', callback_data: 'tools_weekly_payout' }]] },
+        },
+      );
+    } catch (e) {
+      console.warn('[weekly] Reminder failed:', e.message);
+    }
+  }, { timezone: WEEKLY_EVENT_TZ });
+  console.log('[weekly] Reminder scheduled: Tuesdays 08:00', WEEKLY_EVENT_TZ);
+}
+
 export function scheduleWeeklyPayout(bot) {
-  cron.schedule('0 10 * * 2', async () => {
+  cron.schedule('1 10 * * 2', async () => {
     console.log('[weekly] Cron: Running payout...');
     await runWeeklyPayout(bot);
   }, { timezone: WEEKLY_EVENT_TZ });
-  console.log('[weekly] Payout scheduled: Tuesdays 10:00', WEEKLY_EVENT_TZ);
+  console.log('[weekly] Payout scheduled: Tuesdays 10:01', WEEKLY_EVENT_TZ);
 }

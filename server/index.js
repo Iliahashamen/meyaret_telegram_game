@@ -12,7 +12,7 @@ import { scoresRouter } from './routes/scores.js';
 import { storeRouter }  from './routes/store.js';
 import { supabase }     from './supabase.js';
 import { requireTelegramAuth } from './middleware/auth.js';
-import { scheduleWeeklyPayout, runWeeklyPayout } from './weeklyEvent.js';
+import { scheduleWeeklyPayout, scheduleWeeklyReminder, runWeeklyPayout } from './weeklyEvent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
@@ -892,7 +892,7 @@ bot.callbackQuery('tools_weekly_payout', async (ctx) => {
   try {
     await runWeeklyPayout(bot);
     await ctx.editMessageText(
-      '*WEEKLY PAYOUT DONE*\n\nTop 3 from last week have been paid 6,500 $$ each. Weekly Top 3 display will show the new week.',
+      `*WEEKLY PAYOUT DONE*\n\nTop 3 from last week have been paid ${(process.env.WEEKLY_PRIZE_SHMIPS || 6500).toLocaleString()} $$ each. Weekly Top 3 display will show the new week.`,
       { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '« BACK', callback_data: 'tools_back' }]] } },
     );
   } catch (e) {
@@ -1070,6 +1070,7 @@ if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
 
     await setMenuButton();
     scheduleWeeklyPayout(bot);
+    scheduleWeeklyReminder(bot);
   });
 } else {
   app.listen(PORT, () => {
@@ -1080,6 +1081,7 @@ if (process.env.NODE_ENV === 'production' && process.env.WEBHOOK_URL) {
     onStart: () => {
       setMenuButton();
       scheduleWeeklyPayout(bot);
+      scheduleWeeklyReminder(bot);
     },
   }).catch(console.error);
 }
