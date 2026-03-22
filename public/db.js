@@ -245,9 +245,23 @@ const SPECIAL_ITEMS = [
   'rocket_skin_magenta',
 ];
 
-/** Sunday 10:00 UTC epoch for weekly rotation */
-const SPECIAL_EPOCH_MS = new Date('2025-01-05T10:00:00Z').getTime();
+/** Sunday 08:00 UTC epoch for week 0 (items 1,2,4). Weeks run Sunday 8am → next Sunday 8am. */
+const SPECIAL_EPOCH_MS = new Date('2025-03-08T08:00:00Z').getTime();
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const SUNDAY_8AM_MS = 8 * 60 * 60 * 1000; // 08:00 in ms since midnight
+
+/** Get start of current week: most recent Sunday 08:00 UTC (items run until *next* Sunday 08:00) */
+function _getCurrentWeekStart(now) {
+  const d = new Date(now);
+  const day = d.getUTCDay();
+  const msSinceMidnight = (d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds()) * 1000 + d.getUTCMilliseconds();
+  let daysBack = day;
+  if (day === 0 && msSinceMidnight < SUNDAY_8AM_MS) daysBack = 7;
+  const start = new Date(d);
+  start.setUTCDate(d.getUTCDate() - daysBack);
+  start.setUTCHours(8, 0, 0, 0);
+  return start.getTime();
+}
 
 /** Seeded shuffle for deterministic weekly picks (same week = same order for everyone) */
 function _seededShuffle(arr, seed) {
@@ -264,7 +278,9 @@ function _seededShuffle(arr, seed) {
 /** Get 3 special items for the current week. Week 1: [1,2,4]. Weeks 2–10: 27 remaining, 3/week. Week 11+: random 3 from 30. */
 export function getWeeklySpecialItems() {
   const now = Date.now();
-  const weekIndex = Math.floor((now - SPECIAL_EPOCH_MS) / WEEK_MS);
+  const weekStart = _getCurrentWeekStart(now);
+  let weekIndex = Math.floor((weekStart - SPECIAL_EPOCH_MS) / WEEK_MS);
+  if (weekIndex < 0) weekIndex = 0;
   const items = SPECIAL_ITEMS.slice(0, 30);
 
   if (weekIndex === 0) {

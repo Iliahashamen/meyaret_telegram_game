@@ -62,13 +62,16 @@ console.log('\n--- 4. db.js exports ---');
 try {
   const db = await import(pathToFileURL(path.join(ROOT, 'public/db.js')).href);
   const reqExports = [
-    'CATALOG', 'dbGetOrCreateUser', 'dbSaveScore', 'dbGetLeaderboard',
+    'CATALOG', 'getWeeklySpecialItems', 'dbGetOrCreateUser', 'dbSaveScore', 'dbGetLeaderboard',
     'dbOpenGift', 'dbGiftStatus', 'dbBuyItem', 'dbGrantUpgrade',
   ];
   for (const ex of reqExports) {
     if (typeof db[ex] !== 'undefined') ok(`db.${ex}`);
     else fail(`db missing export: ${ex}`);
   }
+  const items = db.getWeeklySpecialItems();
+  if (Array.isArray(items) && items.length === 3) ok('getWeeklySpecialItems returns 3 items');
+  else fail(`getWeeklySpecialItems: expected [item,item,item], got ${items?.length} items`);
 } catch (e) {
   fail('db module', e);
 }

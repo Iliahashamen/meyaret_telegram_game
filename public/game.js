@@ -5654,6 +5654,7 @@ class Game {
   _renderStoreTab(category) {
     const grid = document.getElementById('store-items');
     grid.innerHTML = '';
+    grid.classList.toggle('special-items', category === 'weekly');
     if (category === 'weekly') {
       const items = getWeeklySpecialItems();
       if (items.length === 0) {
