@@ -277,11 +277,15 @@ function _seededShuffle(arr, seed) {
 
 /** Get 3 special items for the current week. Week 1: [1,2,4]. Weeks 2–10: 27 remaining, 3/week. Week 11+: random 3 from 30. */
 export function getWeeklySpecialItems() {
+  const items = SPECIAL_ITEMS.slice(0, 30);
+  // Always show Cherry Bomb, Yondu Raketa, Shabeng (items 1, 2, 4) until rotation starts
+  const forceFirst = [items[0], items[1], items[3]].map(id => CATALOG.find(c => c.id === id)).filter(Boolean);
+  if (forceFirst.length === 3) return forceFirst;
+
   const now = Date.now();
   const weekStart = _getCurrentWeekStart(now);
   let weekIndex = Math.floor((weekStart - SPECIAL_EPOCH_MS) / WEEK_MS);
   if (weekIndex < 0) weekIndex = 0;
-  const items = SPECIAL_ITEMS.slice(0, 30);
 
   if (weekIndex === 0) {
     return [items[0], items[1], items[3]].map(id => CATALOG.find(c => c.id === id)).filter(Boolean);
