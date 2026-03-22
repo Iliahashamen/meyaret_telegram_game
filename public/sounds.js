@@ -607,6 +607,25 @@ export const SFX = {
     }
   },
 
+  startGiftMusic() {
+    if (this.muted || _musicMode === 'gift') return;
+    _stopMusicLoop();
+    _musicMode = 'gift';
+    const TEMPO = 220;
+    const CHORDS = [[392, 494, 587], [440, 554, 659], [494, 587, 698], [392, 494, 587]];
+    let i = 0;
+    _musicTimer = setInterval(() => {
+      if (this.muted || _musicMode !== 'gift') return;
+      const t = _now();
+      const chord = CHORDS[i % CHORDS.length];
+      chord.forEach((freq, j) => {
+        _playTone(freq, t + j * 0.03, 0.35, 'triangle', 0.04 - j * 0.008);
+      });
+      _playTone(392 * 2, t + 0.05, 0.12, 'sine', 0.06);
+      i++;
+    }, TEMPO);
+  },
+
   startMenuMusic() {
     if (this.muted || _musicMode === 'menu') return;
     _stopMusicLoop();

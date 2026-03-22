@@ -1927,8 +1927,9 @@ class BigBossAlien {
     this.rocketRate = Math.max(45, Math.floor(opts.rocketRate ?? 170));
     this.rocketTimer = 0;
     this.canShootRockets = !!opts.canShootRockets;
-    this.color = '#ffd700';
+    this.color = opts.color ?? '#ffd700';
     this.elite = !!opts.elite; // red+green glow, beefier
+    this.redCalm = !!opts.redCalm; // red glowing, no shooting, easy
     /** 'single' | 'split' (2) | 'triple' (3-spread) */
     this.bulletSpread = opts.bulletSpread || 'single';
     this.spawnIFrames = Math.max(0, Math.floor(opts.spawnIFrames ?? 0));
@@ -1970,7 +1971,10 @@ class BigBossAlien {
   draw(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y + Math.sin(this.bobTimer * 0.03) * 6);
-    if (this.elite) {
+    if (this.redCalm) {
+      glow(ctx, '#ff2200', 32);
+      glow(ctx, '#ff6666', 20);
+    } else if (this.elite) {
       glow(ctx, '#ff0000', 28);
       glow(ctx, '#00ff44', 20);
     } else {
@@ -2315,6 +2319,7 @@ async function _animateGiftOpen(rewardType) {
   const lid   = document.getElementById('gift-lid');
   const sparks = document.getElementById('gift-sparks');
   if (!box) return;
+  try { SFX.startGiftMusic && SFX.startGiftMusic(); } catch (_) {}
   // Phase 1 — gentle float wobble (400ms)
   box.classList.remove('gift-idle');
   box.style.transition = 'transform 0.4s'; box.style.transform = 'scale(1.06)';
@@ -2343,6 +2348,7 @@ async function _animateGiftOpen(rewardType) {
   _spawnGiftSparks(sparks, rewardType);
   await new Promise(r => setTimeout(r, 600));
   box.style.filter = '';
+  try { SFX.stopMusic && SFX.stopMusic(); SFX.startMenuMusic && SFX.startMenuMusic(); } catch (_) {}
 }
 
 // ── Rocket threat-scoring — higher = intercept this first ─────────────────────
@@ -3112,7 +3118,9 @@ class Game {
     const upgCount = Object.keys(ups).filter(k => !['jetType','extra_life','extra_flare','extra_shield','extra_rocket'].includes(k)).length;
     const power = jetTier + upgCount;
     this._powerMult = power <= 4 ? 0.82 : power <= 10 ? 1.0 : 1.22;
-    this._chaosAtSec = power <= 4 ? 480 : power <= 10 ? 360 : 240; // 8min / 6min / 4min — chaos hits sooner
+    let chaos = power <= 4 ? 480 : power <= 10 ? 360 : 240;
+    if (!this.arcadeMode && !this.bossmanMode) chaos = Math.round(chaos * 1.15); // Survival ~15% calmer
+    this._chaosAtSec = chaos;
     // Score multiplier: x2 and x3 are permanent, stack to x6
     let mult = 1;
     if (ups.score_x2) mult *= 2;
@@ -3617,19 +3625,36 @@ class Game {
     this._survivalBossFight = true;
     this._arcadePurgeBetweenWaves();
     const n = this._survivalBossesDefeated;
-    const o = buildScaledBossOpts(n);
+    const bossNum = n + 1;
+    const isRedCalmBoss = bossNum % 7 === 0; // Every 7th boss: red, no shooting, easy, +0.2
     const { x, y } = _randomBossSpawnPos(this.W, this.H);
-    this.arcadeBosses.push(new BigBossAlien(x, y, this.W, {
-      health: o.health,
-      shootRate: o.shootRate,
-      canShootRockets: o.canShootRockets,
-      rocketRate: o.rocketRate,
-      vx: o.vx,
-      vy: o.vy,
-      elite: o.elite,
-    }));
-    const tier = n + 1 >= 20 ? ' — IMPOSSIBLE' : n + 1 >= 10 ? ' — HARD' : '';
-    new FloatingText(this.W / 2, this.H / 2, `BOSS ${n + 1} INCOMING${tier}`, '#ffd700');
+    if (isRedCalmBoss) {
+      this.arcadeBosses.push(new BigBossAlien(x, y, this.W, {
+        health: 3,
+        shootRate: 99999,
+        canShootRockets: false,
+        rocketRate: 99999,
+        vx: 0.35,
+        vy: 0.4,
+        elite: false,
+        color: '#ff2200',
+        redCalm: true,
+      }));
+      new FloatingText(this.W / 2, this.H / 2, 'RED BOSS — EASY KILL +0.2', '#ff4466');
+    } else {
+      const o = buildScaledBossOpts(n);
+      this.arcadeBosses.push(new BigBossAlien(x, y, this.W, {
+        health: o.health,
+        shootRate: o.shootRate,
+        canShootRockets: o.canShootRockets,
+        rocketRate: o.rocketRate,
+        vx: o.vx,
+        vy: o.vy,
+        elite: o.elite,
+      }));
+      const tier = bossNum >= 20 ? ' — IMPOSSIBLE' : bossNum >= 10 ? ' — HARD' : '';
+      new FloatingText(this.W / 2, this.H / 2, `BOSS ${bossNum} INCOMING${tier}`, '#ffd700');
+    }
   }
 
   _onBossKilled() {
@@ -3718,6 +3743,7 @@ class Game {
     const chaos = timeS >= chaosAt;
     const ramp5 = timeS >= 180 ? Math.floor(timeS / 180) * 0.25 : 0;
     const powerMult = this._powerMult ?? 1.0;
+    const survivalCalm = !this.arcadeMode && !this.bossmanMode ? 1.15 : 1.0; // Survival ~15% slower spawns
 
     // During dogfight (red fighters or homing rockets active) keep the field sparse —
     // just enough rocks to use as cover; in chaos mode allow more
@@ -3730,9 +3756,9 @@ class Game {
 
     // Note: we never cull existing asteroids — they stay as cover during dogfights
 
-    const spawnRamp = (1 + ramp5) * powerMult;
+    const spawnRamp = (1 + ramp5) * powerMult * (1 / survivalCalm);
     const tenMinAsteroidBoost = timeS >= 360 ? 1.2 : 1;
-    const baseInterval = Math.max(85 - Math.floor(timeS * 0.9), 14);
+    const baseInterval = Math.max(85 - Math.floor(timeS * 0.9), 14) * survivalCalm;
     const spawnInterval = chaos
       ? Math.max(Math.floor((baseInterval - 22) / (1.3 * spawnRamp * tenMinAsteroidBoost)), 12)
       : Math.floor(baseInterval / (1.15 * spawnRamp));
@@ -3919,7 +3945,8 @@ class Game {
     const chaosAt = this._chaosAtSec ?? 600;
     const chaos = timeS >= chaosAt;
     const powerMult = this._powerMult ?? 1.0;
-    const dMult = 1.7 * powerMult; // higher base = more action
+    const survivalCalm = !this.arcadeMode && !this.bossmanMode ? 0.85 : 1.0; // Survival ~15% easier
+    const dMult = 1.7 * powerMult * survivalCalm; // higher base = more action
     const ramp5 = timeS >= 180 ? Math.floor(timeS / 180) * 0.3 : 0;
     const tenMinRamp = timeS >= 360 ? Math.min(0.35, (timeS - 360) / 600) : 0; // +35% after 6 min
     const lateRamp = timeS >= 600 ? Math.min(0.6, (timeS - 600) / 1200) : 0; // +60% after 10 min
