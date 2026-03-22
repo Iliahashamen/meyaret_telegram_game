@@ -168,7 +168,119 @@ export const CATALOG = [
     description: '5 lives · 7 flares · 8 rockets · 4 Shields · ×1.8 fire', lives: 5, flares: 7, rockets: 8, shield: true, jetShieldBase: 4, fireMult: 1.8 },
   { id: 'plane_astrozoinker', name: 'ASTROZOINKER',    category: 'plane', cost: 65550,
     description: '5 lives · 9 flares · 11 rockets · 7 Shields · ×2 fire', lives: 5, flares: 9, rockets: 11, shield: true, jetShieldBase: 7, fireMult: 2 },
+
+  // ── Special (888$$, rotated weekly, only in SPECIAL tab) ─────────────────────
+  { id: 'skin_cherry_bomb',     name: 'CHERRY BOMB',       category: 'skin', cost: 888, special: true,
+    description: 'Pink/purple/red camo with bright heart center', color: '#ff69b4', accent: '#ff0066' },
+  { id: 'rocket_skin_yondu',    name: 'YONDU RAKETA',      category: 'rocket_skin', cost: 888, special: true,
+    description: 'Smart rocket skin: bright red', color: '#ff2200' },
+  { id: 'skin_money',           name: 'MONEY!',            category: 'skin', cost: 888, special: true,
+    description: 'Green dollar skin with $ in middle', color: '#00aa44', accent: '#ffffff' },
+  { id: 'bullet_shabeng',       name: 'SHABENG',           category: 'bullet', cost: 888, special: true,
+    description: 'Green bullets, shape ^', shape: 'arrow', color: '#00cc66' },
+  { id: 'thrust_estoy_loco',    name: 'ESTOY LOCO',        category: 'thrust', cost: 888, special: true,
+    description: 'Very fast rainbow cycling thrust', color: 'spectrum_fast' },
+  { id: 'skin_playa',           name: 'PLAYA',             category: 'skin', cost: 888, special: true,
+    description: 'Purple camo with 69 in middle', color: '#8844aa', accent: '#cc88ff' },
+  { id: 'rocket_skin_gay',      name: 'GAY ROCKETS',       category: 'rocket_skin', cost: 888, special: true,
+    description: 'Rainbow rockets, each a different color', color: 'spectrum' },
+  { id: 'skin_scizo',           name: 'SCIZO',             category: 'skin', cost: 888, special: true,
+    description: 'Color-changing skin with glitch shake', color: 'scizo' },
+  { id: 'skin_neon_phoenix',    name: 'NEON PHOENIX',      category: 'skin', cost: 888, special: true,
+    description: 'Electric orange-pink flames', color: '#ff6600', accent: '#ff00aa' },
+  { id: 'bullet_void',          name: 'VOID BULLETS',      category: 'bullet', cost: 888, special: true,
+    description: 'Dark purple hollow slugs', shape: 'default', color: '#6600aa' },
+  { id: 'thrust_sunset',        name: 'SUNSET ROCKET',     category: 'thrust', cost: 888, special: true,
+    description: 'Orange-to-purple gradient thrust', color: '#ff6600' },
+  { id: 'thrust_arctic',        name: 'ARCTIC THRUST',     category: 'thrust', cost: 888, special: true,
+    description: 'Ice-blue frost glow', color: '#88ddff' },
+  { id: 'skin_tiger_stripe',    name: 'TIGER STRIPE',      category: 'skin', cost: 888, special: true,
+    description: 'Black and orange tiger camo', color: '#333333', accent: '#ff8800' },
+  { id: 'bullet_plasma',        name: 'PLASMA BOLTS',      category: 'bullet', cost: 888, special: true,
+    description: 'Magenta plasma cores', shape: 'bolt', color: '#ff00aa' },
+  { id: 'rocket_skin_inferno',  name: 'INFERNO ROCKET',    category: 'rocket_skin', cost: 888, special: true,
+    description: 'Flame-red rocket trail', color: '#ff3300' },
+  { id: 'skin_ocean_camo',      name: 'OCEAN CAMO',        category: 'skin', cost: 888, special: true,
+    description: 'Deep blue and teal naval camo', color: '#004466', accent: '#00aacc' },
+  { id: 'bullet_cherry',        name: 'CHERRY SLUGS',      category: 'bullet', cost: 888, special: true,
+    description: 'Cherry-red heart-shaped bullets', shape: 'heart', color: '#cc2244' },
+  { id: 'thrust_neon_green',    name: 'NEON GREEN BLAST',  category: 'thrust', cost: 888, special: true,
+    description: 'Electric lime thrust', color: '#00ff44' },
+  { id: 'skin_digital_camo',    name: 'DIGITAL CAMO',     category: 'skin', cost: 888, special: true,
+    description: 'Pixelated green-gray military camo', color: '#556644', accent: '#889966' },
+  { id: 'rocket_skin_cyan',     name: 'CYAN ROCKET',       category: 'rocket_skin', cost: 888, special: true,
+    description: 'Bright cyan rocket trail', color: '#00ffff' },
+  { id: 'bullet_gold_spike',    name: 'GOLD SPIKES',      category: 'bullet', cost: 888, special: true,
+    description: 'Gold spike-shaped bullets', shape: 'shard', color: '#ffd700' },
+  { id: 'skin_forest_ghost',   name: 'FOREST GHOST',      category: 'skin', cost: 888, special: true,
+    description: 'Muted green-brown woodland camo', color: '#3d5c33', accent: '#6b8e4e' },
+  { id: 'thrust_magma',         name: 'MAGMA THRUST',      category: 'thrust', cost: 888, special: true,
+    description: 'Molten orange-red thrust', color: '#ff4400' },
+  { id: 'skin_night_ops',       name: 'NIGHT OPS',        category: 'skin', cost: 888, special: true,
+    description: 'Dark navy stealth camo', color: '#1a1a2e', accent: '#4a4a6a' },
+  { id: 'bullet_ice_shard',     name: 'ICE SHARDS',       category: 'bullet', cost: 888, special: true,
+    description: 'Frozen cyan crystal bullets', shape: 'shard', color: '#66ccff' },
+  { id: 'rocket_skin_gold',     name: 'GOLD ROCKET',      category: 'rocket_skin', cost: 888, special: true,
+    description: 'Golden rocket trail', color: '#ffd700' },
+  { id: 'skin_desert_tan',      name: 'DESERT TAN',       category: 'skin', cost: 888, special: true,
+    description: 'Sandy tan desert camo', color: '#c4a574', accent: '#8b7355' },
+  { id: 'thrust_electric',      name: 'ELECTRIC PURPLE',  category: 'thrust', cost: 888, special: true,
+    description: 'Electric violet thrust', color: '#8800ff' },
+  { id: 'bullet_void_diamond',  name: 'VOID DIAMONDS',    category: 'bullet', cost: 888, special: true,
+    description: 'Dark diamond bullets', shape: 'diamond', color: '#330044' },
+  { id: 'skin_urban_gray',      name: 'URBAN GRAY',       category: 'skin', cost: 888, special: true,
+    description: 'Concrete gray urban camo', color: '#6b6b6b', accent: '#9a9a9a' },
+  { id: 'rocket_skin_magenta',  name: 'MAGENTA ROCKET',    category: 'rocket_skin', cost: 888, special: true,
+    description: 'Hot pink rocket trail', color: '#ff0088' },
 ];
+
+// Special store: 30 items, 3/week. Week 1: 1,2,4. Weeks 2–10: remaining 27 (no repeat). Week 11+: random 3 from full list.
+const SPECIAL_ITEMS = [
+  'skin_cherry_bomb', 'rocket_skin_yondu', 'skin_money', 'bullet_shabeng', 'thrust_estoy_loco',
+  'skin_playa', 'rocket_skin_gay', 'skin_scizo', 'skin_neon_phoenix', 'bullet_void',
+  'thrust_sunset', 'thrust_arctic', 'skin_tiger_stripe', 'bullet_plasma', 'rocket_skin_inferno',
+  'skin_ocean_camo', 'bullet_cherry', 'thrust_neon_green', 'skin_digital_camo', 'rocket_skin_cyan',
+  'bullet_gold_spike', 'skin_forest_ghost', 'thrust_magma', 'skin_night_ops', 'bullet_ice_shard',
+  'rocket_skin_gold', 'skin_desert_tan', 'thrust_electric', 'bullet_void_diamond', 'skin_urban_gray',
+  'rocket_skin_magenta',
+];
+
+/** Sunday 10:00 UTC epoch for weekly rotation */
+const SPECIAL_EPOCH_MS = new Date('2025-01-05T10:00:00Z').getTime();
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Seeded shuffle for deterministic weekly picks (same week = same order for everyone) */
+function _seededShuffle(arr, seed) {
+  const a = [...arr];
+  let s = seed;
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (s * 9301 + 49297) % 233280;
+    const j = Math.floor((s / 233280) * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** Get 3 special items for the current week. Week 1: [1,2,4]. Weeks 2–10: 27 remaining, 3/week. Week 11+: random 3 from 30. */
+export function getWeeklySpecialItems() {
+  const now = Date.now();
+  const weekIndex = Math.floor((now - SPECIAL_EPOCH_MS) / WEEK_MS);
+  const items = SPECIAL_ITEMS.slice(0, 30);
+
+  if (weekIndex === 0) {
+    return [items[0], items[1], items[3]].map(id => CATALOG.find(c => c.id === id)).filter(Boolean);
+  }
+  if (weekIndex >= 1 && weekIndex <= 9) {
+    const remaining = [2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29];
+    const shuffled = _seededShuffle(remaining, weekIndex);
+    const start = (weekIndex - 1) * 3;
+    const indices = shuffled.slice(start, start + 3);
+    return indices.map(i => CATALOG.find(c => c.id === items[i])).filter(Boolean);
+  }
+  const shuffled = _seededShuffle([...Array(30).keys()], weekIndex);
+  const indices = shuffled.slice(0, 3);
+  return indices.map(i => CATALOG.find(c => c.id === items[i])).filter(Boolean);
+}
 
 // ── 4hr Gift reward table (improved rarities, better payouts) ─────────────────────────────
 const GIFT_REWARDS = [

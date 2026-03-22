@@ -6,11 +6,12 @@
 import { SFX } from './sounds.js?v=1.9.1';
 import {
   CATALOG,
+  getWeeklySpecialItems,
   dbGetOrCreateUser, dbSaveScore, dbGetLeaderboard,
   dbSaveCallsign, dbCheckCallsign,
   dbGetUserUpgrades, dbBuyItem, dbRefundLazerPew,
   dbGiftStatus, dbOpenGift, dbAddBonusShmips, dbConsumeBoost, dbGrantUpgrade,
-} from './db.js?v=1.9.1';
+} from './db.js?v=1.9.2';
 
 // ── Telegram WebApp Init ──────────────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
@@ -438,6 +439,7 @@ class Ship {
     if (this.skinId === 'skin_zion')  return zionColor(this.bobTimer);
     if (this.skinId === 'skin_inferno') return infernoColor(this.bobTimer);
     if (this.skinId === 'skin_crimson') return crimsonColor(this.bobTimer);
+    if (this.skinId === 'skin_scizo')  return rainbowColor(this.bobTimer, 2.5);
     if (this.skinId === 'skin_chuck_norris') return CAMO.stroke;
     return this.color;
   }
@@ -861,6 +863,7 @@ class Ship {
     let flameCol = this.thrustColor || (this.golden ? C.golden : '#ff6600');
     if (flameCol === 'aurora') flameCol = auroraColor(this.bobTimer);
     else if (flameCol === 'spectrum') flameCol = spectrumColor(this.bobTimer);
+    else if (flameCol === 'spectrum_fast') flameCol = spectrumColor(this.bobTimer * 3);
     ctx.strokeStyle = this.golden ? C.golden : flameCol;
     glow(ctx, flameCol, 16);
     ctx.lineWidth = 2;
@@ -920,6 +923,7 @@ class Ship {
       let laserColor = this.isStarOverdrive ? '#b45cff' : (this.tempMonsterFuelUntil > 0 ? '#ffffff' : (this.bulletColor || null));
       if (laserColor === 'aurora') laserColor = auroraColor(this.bobTimer);
       else if (laserColor === 'spectrum') laserColor = spectrumColor(this.bobTimer);
+      else if (laserColor === 'spectrum_fast') laserColor = spectrumColor(this.bobTimer * 3);
     if (this.hasTripple && this.hasShplit) {
       // laser + triple + shplit: 6 pink/laser beams
       [-0.22, 0, 0.22].forEach(spread => {
@@ -946,6 +950,7 @@ class Ship {
     let bcol = this.ripFuryActive ? rainbowColor(this.bobTimer, 3) : (this.tempMonsterFuelUntil > 0 ? '#ffffff' : this.bulletColor);
     if (bcol === 'aurora') bcol = auroraColor(this.bobTimer);
     else if (bcol === 'spectrum') bcol = spectrumColor(this.bobTimer);
+    else if (bcol === 'spectrum_fast') bcol = spectrumColor(this.bobTimer * 3);
     if (this.hasTripple && this.hasShplit) {
       // shplit + triple = 6 bullets: 2 parallel per direction
       [-0.22, 0, 0.22].forEach(spread => {
@@ -1228,6 +1233,16 @@ class Bullet {
       ctx.lineTo(this.radius * 0.45, this.radius * 0.9);
       ctx.lineTo(-this.radius * 0.35, this.radius * 1.0);
       ctx.lineTo(-this.radius * 0.85, -this.radius * 0.25);
+      ctx.closePath(); ctx.fill();
+    } else if (this.shape === 'arrow') {
+      ctx.beginPath();
+      ctx.moveTo(0, -this.radius * 1.2);
+      ctx.lineTo(this.radius * 0.8, this.radius * 0.8);
+      ctx.lineTo(this.radius * 0.3, this.radius * 0.3);
+      ctx.lineTo(this.radius * 0.3, this.radius * 1.2);
+      ctx.lineTo(-this.radius * 0.3, this.radius * 1.2);
+      ctx.lineTo(-this.radius * 0.3, this.radius * 0.3);
+      ctx.lineTo(-this.radius * 0.8, this.radius * 0.8);
       ctx.closePath(); ctx.fill();
     } else {
       ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, TAU); ctx.fill();
@@ -3129,12 +3144,24 @@ class Game {
       skin_crimson:       { color:'#cc0044', accent:'#ff4466' },
       skin_plasma_veil:   { color:'#00f5d4', accent:'#9b5de5' },
       skin_rust_moon:     { color:'#b5651d', accent:'#e8a0bf' },
+      skin_cherry_bomb:   { color:'#ff69b4', accent:'#ff0066' },
+      skin_money:         { color:'#00aa44', accent:'#ffffff' },
+      skin_playa:         { color:'#8844aa', accent:'#cc88ff' },
+      skin_scizo:         { color:'rainbow' },
+      skin_neon_phoenix:  { color:'#ff6600', accent:'#ff00aa' },
+      skin_tiger_stripe:  { color:'#333333', accent:'#ff8800' },
+      skin_ocean_camo:    { color:'#004466', accent:'#00aacc' },
+      skin_digital_camo:  { color:'#556644', accent:'#889966' },
+      skin_forest_ghost:  { color:'#3d5c33', accent:'#6b8e4e' },
+      skin_night_ops:     { color:'#1a1a2e', accent:'#4a4a6a' },
+      skin_desert_tan:    { color:'#c4a574', accent:'#8b7355' },
+      skin_urban_gray:    { color:'#6b6b6b', accent:'#9a9a9a' },
     };
 
     if (equippedSkin && this.upgrades[equippedSkin] && skinColors[equippedSkin]) {
       ups.skinId = equippedSkin;
       const sc = skinColors[equippedSkin];
-      const animated = ['skin_beast','skin_acid','skin_zion','skin_inferno','skin_crimson'].includes(equippedSkin);
+      const animated = ['skin_beast','skin_acid','skin_zion','skin_inferno','skin_crimson','skin_scizo'].includes(equippedSkin);
       if (!animated) {
         if (sc.color === 'camo') {
           ups.skin_color = CAMO.stroke;
@@ -5459,6 +5486,31 @@ class Game {
       area.appendChild(row);
     });
 
+    // ── Rocket skins section (when owned) ───────────────────────────────────────
+    const ownedRocketSkins = CATALOG.filter(c => c.category === 'rocket_skin' && (this.upgrades[c.id] || 0) > 0);
+    if (ownedRocketSkins.length > 0) {
+      this._arsSection(area, '-- ROCKET SKINS --');
+      const equippedRocketSkin = localStorage.getItem('meyaret_equip_rocket_skin') || '';
+      const defRow = document.createElement('div'); defRow.className = 'ars-equip-item';
+      defRow.innerHTML = `<span class="ars-name">DEFAULT</span><button class="ars-equip-btn${!equippedRocketSkin?' equipped':''}">${!equippedRocketSkin?'ACTIVE':'EQUIP'}</button>`;
+      if (equippedRocketSkin) {
+        defRow.querySelector('button').addEventListener('click', () => {
+          localStorage.removeItem('meyaret_equip_rocket_skin'); SFX.btnClick(); this._renderArsenal();
+        });
+      }
+      area.appendChild(defRow);
+      ownedRocketSkins.forEach(rs => {
+        const equipped = rs.id === equippedRocketSkin;
+        const row = document.createElement('div'); row.className = 'ars-equip-item';
+        const dot = rs.color && typeof rs.color === 'string' && rs.color.startsWith('#') ? `<span style="display:inline-block;width:8px;height:8px;background:${rs.color};border-radius:50%;margin-right:4px;"></span>` : '';
+        row.innerHTML = `<span class="ars-name">${dot}${rs.name}</span><button class="ars-equip-btn${equipped?' equipped':''}">${equipped?'ACTIVE':'EQUIP'}</button>`;
+        if (!equipped) row.querySelector('button').addEventListener('click', () => {
+          localStorage.setItem('meyaret_equip_rocket_skin', rs.id); SFX.btnClick(); this._renderArsenal();
+        });
+        area.appendChild(row);
+      });
+    }
+
     // ── Skins section ─────────────────────────────────────────────────────────
     this._arsSection(area, '-- SKINS --');
     const ownedSkins = CATALOG.filter(c => c.category === 'skin' && this.upgrades[c.id] > 0);
@@ -5603,11 +5655,38 @@ class Game {
     const grid = document.getElementById('store-items');
     grid.innerHTML = '';
     if (category === 'weekly') {
-      grid.innerHTML = '<div class="store-weekly-soon">COMING SOON!</div>';
+      const items = getWeeklySpecialItems();
+      if (items.length === 0) {
+        grid.innerHTML = '<div class="store-weekly-soon">NO SPECIAL ITEMS THIS WEEK</div>';
+        return;
+      }
+      items.forEach(item => {
+        const qty = this.upgrades[item.id] || 0;
+        const locked = !item.stackable && qty > 0;
+        const canAfford = Number(this.userData?.shmips || 0) >= (item.cost || 0);
+        const btnLabel = locked ? 'OWNED' : 'BUY';
+        const costStr = `${item.cost || 888} $$`;
+        const isDisabled = !locked && !canAfford;
+        const colorDot = ((item.category === 'skin' || item.category === 'thrust' || item.category === 'bullet' || item.category === 'rocket_skin') && item.color)
+          ? `<span style="display:inline-block;width:10px;height:10px;background:${item.color};border-radius:50%;margin-right:4px;vertical-align:middle;"></span>`
+          : '';
+        const el = document.createElement('div'); el.className = 'store-item';
+        el.innerHTML = `
+          <div class="store-item-info">
+            <div class="store-item-name">${colorDot}${item.name}</div>
+            <div class="store-item-desc">${item.description}</div>
+          </div>
+          <span class="store-item-cost">${costStr}</span>
+          <button class="store-buy-btn${locked ? ' owned' : ''}${isDisabled && !locked ? ' disabled' : ''}" data-id="${item.id}" ${isDisabled && !locked ? 'disabled' : ''}>
+            ${btnLabel}
+          </button>`;
+        if (!locked) el.querySelector('button').addEventListener('click', () => this._buyItem(item));
+        grid.appendChild(el);
+      });
       return;
     }
     const items = (this._catalog || [])
-      .filter(item => item.category === category)
+      .filter(item => item.category === category && !item.special)
       .filter(item => item.id !== 'thrust_default' && item.id !== 'bullet_default');
     if (items.length === 0) return;
     items.forEach(item => {
