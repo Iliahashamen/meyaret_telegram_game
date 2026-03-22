@@ -245,8 +245,8 @@ const SPECIAL_ITEMS = [
   'rocket_skin_magenta',
 ];
 
-/** Sunday 08:00 UTC — Items 1,2,4 (Cherry Bomb, Yondu, Shabeng) always first until rotation starts. */
-const SPECIAL_EPOCH_MS = new Date('2026-01-01T08:00:00Z').getTime();
+/** Sunday 08:00 UTC — Week 0 = Cherry, Yondu, Shabeng. Next Sunday 8am = 3 others. Update this date when rotating. */
+const SPECIAL_EPOCH_MS = new Date('2025-04-06T08:00:00Z').getTime();
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const SUNDAY_8AM_MS = 8 * 60 * 60 * 1000; // 08:00 in ms since midnight
 
@@ -275,13 +275,9 @@ function _seededShuffle(arr, seed) {
   return a;
 }
 
-/** Get 3 special items for the current week. Week 1: [1,2,4]. Weeks 2–10: 27 remaining, 3/week. Week 11+: random 3 from 30. */
+/** Get 3 special items for the current week. Week 0: Cherry, Yondu, Shabeng. Weeks 1–9: 27 remaining. Week 10+: random 3. */
 export function getWeeklySpecialItems() {
   const items = SPECIAL_ITEMS.slice(0, 30);
-  // Always show Cherry Bomb, Yondu Raketa, Shabeng (items 1, 2, 4) until rotation starts
-  const forceFirst = [items[0], items[1], items[3]].map(id => CATALOG.find(c => c.id === id)).filter(Boolean);
-  if (forceFirst.length === 3) return forceFirst;
-
   const now = Date.now();
   const weekStart = _getCurrentWeekStart(now);
   let weekIndex = Math.floor((weekStart - SPECIAL_EPOCH_MS) / WEEK_MS);
