@@ -1993,38 +1993,51 @@ function _randomBossSpawnPos(W, H) {
   return { x: -40, y: rng(80, H - 80) };
 }
 
-/** Survival & Bossman: same base curve; boss #10+ hard, #20+ impossible (elite glow) */
+/** Survival & Bossman: tiers easy 1–5, med 6–9, hard 10–13, impossible 14–19, 20+ brutal */
 function buildScaledBossOpts(bossIndexDefeated) {
   const n = bossIndexDefeated;
   const bossNum = n + 1;
-  const STRONG = 1.6;
-  let health = 5 * Math.pow(1.2, n) * STRONG;
-  const fireMult = 1 + (0.2 * n);
-  const canShootRockets = n >= 2;
-  let shootRate = Math.max(16, Math.floor(81 / fireMult));
-  let rocketRate = Math.max(50, Math.floor((160 - n * 8) / STRONG));
-  let vx = (0.24 + n * 0.01) * STRONG;
-  let vy = (0.34 + n * 0.01) * STRONG;
+  const STRONG = 1.65;
+  let health = 5 * Math.pow(1.22, n) * STRONG;
+  let fireMult = 1 + (0.18 * n);
+  const canShootRockets = n >= 1;
+  let shootRate = Math.max(14, Math.floor(78 / fireMult));
+  let rocketRate = Math.max(45, Math.floor((155 - n * 7) / STRONG));
+  let vx = (0.26 + n * 0.012) * STRONG;
+  let vy = (0.36 + n * 0.012) * STRONG;
   let elite = false;
   if (bossNum >= 20) {
-    health *= 2.15;
-    shootRate = Math.max(10, Math.floor(shootRate / 1.5));
-    rocketRate = Math.max(32, Math.floor(rocketRate / 1.5));
-    vx *= 1.35;
-    vy *= 1.35;
+    health *= 2.6;
+    shootRate = Math.max(6, Math.floor(shootRate / 1.8));
+    rocketRate = Math.max(20, Math.floor(rocketRate / 1.8));
+    vx *= 1.5;
+    vy *= 1.5;
+    elite = true;
+  } else if (bossNum >= 14) {
+    health *= 1.85;
+    shootRate = Math.max(8, Math.floor(shootRate / 1.4));
+    rocketRate = Math.max(28, Math.floor(rocketRate / 1.4));
+    vx *= 1.28;
+    vy *= 1.28;
     elite = true;
   } else if (bossNum >= 10) {
-    health *= 1.42;
-    shootRate = Math.max(12, Math.floor(shootRate / 1.22));
-    rocketRate = Math.max(40, Math.floor(rocketRate / 1.22));
-    vx *= 1.18;
-    vy *= 1.18;
+    health *= 1.55;
+    shootRate = Math.max(10, Math.floor(shootRate / 1.25));
+    rocketRate = Math.max(35, Math.floor(rocketRate / 1.25));
+    vx *= 1.15;
+    vy *= 1.15;
+  } else if (bossNum >= 6) {
+    health *= 1.25;
+    shootRate = Math.max(12, Math.floor(shootRate / 1.1));
+    rocketRate = Math.max(40, Math.floor(rocketRate / 1.1));
+    vx *= 1.08;
+    vy *= 1.08;
   }
   return {
     health,
-    shootRate: Math.max(10, shootRate),
+    shootRate: Math.max(6, shootRate),
     canShootRockets,
-    rocketRate: Math.max(28, rocketRate),
+    rocketRate: Math.max(22, rocketRate),
     vx,
     vy,
     elite,
@@ -3612,30 +3625,39 @@ class Game {
   _spawnBossmanBoss() {
     const n = this._bossmanKills;
     const o = buildScaledBossOpts(n);
-    const BM = 1.75;
-    // Stronger every boss: compound HP + faster shots/rockets + speed (n = bosses already cleared)
-    let hpRamp = Math.pow(1.11, n);
-    const aggro = 1 + n * 0.055;
-    const moveRamp = 1 + n * 0.028;
-    // After 15th boss cleared (16th+): near-impossible tier
-    let lateHell = 1;
-    let hellAggro = 1;
-    if (n >= 15) {
-      const k = n - 14;
-      lateHell = Math.pow(1.26, k) * (1 + k * 0.12);
-      hellAggro = 1 + k * 0.11;
-      hpRamp *= 1.35;
+    // Tiers: easy 1–5, med 6–9, hard 10–13, impossible 14–19, 20+ no chance
+    let hpMult = 1, fireMult = 1, moveMult = 1;
+    if (n >= 19) {
+      hpMult = 5.5 + (n - 19) * 0.8;
+      fireMult = 3.2 + (n - 19) * 0.15;
+      moveMult = 1.9 + (n - 19) * 0.06;
+    } else if (n >= 13) {
+      hpMult = 2.8 + (n - 13) * 0.35;
+      fireMult = 1.85 + (n - 13) * 0.12;
+      moveMult = 1.45 + (n - 13) * 0.04;
+    } else if (n >= 9) {
+      hpMult = 1.9 + (n - 9) * 0.2;
+      fireMult = 1.45 + (n - 9) * 0.08;
+      moveMult = 1.25 + (n - 9) * 0.03;
+    } else if (n >= 5) {
+      hpMult = 1.35 + (n - 5) * 0.12;
+      fireMult = 1.2 + (n - 5) * 0.05;
+      moveMult = 1.1 + (n - 5) * 0.02;
+    } else {
+      hpMult = 1 + n * 0.06;
+      fireMult = 1 + n * 0.04;
+      moveMult = 1 + n * 0.025;
     }
-    const bulletSpread = n >= 8 ? 'triple' : n >= 3 ? 'split' : 'single';
+    const bulletSpread = n >= 6 ? 'triple' : n >= 2 ? 'split' : 'single';
     const { x, y } = _randomBossSpawnPos(this.W, this.H);
     this.arcadeBosses.push(new BigBossAlien(x, y, this.W, {
-      health: o.health * BM * hpRamp * lateHell,
-      shootRate: Math.max(4, Math.floor(o.shootRate / (1.32 * aggro * hellAggro))),
+      health: o.health * 1.6 * hpMult,
+      shootRate: Math.max(3, Math.floor(o.shootRate / fireMult)),
       canShootRockets: true,
-      rocketRate: Math.max(10, Math.floor(o.rocketRate / (1.28 * (1 + n * 0.048) * hellAggro))),
-      vx: o.vx * 1.14 * moveRamp * (n >= 15 ? 1.08 : 1),
-      vy: o.vy * 1.14 * moveRamp * (n >= 15 ? 1.08 : 1),
-      elite: o.elite,
+      rocketRate: Math.max(8, Math.floor(o.rocketRate / (fireMult * 1.15))),
+      vx: o.vx * moveMult,
+      vy: o.vy * moveMult,
+      elite: n >= 14,
       bulletSpread,
     }));
   }
@@ -3657,9 +3679,9 @@ class Game {
   }
 
   _getBossHitDamage(source, boss) {
+    if (source === 'rocket') return Math.max(1.5, boss.maxHealth * (this.bossmanMode ? 0.32 : 0.28)); // rockets shred bosses
     if (!this.bossmanMode) return 1;
-    if (source === 'rocket') return Math.max(0.8, boss.maxHealth * 0.15); // ~15%
-    if (source === 'smart') return Math.max(1.0, boss.maxHealth * 0.18);
+    if (source === 'smart') return Math.max(1.0, boss.maxHealth * 0.22);
     return Math.max(0.08, boss.maxHealth * 0.025); // bullets are much weaker
   }
 
