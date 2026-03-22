@@ -245,8 +245,8 @@ const SPECIAL_ITEMS = [
   'rocket_skin_magenta',
 ];
 
-/** Sunday 08:00 UTC epoch for week 0 (items 1,2,4). Weeks run Sunday 8am → next Sunday 8am. */
-const SPECIAL_EPOCH_MS = new Date('2025-03-08T08:00:00Z').getTime();
+/** Sunday 08:00 UTC epoch for week 0 (items 1,2,4). Weeks run Sunday 8am → next Sunday 8am. Set in future so 1,2,4 show until rotation starts. */
+const SPECIAL_EPOCH_MS = new Date('2025-06-01T08:00:00Z').getTime();
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const SUNDAY_8AM_MS = 8 * 60 * 60 * 1000; // 08:00 in ms since midnight
 
