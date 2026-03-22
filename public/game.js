@@ -155,6 +155,11 @@ function auroraColor(t) {
 function spectrumColor(t) {
   return rainbowColor(t, 1.6);
 }
+function _hexToRgba(hex, a) {
+  const m = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+  if (!m) return hex;
+  return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`;
+}
 function acidColor(t) {
   const h = (t * 0.45) % 360;
   const s = 100;
@@ -357,6 +362,7 @@ class Ship {
     this.thrustColor = upgrades.thrustColor || '#ff6600';
     this.bulletShape = upgrades.bulletShape || 'default';
     this.bulletColor = upgrades.bulletColor || '#ff2200';
+    this.rocketSkinColor = upgrades.rocketSkinColor || null; // overrides smart rocket blue
     this.fireCooldown = 0;
     this.thrusting    = false;
     this.tempLaserUntil      = 0;
@@ -985,7 +991,7 @@ class Ship {
     this.rocketAmmo--;
     this.rocketCooldown = forceSalvo ? 0 : this.rocketRate;
     const nose = { x: this.x + Math.cos(this.angle) * 16, y: this.y + Math.sin(this.angle) * 16 };
-    bullets.push(new PlayerRocket(nose.x, nose.y, this.angle, this.smartRocket));
+    bullets.push(new PlayerRocket(nose.x, nose.y, this.angle, this.smartRocket, false, this.rocketSkinColor));
     SFX.rocketFire();
     return true;
   }
@@ -1679,11 +1685,12 @@ class Rocket {
 
 // ── Player Rocket ─────────────────────────────────────────────────────────────
 class PlayerRocket {
-  constructor(x, y, angle, smart = false, mini = false) {
+  constructor(x, y, angle, smart = false, mini = false, rocketSkinColor = null) {
     this.x = x; this.y = y;
     this.angle = angle;
     this.smart = smart;
     this.mini  = mini;
+    this.rocketSkinColor = rocketSkinColor; // overrides smart rocket blue when set
     this.isPlayerRocket = true;
     this._dead = false;
     this._kills    = 0;
@@ -1783,13 +1790,26 @@ class PlayerRocket {
       ctx.strokeStyle = this._fromSuperRaketa ? '#66ffaa' : '#ffaa00';
       ctx.beginPath(); ctx.moveTo(-1,3); ctx.lineTo(0, 3+rng(2,6)); ctx.lineTo(1,3); ctx.stroke();
     } else {
-      const col  = this.smart ? '#0077ff' : '#ff6600';
-      const col2 = this.smart ? '#44aaff' : '#ff8800';
-      const col3 = this.smart ? '#aaddff' : '#ffee00';
+      const baseCol = this.smart && this.rocketSkinColor
+        ? (typeof this.rocketSkinColor === 'string' && this.rocketSkinColor.startsWith('#')
+            ? this.rocketSkinColor
+            : this.rocketSkinColor === 'spectrum'
+              ? spectrumColor(Date.now() / 80)
+              : this.rocketSkinColor === 'aurora'
+                ? auroraColor(Date.now() / 80)
+                : '#0077ff')
+        : this.smart ? '#0077ff' : '#ff6600';
+      const col  = this.smart && this.rocketSkinColor ? baseCol : (this.smart ? '#0077ff' : '#ff6600');
+      const col2 = this.smart && this.rocketSkinColor ? baseCol : (this.smart ? '#44aaff' : '#ff8800');
+      const col3 = this.smart && this.rocketSkinColor ? baseCol : (this.smart ? '#aaddff' : '#ffee00');
       ctx.shadowColor = col; ctx.shadowBlur = 32 * pulse;
-      ctx.strokeStyle = this.smart
-        ? `rgba(0,119,255,${0.38 * pulse})`
-        : `rgba(255,110,0,${0.35 * pulse})`;
+      let r;
+      if (this.smart && this.rocketSkinColor) {
+        r = (baseCol.startsWith('#') ? _hexToRgba(baseCol, 0.38 * pulse) : baseCol);
+      } else {
+        r = this.smart ? `rgba(0,119,255,${0.38 * pulse})` : `rgba(255,110,0,${0.35 * pulse})`;
+      }
+      ctx.strokeStyle = r;
       ctx.lineWidth = 7;
       ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(3, 4); ctx.lineTo(-3, 4); ctx.closePath(); ctx.stroke();
       glow(ctx, col, 18); ctx.strokeStyle = col2; ctx.lineWidth = 2.2;
@@ -3190,6 +3210,12 @@ class Game {
     if (bulletItem?.shape) ups.bulletShape = bulletItem.shape;
     if (bulletItem?.color) ups.bulletColor = bulletItem.color;
 
+    const equippedRocketSkin = localStorage.getItem('meyaret_equip_rocket_skin') || '';
+    if (equippedRocketSkin && (this.upgrades[equippedRocketSkin] || 0) > 0) {
+      const rocketSkinItem = CATALOG.find(c => c.id === equippedRocketSkin);
+      if (rocketSkinItem?.color) ups.rocketSkinColor = rocketSkinItem.color;
+    }
+
     if (this.userData?.has_golden_plane) ups.golden_plane = true;
 
     if (!this.upgrades) this.upgrades = {};
@@ -3892,7 +3918,7 @@ class Game {
       if (this._ramboRocketCooldown <= 0) {
         this._ramboRocketCooldown = 18;
         const nose = { x: this.ship.x + Math.cos(this.ship.angle) * 16, y: this.ship.y + Math.sin(this.ship.angle) * 16 };
-        this.playerRockets.push(new PlayerRocket(nose.x, nose.y, this.ship.angle, this.ship.smartRocket));
+        this.playerRockets.push(new PlayerRocket(nose.x, nose.y, this.ship.angle, this.ship.smartRocket, false, this.ship.rocketSkinColor));
         SFX.rocketFire();
       }
     }
